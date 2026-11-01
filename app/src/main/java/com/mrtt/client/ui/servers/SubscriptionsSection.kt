@@ -408,7 +408,7 @@ private fun ClientEditDialog(
                 },
             )
             when (hashSource) {
-                "manual" -> FormField(vkHashes, { vkHashes = it.filterNot(Char::isWhitespace) }, "VK-хеши через запятую")
+                "manual" -> com.mrtt.client.ui.common.VkHashesButton(vkHashes) { vkHashes = it }
                 "server" -> Text(
                     "Хеши создаются автоматически с VK-аккаунта, привязанного в настройках сервера.",
                     style = MaterialTheme.typography.bodySmall,

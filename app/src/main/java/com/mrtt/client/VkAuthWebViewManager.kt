@@ -33,20 +33,23 @@ internal object VkAuthWebViewManager {
     fun acquire(context: Context): WebView = createWebView(context)
 
     fun clearVkSessionCookies() {
-        mainHandler.post {
-            runCatching {
-                val manager = CookieManager.getInstance()
-                val deletions = VK_AUTH_COOKIE_ORIGINS.flatMap { origin ->
-                    vkCookieDeletionHeaders(origin, manager.getCookie(origin)).map { origin to it }
-                }
-                if (deletions.isEmpty()) {
-                    manager.flush()
-                } else {
-                    val remaining = AtomicInteger(deletions.size)
-                    deletions.forEach { (origin, header) ->
-                        manager.setCookie(origin, header) {
-                            if (remaining.decrementAndGet() == 0) manager.flush()
-                        }
+        mainHandler.post { clearVkSessionCookiesNow() }
+    }
+
+    /** То же, но сразу: вызывать с главного потока до открытия окна входа. */
+    fun clearVkSessionCookiesNow() {
+        runCatching {
+            val manager = CookieManager.getInstance()
+            val deletions = VK_AUTH_COOKIE_ORIGINS.flatMap { origin ->
+                vkCookieDeletionHeaders(origin, manager.getCookie(origin)).map { origin to it }
+            }
+            if (deletions.isEmpty()) {
+                manager.flush()
+            } else {
+                val remaining = AtomicInteger(deletions.size)
+                deletions.forEach { (origin, header) ->
+                    manager.setCookie(origin, header) {
+                        if (remaining.decrementAndGet() == 0) manager.flush()
                     }
                 }
             }

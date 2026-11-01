@@ -65,6 +65,8 @@ import com.mrtt.client.ui.design.MrttShapes
 internal fun VkAuthDialog(
     onToken: (VkAuthPayload) -> Unit,
     onDismiss: () -> Unit,
+    // Вход в отдельный аккаунт (для сервера): сессия VK клиента не подхватывается и не перезаписывается.
+    freshSession: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -72,11 +74,17 @@ internal fun VkAuthDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var phase by remember { mutableStateOf(VkAuthPhase.LOGIN) }
 
-    val webView = remember { VkAuthWebViewManager.acquire(context) }
+    val webView = remember {
+        if (freshSession) VkAuthWebViewManager.clearVkSessionCookiesNow()
+        VkAuthWebViewManager.acquire(context)
+    }
     val session = remember {
         VkAuthSession(
             onUiReady = { uiReady = true },
-            onToken = onToken,
+            onToken = { payload ->
+                if (freshSession) VkAuthWebViewManager.clearVkSessionCookies()
+                onToken(payload)
+            },
             onError = { errorMessage = it },
             onPhaseChange = { phase = it },
         )

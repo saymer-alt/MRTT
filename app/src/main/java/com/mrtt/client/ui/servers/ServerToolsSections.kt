@@ -205,7 +205,8 @@ internal fun ServerSettingsSection(control: ServerControl) {
                     TextButton(onClick = { form = form.copy(vkToken = "") }) { Text("Отвязать") }
                 }
             }
-            FormField(form.vkHashes, { form = form.copy(vkHashes = it.filterNot(Char::isWhitespace)) }, "Общие VK-хеши (необязательно)")
+            Text("Общие VK-хеши, необязательно", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            com.mrtt.client.ui.common.VkHashesButton(form.vkHashes) { form = form.copy(vkHashes = it) }
             TextButton(onClick = {
                 runner.run("VK применён ко всем конфигам", ::refresh) { control.applyVkToAllClients(form.vkToken, form.vkHashes) }
             }) { Text("Применить ко всем конфигам") }
@@ -257,6 +258,7 @@ internal fun ServerSettingsSection(control: ServerControl) {
                 runner.run("VK-аккаунт привязан к серверу", ::refresh) { control.saveSettings(form) }
             },
             onDismiss = { bindingVk = false },
+            freshSession = true,
         )
     }
     if (confirmReboot) {

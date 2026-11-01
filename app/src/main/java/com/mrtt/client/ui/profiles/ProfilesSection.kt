@@ -294,20 +294,18 @@ private fun ProfileRow(
     }
 }
 
-/** Свои VK-хеши, токен, ID группы MAX и комната Jitsi у добавленного конфига: ссылка пересобирается. */
+/** Свои VK-хеши, ID группы MAX и комната Jitsi у добавленного конфига: ссылка пересобирается. */
 @Composable
 private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     val link = remember(profile.link) { parseMrttLink(profile.link) } ?: run { onDismiss(); return }
-    var hashes by remember { mutableStateOf(link.hashes.joinToString(", ")) }
-    var token by remember { mutableStateOf(link.vkAccessToken) }
+    var hashes by remember { mutableStateOf(link.hashes.joinToString(",")) }
     var maxGroup by remember { mutableStateOf(link.maxGroupId) }
     var jitsiRoom by remember { mutableStateOf(link.jitsiRoom.takeIf { it.isNotBlank() }?.let { "https://$it" }.orEmpty()) }
-    val hashList = hashes.split(Regex("[,\\s]+")).map { com.mrtt.client.ui.utils.stripVkUrlStatic(it) }.filter { it.isNotBlank() }.distinct()
+    val hashList = com.mrtt.client.ui.common.splitVkHashes(hashes)
     val room = if (jitsiRoom.isBlank()) "" else com.mrtt.client.ui.utils.parseJitsiRoomInput(jitsiRoom)
     val error = when {
         hashList.size > 6 -> "Не больше 6 хешей"
         hashList.any { it.length < 16 } -> "Хеш короче 16 символов"
-        hashList.isNotEmpty() && token.isNotBlank() -> "Укажите либо хеши, либо токен"
         maxGroup.isNotBlank() && !com.mrtt.client.ui.utils.isValidMaxGroupId(maxGroup.trim()) -> "Неверный ID группы MAX"
         room == null -> "Неверная ссылка на комнату Jitsi"
         else -> null
@@ -319,7 +317,8 @@ private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit,
                 peer = link.port,
                 password = link.password,
                 hashes = hashList,
-                token = token.trim(),
+                // Свои хеши заменяют VK-аккаунт сервера из ссылки, без хешей он остаётся.
+                token = if (hashList.isEmpty()) link.vkAccessToken else "",
                 maxGroupId = maxGroup.trim(),
                 jitsiRoom = room.orEmpty(),
                 jitsiSeats = if (room == link.jitsiRoom) link.jitsiSeats else 0,
@@ -334,8 +333,7 @@ private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit,
         confirmEnabled = rebuilt != null && parseMrttLink(rebuilt) != link,
         onConfirm = { rebuilt?.let(onSave) },
     ) {
-        FormField(hashes, { hashes = it }, "VK-хеши через запятую", singleLine = false, minLines = 2)
-        FormField(token, { token = it.trim() }, "VK-токен (вместо хешей)", secret = true)
+        com.mrtt.client.ui.common.VkHashesButton(hashes) { hashes = it }
         FormField(maxGroup, { maxGroup = it.trim() }, "ID группы MAX")
         FormField(jitsiRoom, { jitsiRoom = it }, "Ссылка на комнату Jitsi")
         Text(
