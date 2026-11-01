@@ -79,14 +79,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.csqtt.client.R
 import com.csqtt.client.SettingsStore
 import com.csqtt.client.TunnelManager
-import com.csqtt.client.ui.components.CsqttEmptyState
-import com.csqtt.client.ui.components.CsqttLoadingState
-import com.csqtt.client.ui.components.CsqttScreen
-import com.csqtt.client.ui.components.CsqttSegmentedControl
-import com.csqtt.client.ui.components.CsqttSettingRow
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
-import com.csqtt.client.ui.design.CsqttSpacing
+import com.csqtt.client.ui.components.MrttEmptyState
+import com.csqtt.client.ui.components.MrttLoadingState
+import com.csqtt.client.ui.components.MrttScreen
+import com.csqtt.client.ui.components.MrttSegmentedControl
+import com.csqtt.client.ui.components.MrttSettingRow
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
+import com.csqtt.client.ui.design.MrttSpacing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -486,7 +486,7 @@ fun ExceptionsTab(
         }
     }
 
-    CsqttScreen {
+    MrttScreen {
         if (isServerRouting) {
             Box(
                 modifier = Modifier
@@ -541,8 +541,8 @@ fun ExceptionsTab(
                     enabled = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                        .height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -621,8 +621,8 @@ fun ExceptionsTab(
                         enabled = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Pill,
+                            .height(MrttSizes.ControlHeight),
+                        shape = MrttShapes.Pill,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent,
                             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -691,8 +691,8 @@ fun ExceptionsTab(
                         enabled = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Pill,
+                            .height(MrttSizes.ControlHeight),
+                        shape = MrttShapes.Pill,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent,
                             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -749,8 +749,8 @@ fun ExceptionsTab(
                         enabled = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Pill,
+                            .height(MrttSizes.ControlHeight),
+                        shape = MrttShapes.Pill,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent,
                             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -786,7 +786,7 @@ fun ExceptionsTab(
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -845,10 +845,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                     enabled = isMigrationReady,
@@ -870,8 +870,8 @@ fun ExceptionsTab(
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -897,10 +897,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                     enabled = isMigrationReady,
@@ -922,8 +922,8 @@ fun ExceptionsTab(
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -968,7 +968,7 @@ fun ExceptionsTab(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                            shape = CsqttShapes.Control,
+                            shape = MrttShapes.Control,
                             modifier = Modifier.fillMaxWidth(),
                         )
 
@@ -989,7 +989,7 @@ fun ExceptionsTab(
                                         .weight(1f),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    CsqttLoadingState(label = stringResource(R.string.exceptions_loading))
+                                    MrttLoadingState(label = stringResource(R.string.exceptions_loading))
                                 }
                             }
 
@@ -1000,7 +1000,7 @@ fun ExceptionsTab(
                                         .weight(1f),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    CsqttEmptyState(
+                                    MrttEmptyState(
                                         title = stringResource(R.string.exceptions_empty_title),
                                         description = stringResource(R.string.exceptions_empty_description),
                                         icon = Icons.Outlined.Apps,
@@ -1015,7 +1015,7 @@ fun ExceptionsTab(
                                         .fillMaxWidth()
                                         .weight(1f),
                                     contentPadding = PaddingValues(bottom = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(CsqttSpacing.Xs),
+                                    verticalArrangement = Arrangement.spacedBy(MrttSpacing.Xs),
                                 ) {
                                     items(
                                         items = filteredApps,
@@ -1056,7 +1056,7 @@ fun ExceptionsTab(
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -1094,7 +1094,7 @@ fun ExceptionsTab(
                             }
                         }
                         Text(
-                            text = "• В режиме чёрного списка отмеченные приложения не идут в туннель CSQTT.\n\n• В режиме белого списка только отмеченные приложения идут в туннель CSQTT (и ни одного другого).",
+                            text = "• В режиме чёрного списка отмеченные приложения не идут в туннель MRTT.\n\n• В режиме белого списка только отмеченные приложения идут в туннель MRTT (и ни одного другого).",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -1146,7 +1146,7 @@ fun ExceptionsTab(
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -1206,10 +1206,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1226,8 +1226,8 @@ fun ExceptionsTab(
                                     onClick = { domainIsWhiteMode = false },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1252,10 +1252,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1272,8 +1272,8 @@ fun ExceptionsTab(
                                     onClick = { domainIsWhiteMode = true },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1296,12 +1296,12 @@ fun ExceptionsTab(
 
                         if (!domainIsWhiteMode) {
                             Surface(
-                                shape = CsqttShapes.Control,
+                                shape = MrttShapes.Control,
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                CsqttSettingRow(
+                                MrttSettingRow(
                                     title = "Готовый список RU доменов",
                                     description = "503 важных доменных имён",
                                     checked = templateDomainsEnabled,
@@ -1393,7 +1393,7 @@ fun ExceptionsTab(
                                         },
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                         modifier = Modifier.height(32.dp),
-                                        shape = CsqttShapes.Pill,
+                                        shape = MrttShapes.Pill,
                                     ) {
                                         Text(
                                             text = "Очистить",
@@ -1408,7 +1408,7 @@ fun ExceptionsTab(
                                     onClick = saveAndCloseDomains,
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
                                     modifier = Modifier.height(32.dp),
-                                    shape = CsqttShapes.Pill,
+                                    shape = MrttShapes.Pill,
                                 ) {
                                     Text(
                                         text = "Готово",
@@ -1457,7 +1457,7 @@ fun ExceptionsTab(
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -1517,10 +1517,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1537,8 +1537,8 @@ fun ExceptionsTab(
                                     onClick = { ipIsWhiteMode = false },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1563,10 +1563,10 @@ fun ExceptionsTab(
                                     onClick = {},
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1475FD),
+                                        containerColor = Color(0xFF3F4448),
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1583,8 +1583,8 @@ fun ExceptionsTab(
                                     onClick = { ipIsWhiteMode = true },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(CsqttSizes.ControlHeight),
-                                    shape = CsqttShapes.Pill,
+                                        .height(MrttSizes.ControlHeight),
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = Color.Transparent,
                                         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1663,7 +1663,7 @@ fun ExceptionsTab(
                                         },
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                         modifier = Modifier.height(32.dp),
-                                        shape = CsqttShapes.Pill,
+                                        shape = MrttShapes.Pill,
                                     ) {
                                         Text(
                                             text = "Очистить",
@@ -1678,7 +1678,7 @@ fun ExceptionsTab(
                                     onClick = saveAndCloseIps,
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
                                     modifier = Modifier.height(32.dp),
-                                    shape = CsqttShapes.Pill,
+                                    shape = MrttShapes.Pill,
                                 ) {
                                     Text(
                                         text = "Готово",
@@ -1705,7 +1705,7 @@ fun ExceptionsTab(
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -1743,7 +1743,7 @@ fun ExceptionsTab(
                         }
 
                         Surface(
-                            shape = CsqttShapes.Control,
+                            shape = MrttShapes.Control,
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth(),
@@ -1776,7 +1776,7 @@ fun ExceptionsTab(
                         }
 
                         Surface(
-                            shape = CsqttShapes.Control,
+                            shape = MrttShapes.Control,
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth(),
@@ -1809,7 +1809,7 @@ fun ExceptionsTab(
                         }
 
                         Surface(
-                            shape = CsqttShapes.Control,
+                            shape = MrttShapes.Control,
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth(),
@@ -1904,8 +1904,8 @@ fun ExceptionsTab(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = CsqttSizes.MinimumTouchTarget),
-                                shape = CsqttShapes.Control,
+                                    .defaultMinSize(minHeight = MrttSizes.MinimumTouchTarget),
+                                shape = MrttShapes.Control,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -2121,8 +2121,8 @@ fun ExceptionsTab(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .defaultMinSize(minHeight = CsqttSizes.MinimumTouchTarget),
-                                shape = CsqttShapes.Control,
+                                    .defaultMinSize(minHeight = MrttSizes.MinimumTouchTarget),
+                                shape = MrttShapes.Control,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,

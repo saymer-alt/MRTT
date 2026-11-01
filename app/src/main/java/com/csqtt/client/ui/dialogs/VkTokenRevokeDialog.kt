@@ -30,8 +30,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.ui.appSectionCardBorderColor
 import com.csqtt.client.ui.appSectionCardColor
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 
 @Composable
 internal fun VkTokenRevokeDialog(
@@ -44,7 +44,7 @@ internal fun VkTokenRevokeDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -82,8 +82,8 @@ internal fun VkTokenRevokeDialog(
 
                 Button(
                     onClick = onCancel,
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -95,8 +95,8 @@ internal fun VkTokenRevokeDialog(
 
                 OutlinedButton(
                     onClick = onCopyToken,
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.primary,
@@ -108,8 +108,8 @@ internal fun VkTokenRevokeDialog(
 
                 OutlinedButton(
                     onClick = onRevokeToken,
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.error,

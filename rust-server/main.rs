@@ -1,16 +1,19 @@
 #![recursion_limit = "256"]
 #![allow(linker_messages)]
 
-#[cfg(target_os = "linux")]
+// snmalloc is C++-based and its static musl builds pull in libatomic and
+// libgcc_s, which are unavailable in the Zig musl sysroot used by CI.
+// Keep snmalloc for GNU Linux, use the normal system allocator for musl.
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
 pub const fn allocator_name() -> &'static str {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     {
         "snmalloc"
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(all(target_os = "linux", not(target_env = "musl"))))]
     {
         "system"
     }
@@ -21,6 +24,11 @@ pub(crate) fn collect_allocator_thread_heap() -> bool {
 }
 
 mod dataplane;
+// Peer discovery helpers of the shared module serve the client only.
+#[allow(dead_code)]
+#[path = "../shared/jitsi_room.rs"]
+mod jitsi_room;
+mod jitsi_relay;
 #[path = "../shared/dtls.rs"]
 pub mod dtls;
 mod model;
@@ -69,7 +77,11 @@ struct Args {
     #[arg(long, default_value = "0.0.0.0:46000", help = "UDP-адрес сервера")]
     listen: SocketAddr,
 
-    #[arg(long, default_value_t = 46002, help = "HTTPS-порт веб-панели")]
+    #[arg(
+        long,
+        default_value_t = 46002,
+        help = "Порт API управления (только 127.0.0.1)"
+    )]
     web_port: u16,
 
     #[arg(long, default_value = "/etc/csqtt", help = "Каталог конфигурации")]
@@ -85,22 +97,6 @@ struct Args {
 
     #[arg(
         long,
-        env = "CSQTT_WEB_USER",
-        default_value = "admin",
-        help = "Логин веб-панели"
-    )]
-    web_user: String,
-
-    #[arg(
-        long,
-        env = "CSQTT_WEB_PASS",
-        default_value = "",
-        help = "Пароль веб-панели"
-    )]
-    web_pass: String,
-
-    #[arg(
-        long,
         env = "CSQTT_PUBLIC_IP",
         default_value = "",
         help = "Внешний IPv4-адрес сервера для клиентских ссылок"
@@ -113,22 +109,6 @@ struct Args {
         help = "Один или два DNS IPv4-адреса через запятую"
     )]
     dns: Option<String>,
-
-    #[arg(
-        long,
-        env = "CSQTT_WEB_SECRET_PATH",
-        default_value = "",
-        help = "Секретный префикс пути к веб-панели"
-    )]
-    web_secret_path: String,
-
-    #[arg(
-        long,
-        env = "CSQTT_SECURE_COOKIE",
-        default_value_t = false,
-        help = "Выдавать cookie только по HTTPS"
-    )]
-    secure_cookie: bool,
 
     #[arg(long, help = "Запустить службу CSQTT")]
     start: bool,
@@ -282,16 +262,9 @@ pub struct App {
     pub config_dir: std::path::PathBuf,
     pub listen: SocketAddr,
     pub web_port: u16,
-    pub web_user: String,
-    pub web_pass: String,
-    pub web_secret_path: String,
     pub public_ip: Arc<RwLock<String>>,
-    pub secure_cookie: bool,
     pub sessions: DashMap<u64, Arc<Session>>,
     pub password_epochs: DashMap<String, Arc<protocol::PasswordEpochSlot>>,
-    pub web_sessions: DashMap<String, i64>,
-    pub login_limits: DashMap<String, (u32, i64)>,
-    pub web_auth_admission: std::sync::Mutex<()>,
     pub bytes_from_client: Arc<AtomicU64>,
     pub bytes_to_client: Arc<AtomicU64>,
     pub total_connections: AtomicU64,
@@ -562,9 +535,10 @@ async fn password_epoch_sweeper(app: Arc<App>) {
                 {
                     return false;
                 }
+                // Ключ эпохи включает device_id, поэтому сравниваем с ключом сессии, а не паролем.
                 !app.sessions
                     .iter()
-                    .any(|session| session.password == password)
+                    .any(|session| protocol::session_epoch_key(&session) == password)
             });
         }
         if app.password_epochs.len().saturating_mul(4) < app.password_epochs.capacity() {
@@ -593,26 +567,6 @@ async fn shutdown_signal() {
     #[cfg(not(unix))]
     {
         let _ = tokio::signal::ctrl_c().await;
-    }
-}
-
-#[cfg(unix)]
-async fn web_tls_reload_loop(
-    tls_config: axum_server::tls_rustls::RustlsConfig,
-    cert_path: std::path::PathBuf,
-    key_path: std::path::PathBuf,
-) {
-    use tokio::signal::unix::{SignalKind, signal};
-
-    let Ok(mut reload) = signal(SignalKind::user_defined1()) else {
-        eprintln!("[WEB] SIGUSR1 TLS reload handler unavailable");
-        return;
-    };
-    while reload.recv().await.is_some() {
-        match tls_config.reload_from_pem_file(&cert_path, &key_path).await {
-            Ok(()) => println!("[WEB] TLS certificate reloaded"),
-            Err(error) => eprintln!("[WEB] TLS certificate reload failed: {error}"),
-        }
     }
 }
 
@@ -952,10 +906,6 @@ fn main() -> Result<()> {
 }
 
 async fn async_main() -> Result<()> {
-    rustls::crypto::aws_lc_rs::default_provider()
-        .install_default()
-        .ok();
-
     let args_vec: Vec<String> = std::env::args().collect();
     if args_vec.len() == 1
         || (args_vec.len() == 2 && matches!(args_vec[1].as_str(), "help" | "--help" | "-h"))
@@ -1090,14 +1040,6 @@ async fn async_main() -> Result<()> {
         db.set_auto_restart_interval_hours(DEFAULT_AUTO_RESTART_INTERVAL_HOURS);
     }
 
-    let web_pass = if args.web_pass.is_empty() {
-        let value = random_password() + &random_password();
-        println!("[INIT] generated web password: {value}");
-        value
-    } else {
-        args.web_pass
-    };
-
     save_database(&args.config_dir, &db)?;
     if deploy_overrides_path.exists() {
         std::fs::remove_file(&deploy_overrides_path).with_context(|| {
@@ -1107,8 +1049,6 @@ async fn async_main() -> Result<()> {
             )
         })?;
     }
-
-    let web_sessions = DashMap::new();
 
     let logging_active_val = db.logging_active.unwrap_or(true);
     let (auto_restart_interval_tx, auto_restart_interval_rx) =
@@ -1124,16 +1064,9 @@ async fn async_main() -> Result<()> {
         config_dir: args.config_dir.clone(),
         listen: args.listen,
         web_port: args.web_port,
-        web_user: args.web_user,
-        web_pass,
-        web_secret_path: args.web_secret_path.trim().trim_matches('/').to_string(),
         public_ip: public_ip_arc.clone(),
-        secure_cookie: args.secure_cookie,
         sessions: DashMap::new(),
         password_epochs: DashMap::new(),
-        web_sessions,
-        login_limits: DashMap::new(),
-        web_auth_admission: std::sync::Mutex::new(()),
         bytes_from_client: Arc::new(AtomicU64::new(0)),
         bytes_to_client: Arc::new(AtomicU64::new(0)),
         total_connections: AtomicU64::new(0),
@@ -1194,7 +1127,7 @@ async fn async_main() -> Result<()> {
         &app,
         "INFO",
         "SYSTEM",
-        &format!(" Web: 0.0.0.0:{}", app.web_port),
+        &format!(" API: 127.0.0.1:{}", app.web_port),
     );
 
     let web_app = app.clone();
@@ -1214,59 +1147,16 @@ async fn async_main() -> Result<()> {
 
     tokio::spawn(auto_restart_loop(app.clone(), auto_restart_interval_rx));
 
-    let cert_path = app.config_dir.join("web_cert.pem");
-    let key_path = app.config_dir.join("web_key.pem");
-    if !cert_path.exists() && !key_path.exists() {
-        let mut subject_alt_names = vec!["localhost".to_string(), "127.0.0.1".to_string()];
-        if let Ok(hostname) = std::fs::read_to_string("/etc/hostname") {
-            let hostname = hostname.trim().to_string();
-            if !hostname.is_empty() {
-                subject_alt_names.push(hostname);
-            }
-        }
-        if let Ok(probe) = std::net::UdpSocket::bind("0.0.0.0:0") {
-            let _ = probe.set_nonblocking(true);
-            if probe.connect("8.8.8.8:53").is_ok()
-                && let Ok(addr) = probe.local_addr()
-                && !addr.ip().is_loopback()
-            {
-                subject_alt_names.push(addr.ip().to_string());
-            }
-        }
-        if let Ok(cert) = rcgen::generate_simple_self_signed(subject_alt_names) {
-            let cert_pem = cert.cert.pem();
-            let key_pem = cert.key_pair.serialize_pem();
-            let _ = tokio::fs::write(&cert_path, cert_pem).await;
-            let _ = tokio::fs::write(&key_path, key_pem).await;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ =
-                    tokio::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
-                        .await;
-            }
-        }
-    } else if !cert_path.exists() || !key_path.exists() {
-        anyhow::bail!(
-            "incomplete WEB TLS certificate pair in {}; restore both web_cert.pem and web_key.pem",
-            app.config_dir.display()
-        );
-    }
-
-    let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
-        .await
-        .context("load web cert")?;
-
-    #[cfg(unix)]
-    tokio::spawn(web_tls_reload_loop(
-        tls_config.clone(),
-        cert_path.clone(),
-        key_path.clone(),
-    ));
-
     let protocol_runtime = protocol::start(app.clone()).await?;
+    // Jitsi is always available; the owner sets the room from the app, and the relay follows it live.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    let jitsi = {
+        let db = app.db.read().await;
+        jitsi_relay::Config::from_db(&db)
+    };
+    jitsi_relay::start(app.clone(), args.listen.port(), jitsi);
     let mut protocol_status = protocol_runtime.status_receiver();
-    let mut web_task = tokio::spawn(async move { web_panel::run(web_app, tls_config).await });
+    let mut web_task = tokio::spawn(async move { web_panel::run(web_app).await });
     tokio::spawn(protocol::session_janitor(app.clone()));
     tokio::spawn(protocol::password_janitor(app.clone()));
     tokio::spawn(password_epoch_sweeper(app.clone()));

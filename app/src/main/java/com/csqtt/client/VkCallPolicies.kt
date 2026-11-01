@@ -21,7 +21,7 @@ internal suspend fun <T> runVkCallAttempts(
 ): VkApiResult<T> {
     var result: VkApiResult<T> = VkApiResult.Failed("not attempted")
     var attempts = 0
-    while (attempts < CsqttConstants.VkAutoHash.AUTO_CALL_MAX_ATTEMPTS) {
+    while (attempts < MrttConstants.VkAutoHash.AUTO_CALL_MAX_ATTEMPTS) {
         attempts++
         result = request()
         if (result is VkApiResult.Ok<*>) break

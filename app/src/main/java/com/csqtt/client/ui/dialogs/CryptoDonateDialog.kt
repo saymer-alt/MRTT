@@ -49,8 +49,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.R
 import com.csqtt.client.showRaisedToast
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 
 private const val GRAM_TON_WALLET = "UQCsHSj_Bev5AG3vCz-84TQC7BSWjNdNdOjP9M2gWUEmbyD7"
 private const val USDT_TON_WALLET = "UQCsHSj_Bev5AG3vCz-84TQC7BSWjNdNdOjP9M2gWUEmbyD7"
@@ -72,7 +72,7 @@ fun CryptoDonateDialog(onDismiss: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.92f),
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -132,8 +132,8 @@ fun CryptoDonateDialog(onDismiss: () -> Unit) {
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                        .height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -178,7 +178,7 @@ private fun CryptoAddressField(
         )
 
         Surface(
-            shape = CsqttShapes.Control,
+            shape = MrttShapes.Control,
             color = if (isDark) Color(0xFF13171F) else Color(0xFFF1F3F7),
             border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = if (isDark) 0.35f else 0.5f)),
             modifier = Modifier.fillMaxWidth()
@@ -208,12 +208,12 @@ private fun CryptoAddressField(
                 }
 
                 Surface(
-                    shape = CsqttShapes.Pill,
+                    shape = MrttShapes.Pill,
                     color = Color(0xFF121418),
                     contentColor = Color.White,
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CsqttShapes.Pill)
+                        .clip(MrttShapes.Pill)
                         .clickable(onClick = onCopy)
                 ) {
                     Box(

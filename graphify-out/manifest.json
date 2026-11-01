@@ -1,0 +1,1616 @@
+{
+  "app/build.gradle.kts": {
+    "mtime": 1793432493.935306,
+    "seen": 1793432561.928629,
+    "ast_hash": "d095a3d211707acf259ca3a7b74de824",
+    "semantic_hash": ""
+  },
+  "app/src/main/assets/csqtt.server-provenance.json": {
+    "mtime": 1792763673.1443155,
+    "seen": 1792764924.7923155,
+    "ast_hash": "e6e3ac0f0f5371fef93fb0114398d029",
+    "semantic_hash": ""
+  },
+  "app/src/main/assets/deploy.sh": {
+    "mtime": 1793432493.9398124,
+    "seen": 1793432561.928629,
+    "ast_hash": "867433f8ed86a1e28aea030ebc01b1d3",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/AppUpdate.kt": {
+    "mtime": 1793432494.06845,
+    "seen": 1793432561.928629,
+    "ast_hash": "7957b27c6c6a9d2ef66312db70429d8e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/BatteryOptimizationPromptPolicy.kt": {
+    "mtime": 1792763673.1475127,
+    "seen": 1792764924.7923155,
+    "ast_hash": "bb81dafae90b411124e3827968839ecf",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/CaptchaCancelReceiver.kt": {
+    "mtime": 1793432493.9581242,
+    "seen": 1793432561.928629,
+    "ast_hash": "f5d52172734b73918bb5e9b7fd3db0fc",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/CaptchaUriPolicy.kt": {
+    "mtime": 1792763673.1485968,
+    "seen": 1792764924.7923155,
+    "ast_hash": "ba6d344ab310273cf062bbd0a109e1ad",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/CaptchaWebViewManager.kt": {
+    "mtime": 1793432493.9905725,
+    "seen": 1793432561.928629,
+    "ast_hash": "6bd423dfdc23e0868129fb3d1a1d1d1b",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ConnectionSource.kt": {
+    "mtime": 1793452004.9259171,
+    "seen": 1793452040.46574,
+    "ast_hash": "be2c65f06b2837141e85a8c8c64ddeab",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ConnectionStartPolicy.kt": {
+    "mtime": 1793432493.9868858,
+    "seen": 1793432561.928629,
+    "ast_hash": "85305d074074e4a9406212b550d070b4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/Constants.kt": {
+    "mtime": 1793445334.437837,
+    "seen": 1793445502.2048752,
+    "ast_hash": "2b0cf97a374c7b878cba8045445142fc",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/DeployManager.kt": {
+    "mtime": 1792763673.1507056,
+    "seen": 1792764924.7923155,
+    "ast_hash": "163a4685defbd6c5ea5d7e2456856649",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/MainActivity.kt": {
+    "mtime": 1793435772.9429195,
+    "seen": 1793435841.4604979,
+    "ast_hash": "6701477110f44bb7101c074649646942",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ManlCaptchaActivity.kt": {
+    "mtime": 1793432494.1005466,
+    "seen": 1793432561.928629,
+    "ast_hash": "f5bfe49c582fda2c531335be044ed975",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ManlCaptchaWebViewManager.kt": {
+    "mtime": 1793432494.0762599,
+    "seen": 1793432561.928629,
+    "ast_hash": "b7c1318747c7b7398f12704be52b1732",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/MaxAuthPage.kt": {
+    "mtime": 1792763673.1534574,
+    "seen": 1792764924.7923155,
+    "ast_hash": "89011a4cec3124ce34f8bf5c28db435d",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/MaxAuthWebViewManager.kt": {
+    "mtime": 1792763673.1539898,
+    "seen": 1792764924.7923155,
+    "ast_hash": "2fec655ac4c504d52bfa75595db42f12",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/NetworkPauseGate.kt": {
+    "mtime": 1792763673.1545174,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c8cdf108ede9778e4d9d3797408a84e7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/PhysicalNetworkTracker.kt": {
+    "mtime": 1792763673.1550443,
+    "seen": 1792764924.7923155,
+    "ast_hash": "79db44369b4e73ade61ca70c229e1b68",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/QuickToggleTileService.kt": {
+    "mtime": 1793432806.125051,
+    "seen": 1793435841.4604979,
+    "ast_hash": "5aa56a37e38019f45629a979d32b6c99",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/SecureStringStore.kt": {
+    "mtime": 1793432494.1832113,
+    "seen": 1793432561.928629,
+    "ast_hash": "4ab36f4b7c9b02ff28c472f23905a735",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ServerRoutingRule.kt": {
+    "mtime": 1792763673.156095,
+    "seen": 1792764924.7923155,
+    "ast_hash": "047b5a438f557428cdc962ff13eae8cf",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/SettingsStore.kt": {
+    "mtime": 1793452004.9259171,
+    "seen": 1793452040.46574,
+    "ast_hash": "e52a02c49abcebc81535d6ba23ff74c2",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/SshHostKeyStore.kt": {
+    "mtime": 1792763673.1577313,
+    "seen": 1792764924.7923155,
+    "ast_hash": "07d715ffc7082a73a1a28eefbf550cbe",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/StoredSecretState.kt": {
+    "mtime": 1792763673.158257,
+    "seen": 1792764924.7923155,
+    "ast_hash": "40ed2ad2913466ca892d289e304bd499",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/Theme.kt": {
+    "mtime": 1793432494.0985422,
+    "seen": 1793432561.928629,
+    "ast_hash": "ad412cc196cfaaf6afe53aaf8fa4634f",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ToastExt.kt": {
+    "mtime": 1792763673.1587856,
+    "seen": 1792764924.7923155,
+    "ast_hash": "0f06dc51c451ff68a1660be4f8957d90",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunRecoveryPolicy.kt": {
+    "mtime": 1792763673.1592948,
+    "seen": 1792764924.7923155,
+    "ast_hash": "273f1c408ba7fee2b4666fdfb575cbdd",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunVpnService.kt": {
+    "mtime": 1793432494.1566532,
+    "seen": 1793432561.928629,
+    "ast_hash": "2a7da1a42f9f73dd33a75968558d01d0",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelEventParser.kt": {
+    "mtime": 1793432493.8755717,
+    "seen": 1793432561.928629,
+    "ast_hash": "ad361c6f5ad7dcaef4ba6215f091c629",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelLifecycleState.kt": {
+    "mtime": 1792763673.160354,
+    "seen": 1792764924.7923155,
+    "ast_hash": "b107c882817546840de4ec9dfc078586",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelLogPolicy.kt": {
+    "mtime": 1792763673.1610124,
+    "seen": 1792764924.7923155,
+    "ast_hash": "380455fae54f2c9702fdc8f492b4aea5",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelManager.kt": {
+    "mtime": 1793445334.440019,
+    "seen": 1793445502.2048752,
+    "ast_hash": "39025db5bbc546dc354341e18a5b7e34",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelPasswordStorage.kt": {
+    "mtime": 1792763673.1620436,
+    "seen": 1792764924.7923155,
+    "ast_hash": "dd7d19fdf9b0f540e2a71de0cb8d303e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelQuickActions.kt": {
+    "mtime": 1793445359.4744308,
+    "seen": 1793445502.2048752,
+    "ast_hash": "c3b741335989b27cadad16588ba19df7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelService.kt": {
+    "mtime": 1793445352.2473493,
+    "seen": 1793445502.2048752,
+    "ast_hash": "4a3dfe8ee6d6689e7ceda6f8cb75310a",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelServicePolicy.kt": {
+    "mtime": 1792763673.1640484,
+    "seen": 1792764924.7923155,
+    "ast_hash": "f21996f1bda14563e5701bf0162aa248",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelSessionId.kt": {
+    "mtime": 1792763673.1640484,
+    "seen": 1792764924.7923155,
+    "ast_hash": "1c90c058228c1b46ffe97ea2d662fd9e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TunnelStartupProgress.kt": {
+    "mtime": 1792763673.1650486,
+    "seen": 1792764924.7923155,
+    "ast_hash": "596d1657f182401b8c9bce75754e06f2",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TurnSubnetRegistry.kt": {
+    "mtime": 1792763673.1660497,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6f0e12b1716f56778aa6e6b064cfb4ed",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TurnTransportPolicy.kt": {
+    "mtime": 1793432494.1519845,
+    "seen": 1793432561.928629,
+    "ast_hash": "ab25db017be954f8d7a3b519c3b6fd89",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/TvDevicePolicy.kt": {
+    "mtime": 1792763673.1660497,
+    "seen": 1792764924.7923155,
+    "ast_hash": "73890d933cf95ce7dba824cbcc35df96",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/UpdateLaunchGuard.kt": {
+    "mtime": 1793432494.1736934,
+    "seen": 1793432561.928629,
+    "ast_hash": "3cc69dfb557bf7ffcca6c11df88e5174",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkApi.kt": {
+    "mtime": 1793432493.973402,
+    "seen": 1793432561.928629,
+    "ast_hash": "860eff79652c853d5b38c2fe1fea89f7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkAuthWebViewManager.kt": {
+    "mtime": 1793432493.9508386,
+    "seen": 1793432561.928629,
+    "ast_hash": "4737ec9d2520f84d07bc526297f76ef9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkAutoCallsManager.kt": {
+    "mtime": 1793432493.880805,
+    "seen": 1793432561.928629,
+    "ast_hash": "fc8c4191b0f7f0cba5e4b10859c9e208",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkCallPolicies.kt": {
+    "mtime": 1793432493.9408157,
+    "seen": 1793432561.928629,
+    "ast_hash": "c0bf9ef55e9bcbf4f82f10c5337303eb",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkCookieScope.kt": {
+    "mtime": 1792763673.1695535,
+    "seen": 1792764924.7923155,
+    "ast_hash": "aa3f8832f4bf3384b089adb5d7ebc64a",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkHashValidator.kt": {
+    "mtime": 1793432494.1811442,
+    "seen": 1793432561.928629,
+    "ast_hash": "a99728651049a4139fefd176388523b0",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkModePolicy.kt": {
+    "mtime": 1793432493.864,
+    "seen": 1793432561.928629,
+    "ast_hash": "d68d28172fff737320386fedcefee757",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkNetworkProbePolicy.kt": {
+    "mtime": 1792763673.1695535,
+    "seen": 1792764924.7923155,
+    "ast_hash": "cc50853e74571c6d662030ceef364e2c",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VkTokenScraper.kt": {
+    "mtime": 1793432494.0456629,
+    "seen": 1793432561.928629,
+    "ast_hash": "cc1d4069ca513c32b2665e2450908d61",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VpnRecoveryPolicy.kt": {
+    "mtime": 1792763673.1705575,
+    "seen": 1792764924.7923155,
+    "ast_hash": "ccda6903fb0371d3b53b16400962a2b0",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VpnWidgetProvider.kt": {
+    "mtime": 1792763673.1705575,
+    "seen": 1792764924.7923155,
+    "ast_hash": "f52038167a97ab464075bca7763b23dc",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/VpnWidgetToggleReceiver.kt": {
+    "mtime": 1793432493.8888521,
+    "seen": 1793432561.9291515,
+    "ast_hash": "c7e27ff35d2c314daf5e78242164811c",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/WifiAutoPausePolicy.kt": {
+    "mtime": 1792763673.1718602,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c9a9632ea5c61b1362ebb65599b741e4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/WorkerCountPolicy.kt": {
+    "mtime": 1793432493.9273763,
+    "seen": 1793432561.9291515,
+    "ast_hash": "6e047ebf09b5daae75b625df10bd8b0e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/WorkerRecoveryPolicy.kt": {
+    "mtime": 1793432494.1535332,
+    "seen": 1793432561.9291515,
+    "ast_hash": "603850e0aa221db7ce4661e667875cb5",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/AppSectionCard.kt": {
+    "mtime": 1793432493.9640157,
+    "seen": 1793432561.9291515,
+    "ast_hash": "979742f94bb4d47156b0dd08137ebac9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/AppSelectionOrdering.kt": {
+    "mtime": 1792763673.1738155,
+    "seen": 1792764924.7923155,
+    "ast_hash": "44ecaa2e2d9545e25ba91cdc47412a63",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/AppUpdateDialog.kt": {
+    "mtime": 1793432493.8745706,
+    "seen": 1793432561.9291515,
+    "ast_hash": "3b54a0cd0299e7ae89fc70304b57e8b4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/AutoVkRiskDialog.kt": {
+    "mtime": 1793432494.0041182,
+    "seen": 1793432561.9291515,
+    "ast_hash": "706494d83613fccad474062259153d21",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/ConnectionTab.kt": {
+    "mtime": 1793452004.9259171,
+    "seen": 1793452040.46574,
+    "ast_hash": "da3669ce4cbb6aa9157a74232a278683",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/DeployOperations.kt": {
+    "mtime": 1793445412.3857212,
+    "seen": 1793445502.2048752,
+    "ast_hash": "7f2a7d510d74d929f8c9a7835e45508b",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/ExceptionsTab.kt": {
+    "mtime": 1793432493.887848,
+    "seen": 1793432561.9291515,
+    "ast_hash": "f1b8180d2fa4ad7f8c4f0007bff724a7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/FloatingToolbar.kt": {
+    "mtime": 1793432494.0224512,
+    "seen": 1793432561.9291515,
+    "ast_hash": "d355eda7a524001c8f55f29fbbe9129f",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/InfoTab.kt": {
+    "mtime": 1793432516.32766,
+    "seen": 1793432561.9291515,
+    "ast_hash": "ab4b3269e600debb74e99131ac4de7f9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/LogsTab.kt": {
+    "mtime": 1793432494.0746684,
+    "seen": 1793432561.9291515,
+    "ast_hash": "32f5205cc47146b79f20661bd57d3a39",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/MaxTransportSettings.kt": {
+    "mtime": 1792763673.1807132,
+    "seen": 1792764924.7923155,
+    "ast_hash": "cc799aa237323c670b8def22938c2119",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/SettingsTab.kt": {
+    "mtime": 1793452018.588699,
+    "seen": 1793452040.46574,
+    "ast_hash": "f53d493cbb58d3865df913cca7fc5f86",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/WifiAutoPauseInfoDialog.kt": {
+    "mtime": 1793432494.0244575,
+    "seen": 1793432561.9291515,
+    "ast_hash": "b60ae038cffdc7e5583d47dd88603600",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/apps/ApplicationRow.kt": {
+    "mtime": 1793432494.077342,
+    "seen": 1793432561.9291515,
+    "ast_hash": "d42571cac64a691844a8be0a3381718d",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/background/AppBackdrop.kt": {
+    "mtime": 1792763673.1830149,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c44d2b3dfe99b0567ed0fe14f65f29ad",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/CryptoDonateDialog.kt": {
+    "mtime": 1793432493.9828804,
+    "seen": 1793432561.9291515,
+    "ast_hash": "8ed8f976fa93615ee81770a4c502bd2b",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/HashesDialog.kt": {
+    "mtime": 1793432493.9135506,
+    "seen": 1793432561.9291515,
+    "ast_hash": "9426368674598f2858e019a415c55460",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/ImportExportDialog.kt": {
+    "mtime": 1793432493.9620106,
+    "seen": 1793432561.9291515,
+    "ast_hash": "d14273e70743b1d75a923986c8a578b5",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/MaxAuthDialog.kt": {
+    "mtime": 1792763673.192178,
+    "seen": 1792764924.7923155,
+    "ast_hash": "79cbbe4ee91d314f4ffd706f862fbfc9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/QrScannerDialog.kt": {
+    "mtime": 1792763673.192706,
+    "seen": 1792764924.7923155,
+    "ast_hash": "ea6a6e1b9354144e2c849ca1699b6f2f",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/SupportDeveloperDialog.kt": {
+    "mtime": 1793432494.173142,
+    "seen": 1793432561.9291515,
+    "ast_hash": "6be0e435f7b3f4613ad66f1a2c57af82",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/TurnSubnetsDialog.kt": {
+    "mtime": 1793432493.8908534,
+    "seen": 1793432561.9291515,
+    "ast_hash": "f400f874b253eb32d0de03d0ffa384e1",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/VkAuthDialog.kt": {
+    "mtime": 1793432494.1232,
+    "seen": 1793432561.9291515,
+    "ast_hash": "68b22e96764b586af95737210128cd3e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/dialogs/VkTokenRevokeDialog.kt": {
+    "mtime": 1793432493.9971025,
+    "seen": 1793432561.9291515,
+    "ast_hash": "cf5a91a5d35c33f3472cdc38062c55a4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/info/InfoComponents.kt": {
+    "mtime": 1793432494.1514752,
+    "seen": 1793432561.9291515,
+    "ast_hash": "6dc36e64a0e6f819536c910c073f66be",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/info/InfoSupportReport.kt": {
+    "mtime": 1792763673.1966991,
+    "seen": 1792764924.7923155,
+    "ast_hash": "f65ef22cd952339ebb9c705d639635f1",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/logs/LogLine.kt": {
+    "mtime": 1793432493.9581242,
+    "seen": 1793432561.9291515,
+    "ast_hash": "372b717b41416f38fe79fbe378b492c4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/HashModeInfoDialog.kt": {
+    "mtime": 1793432493.87857,
+    "seen": 1793432561.9291515,
+    "ast_hash": "a6eaf9670f5cf59ba8dcd559c90254e4",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/TunnelDropdownSetting.kt": {
+    "mtime": 1793432493.9880607,
+    "seen": 1793432561.9291515,
+    "ast_hash": "d32b3cd16dbba35b3dcf797f56bd84f9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/TunnelProtocolChip.kt": {
+    "mtime": 1793432494.1747315,
+    "seen": 1793432561.9291515,
+    "ast_hash": "009d75d5a938c01f95bf62b64d60705d",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/TunnelWorkersSlider.kt": {
+    "mtime": 1793435764.7495172,
+    "seen": 1793435841.4604979,
+    "ast_hash": "bc1d88f2f2c96317bec8145e74cdb1bc",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/TurnTransportInfoDialog.kt": {
+    "mtime": 1793432493.8755717,
+    "seen": 1793432561.9291515,
+    "ast_hash": "6bc1196effbda8bf7912ac947c7f3f49",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/WorkModeInfoDialog.kt": {
+    "mtime": 1793432493.8888521,
+    "seen": 1793432561.9291515,
+    "ast_hash": "9e1300d3042a07f7976fa2d07e5c4bbb",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/tunnel/WorkersInfoDialog.kt": {
+    "mtime": 1793432493.935306,
+    "seen": 1793432561.9291515,
+    "ast_hash": "4190a0914bb1a5191d0eb0ebee91bec3",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/utils/UiUtils.kt": {
+    "mtime": 1793452004.924916,
+    "seen": 1793452040.46574,
+    "ast_hash": "f8eb0630db4785e53bac73636c1fd50c",
+    "semantic_hash": ""
+  },
+  "app/src/main/libclient.provenance.json": {
+    "mtime": 1792763673.2026803,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3956be2dd49df39d9915a84d5aa6a1e2",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/AppUpdateTest.kt": {
+    "mtime": 1792763673.2193973,
+    "seen": 1792764924.7923155,
+    "ast_hash": "4b3b7e9cdbe2226189ef8eb5e0fe5986",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/BatteryOptimizationPromptPolicyTest.kt": {
+    "mtime": 1792763673.2193973,
+    "seen": 1792764924.7923155,
+    "ast_hash": "26dfee82d0618449fe202f773a077c91",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/CaptchaUriPolicyTest.kt": {
+    "mtime": 1792763673.2214122,
+    "seen": 1792764924.7923155,
+    "ast_hash": "13c29a6a784d0372924658ebe5f72be3",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ConnectionStartPolicyTest.kt": {
+    "mtime": 1792763673.2219398,
+    "seen": 1792764924.7923155,
+    "ast_hash": "50358d525782b139a0bd5b1cfefd328d",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/DnsProfileNameTest.kt": {
+    "mtime": 1792763673.2219398,
+    "seen": 1792764924.7923155,
+    "ast_hash": "aba3275c49d6a1839550bc99250388de",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/MaxAuthPageTest.kt": {
+    "mtime": 1792763673.2224827,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a6bd9392efa13225fff05a081e9624db",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/MaxAuthSessionTest.kt": {
+    "mtime": 1792763673.2234912,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6631f340774310f4fa5f9a7294f5d27d",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/NetworkPauseGateTest.kt": {
+    "mtime": 1792763673.2244911,
+    "seen": 1792764924.7923155,
+    "ast_hash": "df1da6fba6af5bd5ea7184c8e295c86e",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/PhysicalNetworkTrackerTest.kt": {
+    "mtime": 1792763673.2244911,
+    "seen": 1792764924.7923155,
+    "ast_hash": "db78140b7fac87940600de667a2196b6",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ServerRoutingRuleTest.kt": {
+    "mtime": 1792763673.2244911,
+    "seen": 1792764924.7923155,
+    "ast_hash": "1ef06f868c6fc8df9cd2c221a5f32737",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/StoredSecretStateTest.kt": {
+    "mtime": 1792763673.2244911,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3c56a219f5b43cd2067a03d5afa51a91",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunRecoveryPolicyTest.kt": {
+    "mtime": 1792763673.2259996,
+    "seen": 1792764924.7923155,
+    "ast_hash": "bb18f654f592adc70b1217604bb3dc04",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelAuthSnapshotTest.kt": {
+    "mtime": 1793432494.0367782,
+    "seen": 1793432561.9291515,
+    "ast_hash": "27af7630ecf3b4cc54bb7ad5375cae49",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelEventParserTest.kt": {
+    "mtime": 1792763673.2270086,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a99a1b8a09fd784a6a13c84edd98fa0b",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelLifecycleStateChaosTest.kt": {
+    "mtime": 1792763673.2279413,
+    "seen": 1792764924.7923155,
+    "ast_hash": "7070d000c440e84d2e270566bc4a4a87",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelLifecycleStateTest.kt": {
+    "mtime": 1792763673.2282677,
+    "seen": 1792764924.7923155,
+    "ast_hash": "b902c345244bb52fea464f98d4fa995f",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelLogPolicyTest.kt": {
+    "mtime": 1792763673.2287712,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c8a5d3ff1008138c5c15ccc9ffa4e927",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelPasswordStorageTest.kt": {
+    "mtime": 1792763673.229316,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3308a30162af6faf5225f39cd4cbd56e",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelServicePolicyTest.kt": {
+    "mtime": 1792763673.229316,
+    "seen": 1792764924.7923155,
+    "ast_hash": "25cbaed7b995fd541d139a57da082f33",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelSessionIdTest.kt": {
+    "mtime": 1792763673.2303195,
+    "seen": 1792764924.7923155,
+    "ast_hash": "07701d516534c4b579f102e7cf8ab60b",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TunnelStartupProgressTest.kt": {
+    "mtime": 1792763673.230842,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a96a879feca1dd07ffb6537625d4312d",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TurnTransportPolicyTest.kt": {
+    "mtime": 1793432494.1752477,
+    "seen": 1793432561.9291515,
+    "ast_hash": "ae812ba038dab144216ea431f85268f0",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/TvManifestTest.kt": {
+    "mtime": 1792763673.231383,
+    "seen": 1792764924.7923155,
+    "ast_hash": "105ab5d013816b7b0df4c8b4bcf46351",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/UpdateLaunchGuardTest.kt": {
+    "mtime": 1792763673.2319098,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6c64b2b4e59bf63a38221c521a92500a",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VkCallPoliciesTest.kt": {
+    "mtime": 1792763673.2324374,
+    "seen": 1792764924.7923155,
+    "ast_hash": "f4d3ca1baa96fc0e04d9d17ab6aca1a3",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VkCookieScopeTest.kt": {
+    "mtime": 1792763673.232965,
+    "seen": 1792764924.7923155,
+    "ast_hash": "116af6da5c96aa4b0d0004840531da57",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VkHashValidatorTest.kt": {
+    "mtime": 1792763673.2334936,
+    "seen": 1792764924.7923155,
+    "ast_hash": "cf9238b42b79c162cfb0519d9047b9f0",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VkModePolicyTest.kt": {
+    "mtime": 1793432493.8775697,
+    "seen": 1793432561.9291515,
+    "ast_hash": "5d5c9893e8aba60f64fc8bfdfb077278",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VkNetworkProbePolicyTest.kt": {
+    "mtime": 1792763673.234024,
+    "seen": 1792764924.7923155,
+    "ast_hash": "7ddfe25f6eefef3da8f3df6cea2da577",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VpnConfigurationTest.kt": {
+    "mtime": 1793432494.1720996,
+    "seen": 1793432561.9291515,
+    "ast_hash": "712c5380ea8e1bfd732022f6c212c3fd",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/VpnRecoveryPolicyTest.kt": {
+    "mtime": 1792763673.2350705,
+    "seen": 1792764924.7923155,
+    "ast_hash": "40c46db9898bded892a4ba4a1ace1aa2",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/WifiAutoPausePolicyTest.kt": {
+    "mtime": 1792763673.2360623,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3a9497fa15d3cb7a7a15f293746c9c6f",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/WorkerCountPolicyTest.kt": {
+    "mtime": 1793432493.9278934,
+    "seen": 1793432561.9291515,
+    "ast_hash": "8eac798c0c59dd7b473ef01a120b92b3",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/WorkerRecoveryPolicyTest.kt": {
+    "mtime": 1792763673.2371228,
+    "seen": 1792764924.7923155,
+    "ast_hash": "27bbd033d095c206978cef407cea8ee4",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ui/AppSelectionOrderingTest.kt": {
+    "mtime": 1792763673.2376463,
+    "seen": 1792764924.7923155,
+    "ast_hash": "7bf767c1ddc360bbd340031d6d4ecd01",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ui/DeployResultPolicyTest.kt": {
+    "mtime": 1792763673.238166,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6f7b63ec4f9525fb8d549695220df2db",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ui/DeployScriptPreflightTest.kt": {
+    "mtime": 1793432925.6207488,
+    "seen": 1793435841.4604979,
+    "ast_hash": "49dd22f5d35ff8d25570e1cf531ea50b",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ui/SshKeyRuntimeDependencyTest.kt": {
+    "mtime": 1792763673.2392237,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6a2e522dd5d2087f3d04affedd4626d5",
+    "semantic_hash": ""
+  },
+  "build.gradle.kts": {
+    "mtime": 1792763673.2397506,
+    "seen": 1792764924.7923155,
+    "ast_hash": "9f7460d7034d14330002b8d6359c766b",
+    "semantic_hash": ""
+  },
+  "gradlew": {
+    "mtime": 1792763673.24269,
+    "seen": 1792764924.7923155,
+    "ast_hash": "9030785e82a0c2a7764519cf36bc183b",
+    "semantic_hash": ""
+  },
+  "rust-client/Cargo.toml": {
+    "mtime": 1793439825.1189277,
+    "seen": 1793445502.2048752,
+    "ast_hash": "7b974a95ebca2ffd58e283581cdc4e6a",
+    "semantic_hash": ""
+  },
+  "rust-client/auth.rs": {
+    "mtime": 1793439825.1204724,
+    "seen": 1793445502.2048752,
+    "ast_hash": "5f52d578784e29c23f1d149da352964b",
+    "semantic_hash": ""
+  },
+  "rust-client/build_android_abis.ps1": {
+    "mtime": 1792763673.4328532,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d2ff34170d6b745bf75b88491a44e4e8",
+    "semantic_hash": ""
+  },
+  "rust-client/captcha.rs": {
+    "mtime": 1792763673.4344287,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d759fd231ffc2c71064a64734d6cf405",
+    "semantic_hash": ""
+  },
+  "rust-client/captcha_slider.rs": {
+    "mtime": 1792763673.435568,
+    "seen": 1792764924.7923155,
+    "ast_hash": "76f005abf6c8de4f1505eb1f05588972",
+    "semantic_hash": ""
+  },
+  "rust-client/check_no_runtime_panics.ps1": {
+    "mtime": 1792763673.436081,
+    "seen": 1792764924.7923155,
+    "ast_hash": "0f71c2b69e559f66e38c675afd9ce8e5",
+    "semantic_hash": ""
+  },
+  "rust-client/cpu_task.rs": {
+    "mtime": 1792763673.436081,
+    "seen": 1792764924.7923155,
+    "ast_hash": "cb0be9819d9ef3f3b5d2e0d82f46badb",
+    "semantic_hash": ""
+  },
+  "rust-client/direct_relay.rs": {
+    "mtime": 1793430984.6355367,
+    "seen": 1793432286.9162805,
+    "ast_hash": "f7104f78e26d3e72a98c51697305525b",
+    "semantic_hash": ""
+  },
+  "rust-client/dispatcher.rs": {
+    "mtime": 1793445218.345502,
+    "seen": 1793445502.2048752,
+    "ast_hash": "4b10359a91901e6d1c181f753e357683",
+    "semantic_hash": ""
+  },
+  "rust-client/dns.rs": {
+    "mtime": 1793445188.5199018,
+    "seen": 1793445502.2048752,
+    "ast_hash": "f444f01925cfcf5aa19a206985467106",
+    "semantic_hash": ""
+  },
+  "rust-client/events.rs": {
+    "mtime": 1792763673.4395652,
+    "seen": 1792764924.7923155,
+    "ast_hash": "335172797b84b0c4835d13a71eaa10a2",
+    "semantic_hash": ""
+  },
+  "rust-client/logging.rs": {
+    "mtime": 1792763673.4409971,
+    "seen": 1792764924.7923155,
+    "ast_hash": "646a4e15839f1120b5721b62df5fdbab",
+    "semantic_hash": ""
+  },
+  "rust-client/main.rs": {
+    "mtime": 1793445218.3444436,
+    "seen": 1793445502.2048752,
+    "ast_hash": "b147a4086aa425f1b36b836e6dc09177",
+    "semantic_hash": ""
+  },
+  "rust-client/max_calls.rs": {
+    "mtime": 1793445242.519001,
+    "seen": 1793445502.2048752,
+    "ast_hash": "0571ac8f0706479b700b9571c6912c1f",
+    "semantic_hash": ""
+  },
+  "rust-client/namegen.rs": {
+    "mtime": 1792763673.443079,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a4bf0bf4e0fb1862b433c69296b42083",
+    "semantic_hash": ""
+  },
+  "rust-client/obfs.rs": {
+    "mtime": 1792763673.4436426,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a4cd00375aed3913bfea1c9f946fd02a",
+    "semantic_hash": ""
+  },
+  "rust-client/packet.rs": {
+    "mtime": 1792763673.4436426,
+    "seen": 1792764924.7923155,
+    "ast_hash": "dd3c0323be40dc2c00f4755563bc92cc",
+    "semantic_hash": ""
+  },
+  "rust-client/profiles.rs": {
+    "mtime": 1792763673.4446492,
+    "seen": 1792764924.7923155,
+    "ast_hash": "636dbf11776f4368acc92a06746bd2ad",
+    "semantic_hash": ""
+  },
+  "rust-client/protocol.rs": {
+    "mtime": 1793435574.3677893,
+    "seen": 1793435841.4604979,
+    "ast_hash": "22b24397f146078027b10a65619ce0ab",
+    "semantic_hash": ""
+  },
+  "rust-client/repair.rs": {
+    "mtime": 1792763673.4474556,
+    "seen": 1792764924.7923155,
+    "ast_hash": "78078c7b694540216e158ef5de5b4ce1",
+    "semantic_hash": ""
+  },
+  "rust-client/session.rs": {
+    "mtime": 1793445188.6649203,
+    "seen": 1793445502.2053978,
+    "ast_hash": "d5c6d30d0e8e8f103a39edb8e0670a84",
+    "semantic_hash": ""
+  },
+  "rust-client/sni.rs": {
+    "mtime": 1792763673.4495862,
+    "seen": 1792764924.7923155,
+    "ast_hash": "06292ca540c30d4ce9ec9c1ff4f0a14e",
+    "semantic_hash": ""
+  },
+  "rust-client/srtp_mode.rs": {
+    "mtime": 1792763673.4495862,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3e767ecca01d086c1943dbfd2dead680",
+    "semantic_hash": ""
+  },
+  "rust-client/stats.rs": {
+    "mtime": 1793430984.8198447,
+    "seen": 1793432286.9162805,
+    "ast_hash": "2b001d90864a9cbf31bab367a6a77931",
+    "semantic_hash": ""
+  },
+  "rust-client/stun_codec.rs": {
+    "mtime": 1792763673.4513063,
+    "seen": 1792764924.7923155,
+    "ast_hash": "da2837161e022fb0e52963b54156a1a4",
+    "semantic_hash": ""
+  },
+  "rust-client/tun.rs": {
+    "mtime": 1792763673.4518783,
+    "seen": 1792764924.7923155,
+    "ast_hash": "aa3981e9932bbd4d63a07361857748ba",
+    "semantic_hash": ""
+  },
+  "rust-client/turn.rs": {
+    "mtime": 1793439825.1236687,
+    "seen": 1793445502.2053978,
+    "ast_hash": "67ea3a5135b964f6172755ead0cf0b05",
+    "semantic_hash": ""
+  },
+  "rust-client/turn_core.rs": {
+    "mtime": 1792763673.453221,
+    "seen": 1792764924.7923155,
+    "ast_hash": "e1d84abfad58e56974630c0e8c0c5298",
+    "semantic_hash": ""
+  },
+  "rust-client/turn_endpoint.rs": {
+    "mtime": 1792763673.454226,
+    "seen": 1792764924.7923155,
+    "ast_hash": "cf61fa70b615026c61e22dff2f5923b8",
+    "semantic_hash": ""
+  },
+  "rust-client/turn_integration_tests.rs": {
+    "mtime": 1793445218.3472369,
+    "seen": 1793445502.2053978,
+    "ast_hash": "b9ff0b4b0a0fe36f6222327fce33de9f",
+    "semantic_hash": ""
+  },
+  "rust-client/turn_ip_pool.rs": {
+    "mtime": 1792763673.4552257,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3f78463264313c61f2256c5762ff7fed",
+    "semantic_hash": ""
+  },
+  "rust-client/turn_stream.rs": {
+    "mtime": 1792763673.456227,
+    "seen": 1792764924.7923155,
+    "ast_hash": "932a666f552b4c2468edb7263a5ac790",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/Cargo.toml": {
+    "mtime": 1792763673.457229,
+    "seen": 1792764924.7923155,
+    "ast_hash": "12a1284d4f7f3a71e921710c5c3db3a7",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/device.rs": {
+    "mtime": 1793430984.8203702,
+    "seen": 1793432286.9162805,
+    "ast_hash": "e7645bd342dcc54c48ad26a5b4318a40",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/filter.rs": {
+    "mtime": 1792763673.4607391,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d6df2aa2206517993bdc74f019c76b2e",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/lib.rs": {
+    "mtime": 1792763673.4607391,
+    "seen": 1792764924.7923155,
+    "ast_hash": "613a1ca1fd459af70578b1c5e5679290",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/packet.rs": {
+    "mtime": 1792763673.4607391,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c05ec7253bf85a4d49821e6076cc2c0b",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/runner.rs": {
+    "mtime": 1792763673.4607391,
+    "seen": 1792764924.7923155,
+    "ast_hash": "85152e28a2ac31220969d7e3cc1e2f5d",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/stack.rs": {
+    "mtime": 1792763673.4607391,
+    "seen": 1792764924.7923155,
+    "ast_hash": "181a1f3282a3e9426b53e15f84f3d6ce",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/tcp.rs": {
+    "mtime": 1793430984.8208983,
+    "seen": 1793432286.9162805,
+    "ast_hash": "67e961b38f1b989d43e6a0654874bf91",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/netstack-smoltcp/src/udp.rs": {
+    "mtime": 1792763673.4636335,
+    "seen": 1792764924.7923155,
+    "ast_hash": "7332df445d798693991dce22238b2b8f",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/Cargo.toml": {
+    "mtime": 1792763673.4641378,
+    "seen": 1792764924.7923155,
+    "ast_hash": "152d3558bfe54ad8a9527508010fe6a6",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/chrome/mod.rs": {
+    "mtime": 1792763673.4652548,
+    "seen": 1792764924.7923155,
+    "ast_hash": "989b4b474267b9dff95cf176369785f0",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/edge/mod.rs": {
+    "mtime": 1792763673.4657803,
+    "seen": 1792764924.7923155,
+    "ast_hash": "b1807a56c8eeec8548bf64f52205e21c",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/firefox/mod.rs": {
+    "mtime": 1792763673.4663086,
+    "seen": 1792764924.7923155,
+    "ast_hash": "8cc3e0eb500c42c65d23fb9ec1b3fa3f",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/mod.rs": {
+    "mtime": 1792763673.4669042,
+    "seen": 1792764924.7923155,
+    "ast_hash": "de544ef77feaecf0699aef8d10894e1c",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/opera/mod.rs": {
+    "mtime": 1792763673.467505,
+    "seen": 1792764924.7923155,
+    "ast_hash": "15852de2b401df252b6578e1fe60144f",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/imp/safari/mod.rs": {
+    "mtime": 1792763673.4685986,
+    "seen": 1792764924.7923155,
+    "ast_hash": "eaef71d6fd15531dbb4e4d614a6f4884",
+    "semantic_hash": ""
+  },
+  "rust-client/vendor/primp/src/lib.rs": {
+    "mtime": 1792763673.4691546,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c698a63df1b540ce3a93a978ddb2cc34",
+    "semantic_hash": ""
+  },
+  "rust-client/vk_js_calls.rs": {
+    "mtime": 1793435574.3683164,
+    "seen": 1793435841.4604979,
+    "ast_hash": "27d496e5dba878ba4cfb32f13b35d104",
+    "semantic_hash": ""
+  },
+  "rust-client/worker.rs": {
+    "mtime": 1793439825.1210804,
+    "seen": 1793445502.2053978,
+    "ast_hash": "0fbc869f681170ee13ee180b08561201",
+    "semantic_hash": ""
+  },
+  "rust-client/wrap.rs": {
+    "mtime": 1792763673.4712589,
+    "seen": 1792764924.7923155,
+    "ast_hash": "2614bc81f0f9ce87fd3d56ea00536174",
+    "semantic_hash": ""
+  },
+  "rust-server/Cargo.toml": {
+    "mtime": 1793439585.5688615,
+    "seen": 1793445502.2053978,
+    "ast_hash": "6863d85735b1eed29bc3ad5c1945f28d",
+    "semantic_hash": ""
+  },
+  "rust-server/build_linux.sh": {
+    "mtime": 1792763673.4741142,
+    "seen": 1792764924.7923155,
+    "ast_hash": "4c3f32dd01e09958cb17bf5e5a6c99fe",
+    "semantic_hash": ""
+  },
+  "rust-server/build_linux_variants.ps1": {
+    "mtime": 1792763673.4746382,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a3f0f0c688cb62eb7c64e172705fc61a",
+    "semantic_hash": ""
+  },
+  "rust-server/dataplane.rs": {
+    "mtime": 1792763673.4751647,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d8cd78b1357af4994478b8d08d21c59e",
+    "semantic_hash": ""
+  },
+  "rust-server/main.rs": {
+    "mtime": 1793439683.2104218,
+    "seen": 1793445502.2053978,
+    "ast_hash": "19085c52858a84f74b3bb738559df466",
+    "semantic_hash": ""
+  },
+  "rust-server/model.rs": {
+    "mtime": 1793431813.290022,
+    "seen": 1793432286.9162805,
+    "ast_hash": "2710aec12c34afce689cb966bf9e5e46",
+    "semantic_hash": ""
+  },
+  "rust-server/net_setup.rs": {
+    "mtime": 1792763673.4767592,
+    "seen": 1792764924.7923155,
+    "ast_hash": "6298d1b58e176940c742c33e1262db81",
+    "semantic_hash": ""
+  },
+  "rust-server/packet.rs": {
+    "mtime": 1792763673.477285,
+    "seen": 1792764924.7923155,
+    "ast_hash": "2da643bb8b97d42adea76ee7af79c6ac",
+    "semantic_hash": ""
+  },
+  "rust-server/path_probe.rs": {
+    "mtime": 1792763673.477285,
+    "seen": 1792764924.7923155,
+    "ast_hash": "e23aacadf5429a1c5118904f10bbb829",
+    "semantic_hash": ""
+  },
+  "rust-server/protocol.rs": {
+    "mtime": 1793431813.3453813,
+    "seen": 1793432286.9162805,
+    "ast_hash": "a0c26fe0cfc5aacd20044f64e3b04faa",
+    "semantic_hash": ""
+  },
+  "rust-server/proxy_route.rs": {
+    "mtime": 1793439683.1403897,
+    "seen": 1793445502.2053978,
+    "ast_hash": "073f39e441614606db0c723a82916c85",
+    "semantic_hash": ""
+  },
+  "rust-server/tokio_io.rs": {
+    "mtime": 1792763673.4812884,
+    "seen": 1792764924.7923155,
+    "ast_hash": "bd43800a59d3d7fac6207766bb137529",
+    "semantic_hash": ""
+  },
+  "rust-server/tproxy.rs": {
+    "mtime": 1792763673.4817932,
+    "seen": 1792764924.7923155,
+    "ast_hash": "19f23ed50d5ae1853bebc1410bfb6b94",
+    "semantic_hash": ""
+  },
+  "rust-server/tun_device.rs": {
+    "mtime": 1793431813.3865614,
+    "seen": 1793432286.9162805,
+    "ast_hash": "7544401e2827516458dd10152381de24",
+    "semantic_hash": ""
+  },
+  "rust-server/web_panel.rs": {
+    "mtime": 1793439585.5704606,
+    "seen": 1793445502.2053978,
+    "ast_hash": "b5edf5c460067ae1ca2946a97eeeb6b1",
+    "semantic_hash": ""
+  },
+  "scripts/build_both_parallel.ps1": {
+    "mtime": 1792763673.4868283,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d2d4b7fd1de63cc29b4065a183f03f18",
+    "semantic_hash": ""
+  },
+  "scripts/make_csqttr_link.py": {
+    "mtime": 1792763673.4878323,
+    "seen": 1792764924.7923155,
+    "ast_hash": "7ba937dffe2a4e638e912cd1ec67c834",
+    "semantic_hash": ""
+  },
+  "scripts/native_client_provenance.ps1": {
+    "mtime": 1792763673.4888332,
+    "seen": 1792764924.7923155,
+    "ast_hash": "5615a9a1790fe8bf530ee03f4c1aa17d",
+    "semantic_hash": ""
+  },
+  "scripts/run_wsl_checks.sh": {
+    "mtime": 1792763673.4893377,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d90cfc0e3119fce6f2b1f47e8ae94e93",
+    "semantic_hash": ""
+  },
+  "scripts/server_asset_provenance.ps1": {
+    "mtime": 1792763673.4893377,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a8c9aa920c9a7aac376cd5919b9156f6",
+    "semantic_hash": ""
+  },
+  "scripts/test_wsl_unified.ps1": {
+    "mtime": 1792763673.4903443,
+    "seen": 1792764924.7923155,
+    "ast_hash": "1bfa6154672a9f65d77758156ecf67e5",
+    "semantic_hash": ""
+  },
+  "settings.gradle.kts": {
+    "mtime": 1792763673.4903443,
+    "seen": 1792764924.7923155,
+    "ast_hash": "170c1afbf1ca7148249409c6b8d5c939",
+    "semantic_hash": ""
+  },
+  "shared/dtls.rs": {
+    "mtime": 1792763673.491683,
+    "seen": 1792764924.7923155,
+    "ast_hash": "a70f3688b9dacbd6da7889e354f0ef4e",
+    "semantic_hash": ""
+  },
+  "shared/spsc_ring.rs": {
+    "mtime": 1792763673.4926841,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3fab514fe233e2641d381090a098f962",
+    "semantic_hash": ""
+  },
+  "shared/wire_protocol.rs": {
+    "mtime": 1792763673.4926841,
+    "seen": 1792764924.7923155,
+    "ast_hash": "c5a37d7bdfabcc3ee9d52a49ae92b56a",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/CsqttrMaxToken.csproj": {
+    "mtime": 1792763673.4936833,
+    "seen": 1792764924.7923155,
+    "ast_hash": "ab51b23aa716c12e6fa34c2720dd5bb5",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/DebugRecorder.cs": {
+    "mtime": 1792763673.4936833,
+    "seen": 1792764924.7923155,
+    "ast_hash": "e16ccc79e99bc917051af5c5a24f0e20",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/Extractor.cs": {
+    "mtime": 1792763673.4946828,
+    "seen": 1792764924.7923155,
+    "ast_hash": "64755df61f3891281aee067aae7939ca",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/ExtractorOptions.cs": {
+    "mtime": 1792763673.4946828,
+    "seen": 1792764924.7923155,
+    "ast_hash": "21dc94ed131d92096b96ff9b1c66473c",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/Models.cs": {
+    "mtime": 1792763673.4956844,
+    "seen": 1792764924.7923155,
+    "ast_hash": "476205c9bac141f8582a0b13058cc745",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/NetworkCapture.Partial.cs": {
+    "mtime": 1792763673.4956844,
+    "seen": 1792764924.7923155,
+    "ast_hash": "115d2fb8084ab2d4b8f65793919266f9",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/NetworkCapture.cs": {
+    "mtime": 1792763673.4956844,
+    "seen": 1792764924.7923155,
+    "ast_hash": "616df64c481eae995359d7f2680e2c7a",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/NetworkCaptureExtensions.cs": {
+    "mtime": 1792763673.4956844,
+    "seen": 1792764924.7923155,
+    "ast_hash": "677497e897f172e4c01bd53b5d3b2845",
+    "semantic_hash": ""
+  },
+  "tools/CsqttrMaxToken/Program.cs": {
+    "mtime": 1792763673.4966834,
+    "seen": 1792764924.7923155,
+    "ast_hash": "99cdee343059f34cd71113bbb18ada22",
+    "semantic_hash": ""
+  },
+  ".github/workflows/build-test-apk.yml": {
+    "mtime": 1793432493.8630009,
+    "seen": 1793432561.9291515,
+    "ast_hash": "b3b99f2e6522b3d07160057e0d6167a2",
+    "semantic_hash": ""
+  },
+  "CHANGES_MAX_CSQTTR.md": {
+    "mtime": 1793432494.1736934,
+    "seen": 1793432561.9291515,
+    "ast_hash": "9a9bce0852dd3fd29bef5a9c0395c893",
+    "semantic_hash": ""
+  },
+  "GITHUB_ACTIONS_GUIDE_RU.md": {
+    "mtime": 1793432493.872566,
+    "seen": 1793432561.9291515,
+    "ast_hash": "1dd0341288de9d9967942cbee746fa15",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1793432493.9513507,
+    "seen": 1793432561.9291515,
+    "ast_hash": "1d48deda089893f022d37340b5239ca9",
+    "semantic_hash": ""
+  },
+  "README_MAX_CSQTTR.md": {
+    "mtime": 1793432493.936305,
+    "seen": 1793432561.9291515,
+    "ast_hash": "2bc2802225f39dea23a7d08b2873d4b7",
+    "semantic_hash": ""
+  },
+  "TODO_NEXT_UPDATE.md": {
+    "mtime": 1793445479.5182805,
+    "seen": 1793445502.2053978,
+    "ast_hash": "58003ada0ae39f2685e3f8e343db3877",
+    "semantic_hash": ""
+  },
+  "app/src/main/assets/domains.txt": {
+    "mtime": 1792763673.1453729,
+    "seen": 1792764924.7923155,
+    "ast_hash": "5bb0286fc32c065cb196a27dd92cfd87",
+    "semantic_hash": ""
+  },
+  "domains.txt": {
+    "mtime": 1792763673.2403753,
+    "seen": 1792764924.7928212,
+    "ast_hash": "5bb0286fc32c065cb196a27dd92cfd87",
+    "semantic_hash": ""
+  },
+  "rust-client/proptest-regressions/session.txt": {
+    "mtime": 1792763673.4462967,
+    "seen": 1792764924.7928212,
+    "ast_hash": "97d660aa724c5cde92add40d0ecc3a36",
+    "semantic_hash": ""
+  },
+  "app/src/main/res/drawable-nodpi/tv_banner.png": {
+    "mtime": 1792763673.2037354,
+    "seen": 1792764924.7928212,
+    "ast_hash": "b6aca186095205a6fc214596029c6a3b",
+    "semantic_hash": ""
+  },
+  "app/src/androidTest/java/com/csqtt/client/MaxAuthWebViewSmokeTest.kt": {
+    "mtime": 1792763673.1427462,
+    "seen": 1792764924.7923155,
+    "ast_hash": "4a3fc1239e822a8774308a9ced96556b",
+    "semantic_hash": ""
+  },
+  ".github/workflows/max-webview-smoke.yml": {
+    "mtime": 1792763673.1357734,
+    "seen": 1792764924.7923155,
+    "ast_hash": "d7c1638edb2e8b04308da06e0c0d4115",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/MaxWebViewScripts.kt": {
+    "mtime": 1792763673.1539898,
+    "seen": 1792764924.7923155,
+    "ast_hash": "049a5a74d4055fa0f4586f4df5457ce7",
+    "semantic_hash": ""
+  },
+  "scripts/test_max_webview_theme.cjs": {
+    "mtime": 1792763673.4903443,
+    "seen": 1792764924.7923155,
+    "ast_hash": "8029493a219619392c387dc90a9e851c",
+    "semantic_hash": ""
+  },
+  "scripts/run_max_webview_smoke.sh": {
+    "mtime": 1792763673.4888332,
+    "seen": 1792764924.7923155,
+    "ast_hash": "be16dfcd53160c04d336538070f1f019",
+    "semantic_hash": ""
+  },
+  "app/src/androidTest/java/com/csqtt/client/MaxAuthLifecycleTest.kt": {
+    "mtime": 1792763673.142224,
+    "seen": 1792764924.7923155,
+    "ast_hash": "448f48ca06901acfdb0a5a89fd98f92a",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/DeviceIdentity.kt": {
+    "mtime": 1792764612.1133242,
+    "seen": 1792764924.7923155,
+    "ast_hash": "3ea54853b127e8d8b419f21359f23029",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/BatterySaver.kt": {
+    "mtime": 1793432493.9640157,
+    "seen": 1793432561.928629,
+    "ast_hash": "52c019bd353ae1d9191b082263372bd1",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/profiles/ConnectionProfiles.kt": {
+    "mtime": 1793432528.3701165,
+    "seen": 1793432561.9291515,
+    "ast_hash": "f2d6b549477044c6f1dd3728e160c061",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/servers/ServerApi.kt": {
+    "mtime": 1793430426.4882724,
+    "seen": 1793432286.9162805,
+    "ast_hash": "ab3d39d366be2a2ef29bfbf708b02827",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/servers/ServerControl.kt": {
+    "mtime": 1793430426.519513,
+    "seen": 1793432286.9162805,
+    "ast_hash": "73600b4bbb4e6e256b024418db759928",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/servers/ServerRepository.kt": {
+    "mtime": 1793445436.0083246,
+    "seen": 1793445502.2048752,
+    "ast_hash": "3d562899c5c30c40043c4af968af1541",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/BatterySaverInfoDialog.kt": {
+    "mtime": 1793432494.0675838,
+    "seen": 1793432561.9291515,
+    "ast_hash": "539528bff30872d9eb874255d48991c7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/common/ManagementUi.kt": {
+    "mtime": 1793435818.096834,
+    "seen": 1793435841.4604979,
+    "ast_hash": "413707768240477afda64a0563304e7e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/profiles/ProfilesSection.kt": {
+    "mtime": 1793451858.6992805,
+    "seen": 1793452040.46574,
+    "ast_hash": "d7dda2c489c89b176cb346ba4bd363c1",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/GroupsRoutingSections.kt": {
+    "mtime": 1793432494.182173,
+    "seen": 1793432561.9291515,
+    "ast_hash": "6b07a75934078a259cb3975c171e4da0",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/ServerEditDialog.kt": {
+    "mtime": 1793452004.9472227,
+    "seen": 1793452040.46574,
+    "ast_hash": "c7a268cc2aa755b400e6f3cbc44039a7",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/ServerManageScreen.kt": {
+    "mtime": 1793432493.8818038,
+    "seen": 1793432561.9291515,
+    "ast_hash": "08e209d62173743509dbafebfd5f671b",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/ServerToolsSections.kt": {
+    "mtime": 1793435811.0487084,
+    "seen": 1793435841.4604979,
+    "ast_hash": "e4f78dc8ac40ea2dd9350d6676d13f0a",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/ServersTab.kt": {
+    "mtime": 1793445412.3862884,
+    "seen": 1793445502.2048752,
+    "ast_hash": "58eb0a9a05d8526355bf503d7b286e64",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/servers/SubscriptionsSection.kt": {
+    "mtime": 1793435811.1644993,
+    "seen": 1793435841.4604979,
+    "ast_hash": "4edc605fc17a6b5748acb35233a43596",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/BatterySaverTest.kt": {
+    "mtime": 1793431123.7407668,
+    "seen": 1793432286.9162805,
+    "ast_hash": "28fdb9a42f0b5b009cb4a9bf0f984db3",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/SettingsStoreInitOrderTest.kt": {
+    "mtime": 1793431026.4274094,
+    "seen": 1793432286.9162805,
+    "ast_hash": "178fdd5e386aa2b060fb67d830cd7ed4",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/profiles/SubscriptionCodecTest.kt": {
+    "mtime": 1793432528.4232707,
+    "seen": 1793432561.9291515,
+    "ast_hash": "48cf9dd08a06eee2a8aca0643fe4d994",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/servers/ServerApiResponseTest.kt": {
+    "mtime": 1793430426.816968,
+    "seen": 1793432286.9162805,
+    "ast_hash": "2e242ca16af0aeda202312203e9d30e5",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/MrttApplication.kt": {
+    "mtime": 1793432493.8795707,
+    "seen": 1793432561.928629,
+    "ast_hash": "99cf55a53cf70553ab74b60c69d4377e",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/components/MrttScreen.kt": {
+    "mtime": 1793432493.928899,
+    "seen": 1793432561.9291515,
+    "ast_hash": "df0254c75dc8801398ba29fe6760dca9",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/components/MrttSegmentedControl.kt": {
+    "mtime": 1793432493.87857,
+    "seen": 1793432561.9291515,
+    "ast_hash": "0383f095ba1d8d885e814712352e82cc",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/components/MrttSettingRow.kt": {
+    "mtime": 1793432493.9712746,
+    "seen": 1793432561.9291515,
+    "ast_hash": "ba9845499c2d299b1de8a93b26e758cb",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/components/MrttStates.kt": {
+    "mtime": 1793432493.9518626,
+    "seen": 1793432561.9291515,
+    "ast_hash": "d8ce1dc164fc73990c99a189d00cc213",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/design/MrttExtendedColors.kt": {
+    "mtime": 1793432493.9728835,
+    "seen": 1793432561.9291515,
+    "ast_hash": "033e178fa45be1f4a9d35c1a8e4ae3ca",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/design/MrttMotion.kt": {
+    "mtime": 1793432494.1530166,
+    "seen": 1793432561.9291515,
+    "ast_hash": "f4b74406a534cad0669dfeca99d71976",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/design/MrttShapes.kt": {
+    "mtime": 1793432494.0905702,
+    "seen": 1793432561.9291515,
+    "ast_hash": "db75579a024f5837123527c8974b7a43",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/design/MrttSizes.kt": {
+    "mtime": 1793432493.864,
+    "seen": 1793432561.9291515,
+    "ast_hash": "194844c1e8e149dedbba35aa6ecbbb09",
+    "semantic_hash": ""
+  },
+  "app/src/main/java/com/csqtt/client/ui/design/MrttSpacing.kt": {
+    "mtime": 1793432494.1387208,
+    "seen": 1793432561.9291515,
+    "ast_hash": "aa85178597d7d076de04b124e57fc6ef",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/ui/MrttLinkTest.kt": {
+    "mtime": 1793432925.6207488,
+    "seen": 1793435841.4604979,
+    "ast_hash": "e5a99c8b521294c4a0f26cf46654fc29",
+    "semantic_hash": ""
+  },
+  "app/src/test/java/com/csqtt/client/JitsiLinkTest.kt": {
+    "mtime": 1793452027.854661,
+    "seen": 1793452040.46574,
+    "ast_hash": "d89320d21863ce5f753d1c5934d842c0",
+    "semantic_hash": ""
+  },
+  "rust-server/jitsi_relay.rs": {
+    "mtime": 1793439566.8507168,
+    "seen": 1793445502.2053978,
+    "ast_hash": "ea917733cd1aa0ff452925d395a33ccd",
+    "semantic_hash": ""
+  },
+  "shared/jitsi_room.rs": {
+    "mtime": 1793439441.86764,
+    "seen": 1793445502.2053978,
+    "ast_hash": "ba2bce5518b16d802a3b35eec0d7edc3",
+    "semantic_hash": ""
+  }
+}

@@ -29,8 +29,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.AppReleaseInfo
 import com.csqtt.client.RemoteVersionSource
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 
 @Composable
 fun AppUpdateDialog(
@@ -55,7 +55,7 @@ fun AppUpdateDialog(
         )
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -109,8 +109,8 @@ fun AppUpdateDialog(
                         onClick = onPostpone,
                         modifier = Modifier
                             .weight(1f)
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Pill
+                            .height(MrttSizes.ControlHeight),
+                        shape = MrttShapes.Pill
                     ) {
                         Text("Позже", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     }
@@ -119,8 +119,8 @@ fun AppUpdateDialog(
                         onClick = onUpdate,
                         modifier = Modifier
                             .weight(1f)
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Pill
+                            .height(MrttSizes.ControlHeight),
+                        shape = MrttShapes.Pill
                     ) {
                         Text("Обновить", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }

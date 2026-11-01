@@ -32,11 +32,11 @@ class TunnelAuthSnapshotTest {
     fun `participant snapshot keeps link and mode in one state`() {
         val snapshot = TunnelAuthSnapshot(
             profile = 0,
-            csqttLink = "csqtt://connect?peer=example.test",
-            csqttLinkMode = true,
+            mrttLink = "csqttr://connect?peer=example.test",
+            mrttLinkMode = true,
         )
 
-        assertTrue(snapshot.csqttLinkMode)
-        assertEquals("csqtt://connect?peer=example.test", snapshot.csqttLink)
+        assertTrue(snapshot.mrttLinkMode)
+        assertEquals("csqttr://connect?peer=example.test", snapshot.mrttLink)
     }
 }

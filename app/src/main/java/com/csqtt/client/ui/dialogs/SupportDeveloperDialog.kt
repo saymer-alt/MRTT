@@ -23,12 +23,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.CSQTTColors
-import com.csqtt.client.CsqttConstants
+import com.csqtt.client.MrttConstants
 import com.csqtt.client.R
 import com.csqtt.client.showRaisedToast
 import com.csqtt.client.ui.appSectionCardBorderColor
 import com.csqtt.client.ui.appSectionCardColor
-import com.csqtt.client.ui.design.CsqttShapes
+import com.csqtt.client.ui.design.MrttShapes
 
 private fun openBrowserLink(context: Context, url: String) {
     try {
@@ -38,7 +38,7 @@ private fun openBrowserLink(context: Context, url: String) {
         }
         context.startActivity(intent)
     } catch (e: Exception) {
-        Log.w("CSQTT", "Не удалось открыть ссылку: $url", e)
+        Log.w("MRTT", "Не удалось открыть ссылку: $url", e)
         context.showRaisedToast("Не удалось открыть браузер", Toast.LENGTH_SHORT)
     }
 }
@@ -60,7 +60,7 @@ fun SupportDeveloperDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
             tonalElevation = 0.dp,
@@ -99,11 +99,11 @@ fun SupportDeveloperDialog(
                 }
 
                 Button(
-                    onClick = { openBrowserLink(context, CsqttConstants.Links.TELEGRAM) },
+                    onClick = { openBrowserLink(context, MrttConstants.Links.TELEGRAM) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = CsqttShapes.Pill,
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = CSQTTColors.telegram,
                         contentColor = Color.White
@@ -134,7 +134,7 @@ fun SupportDeveloperDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = CsqttShapes.Pill,
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF1E293B),
                         contentColor = Color.White

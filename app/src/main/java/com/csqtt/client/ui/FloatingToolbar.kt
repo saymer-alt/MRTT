@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.csqtt.client.SettingsStore
+import com.csqtt.client.BatterySaver
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -26,12 +27,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.verticalScroll
-import com.csqtt.client.CsqttConstants
+import com.csqtt.client.MrttConstants
 import com.csqtt.client.TunnelManager
-import com.csqtt.client.ui.components.CsqttSegmentedControl
-import com.csqtt.client.ui.components.CsqttSettingRow
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.components.MrttSegmentedControl
+import com.csqtt.client.ui.components.MrttSettingRow
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -41,17 +42,11 @@ import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import com.csqtt.client.ui.dialogs.ImportExportDialog
 import com.csqtt.client.ui.dialogs.QrScannerDialog
-import com.csqtt.client.ui.dialogs.SupportDeveloperDialog
 import com.csqtt.client.ui.dialogs.TurnSubnetsDialog
-
-private enum class UsageRole { Owner, Participant }
 
 @Composable
 fun FloatingToolbar(
     settingsStore: SettingsStore,
-    csqttLinkMode: Boolean,
-    activeProfile: Int,
-    onActiveProfileChange: (Int) -> Unit,
     currentTheme: String,
     onThemeChange: (String) -> Unit,
     activeFingerprint: String,
@@ -62,9 +57,8 @@ fun FloatingToolbar(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val selectedRole = if (csqttLinkMode) UsageRole.Participant else UsageRole.Owner
     val vkAuthMode by settingsStore.vkAuthMode.collectAsStateWithLifecycle(
-        initialValue = CsqttConstants.VkAuth.MODE_CALLS,
+        initialValue = MrttConstants.VkAuth.MODE_CALLS,
     )
     val tunnelRunning by TunnelManager.running.collectAsStateWithLifecycle()
     val selectedTurnSubnet by settingsStore.selectedTurnSubnet.collectAsStateWithLifecycle(
@@ -75,18 +69,16 @@ fun FloatingToolbar(
     )
     var isExpanded by rememberSaveable { mutableStateOf(false) }
     var showQrScanner by rememberSaveable { mutableStateOf(false) }
-    var showSupportDeveloperDialog by rememberSaveable { mutableStateOf(false) }
     var showImportExportDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoPauseInfo by rememberSaveable { mutableStateOf(false) }
+    var showBatterySaverInfo by rememberSaveable { mutableStateOf(false) }
+    val batterySaverMode by settingsStore.batterySaverMode.collectAsStateWithLifecycle(
+        initialValue = BatterySaver.DEFAULT_MODE,
+    )
+    val batterySaverPercent by settingsStore.batterySaverPercent.collectAsStateWithLifecycle(
+        initialValue = BatterySaver.DEFAULT_PERCENT,
+    )
     var showTurnSubnetsDialog by rememberSaveable { mutableStateOf(false) }
-    val profileNames by settingsStore.profileNames.collectAsStateWithLifecycle(
-        initialValue = emptyMap(),
-    )
-    val participantShowLogs by settingsStore.participantShowLogs.collectAsStateWithLifecycle(
-        initialValue = false,
-    )
-    var editingProfileIndex by rememberSaveable { mutableStateOf<Int?>(null) }
-    var editingProfileName by rememberSaveable { mutableStateOf("") }
     val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val settingsIconTint = if (isDarkTheme) Color.White else Color.Black
 
@@ -106,29 +98,15 @@ fun FloatingToolbar(
         modifier = modifier
     ) {
         IconButton(
-            onClick = { showSupportDeveloperDialog = true },
+            onClick = { showImportExportDialog = true },
             modifier = Modifier.size(38.dp),
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_donate_heart),
-                contentDescription = "Поддержать разработчика",
+                painter = painterResource(id = R.drawable.ic_import_export),
+                contentDescription = "Импорт и экспорт конфигурации",
                 modifier = Modifier.size(24.dp),
                 tint = settingsIconTint,
             )
-        }
-
-        if (!csqttLinkMode) {
-            IconButton(
-                onClick = { showImportExportDialog = true },
-                modifier = Modifier.size(38.dp),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_import_export),
-                    contentDescription = "Импорт и экспорт конфигурации",
-                    modifier = Modifier.size(24.dp),
-                    tint = settingsIconTint,
-                )
-            }
         }
 
         IconButton(
@@ -163,12 +141,6 @@ fun FloatingToolbar(
         }
     }
 
-    if (showSupportDeveloperDialog) {
-        SupportDeveloperDialog(
-            onDismissRequest = { showSupportDeveloperDialog = false }
-        )
-    }
-
     if (showImportExportDialog) {
         ImportExportDialog(
             settingsStore = settingsStore,
@@ -180,15 +152,16 @@ fun FloatingToolbar(
         QrScannerDialog(
             onDismissRequest = { showQrScanner = false },
             onQrCodeScanned = { rawLink ->
-                val parsed = com.csqtt.client.ui.utils.parseCsqttLink(rawLink)
-                if (parsed != null) {
-                    showQrScanner = false
-                    scope.launch {
-                        settingsStore.saveCsqttParticipantLink(rawLink.trim())
+                showQrScanner = false
+                scope.launch {
+                    // QR может содержать и одну ссылку, и целую сабку: обе попадают в «Профили».
+                    val added = com.csqtt.client.profiles.ProfileRepository(context).import(rawLink)
+                    val message = when (added) {
+                        null -> "QR-код не содержит ссылку MRTT"
+                        0 -> "Эти ссылки уже есть в профилях"
+                        else -> "Добавлено в профили: $added"
                     }
-                    Toast.makeText(context, "Ссылка подключена из QR-кода ✓ Режим участника включён", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(context, "QR-код не содержит ссылку CSQTT", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -200,7 +173,7 @@ fun FloatingToolbar(
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Surface(
-                    shape = CsqttShapes.Dialog,
+                    shape = MrttShapes.Dialog,
                     color = appSectionCardColor(),
                     border = BorderStroke(1.dp, appSectionCardBorderColor()),
                     tonalElevation = 0.dp,
@@ -239,57 +212,6 @@ fun FloatingToolbar(
                         }
                     }
 
-                    Text(
-                        "Ваша роль использования",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    CsqttSegmentedControl(
-                        options = listOf(
-                            UsageRole.Owner to "Владелец",
-                            UsageRole.Participant to "Участник",
-                        ),
-                        selected = selectedRole,
-                        onSelected = { role ->
-                            val participant = role == UsageRole.Participant
-                            if (participant != csqttLinkMode) {
-                                scope.launch { settingsStore.saveCsqttLinkMode(participant) }
-                            }
-                        },
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .height(CsqttSizes.CompactControlHeight),
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    if (!csqttLinkMode) {
-                        CompactDropdownSetting(
-                            title = "Профиль конфигурации",
-                            selectedKey = activeProfile.toString(),
-                            options = (CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX)
-                                .map { profile -> profile.toString() to (profileNames[profile] ?: "Профиль $profile") },
-                            enabled = true,
-                            onSelected = { profile ->
-                                profile.toIntOrNull()?.let(onActiveProfileChange)
-                            },
-                            onItemEdit = { key ->
-                                val p = key.toIntOrNull() ?: 0
-                                editingProfileIndex = p
-                                editingProfileName = profileNames[p] ?: "Профиль $p"
-                            },
-                        )
-                    }
-
                     CompactDropdownSetting(
                         title = "Отпечаток",
                         selectedKey = activeFingerprint,
@@ -308,15 +230,15 @@ fun FloatingToolbar(
                         title = "Оформление",
                         selectedKey = currentTheme,
                         options = listOf(
-                            CsqttConstants.Theme.MODE_SYSTEM to "Система",
-                            CsqttConstants.Theme.MODE_LIGHT to "Светлая",
-                            CsqttConstants.Theme.MODE_DARK to "Тёмная",
+                            MrttConstants.Theme.MODE_SYSTEM to "Система",
+                            MrttConstants.Theme.MODE_LIGHT to "Светлая",
+                            MrttConstants.Theme.MODE_DARK to "Тёмная",
                         ),
                         enabled = true,
                         onSelected = onThemeChange,
                     )
 
-                    CsqttSettingRow(
+                    MrttSettingRow(
                         title = "Автопауза при Wi-Fi",
                         checked = autoPauseOnWifi,
                         onCheckedChange = onAutoPauseOnWifiChange,
@@ -324,23 +246,36 @@ fun FloatingToolbar(
                         infoContentDescription = "Как работает автопауза при Wi-Fi",
                     )
 
-                    if (csqttLinkMode) {
-                        CsqttSettingRow(
-                            title = "Показывать логи",
-                            checked = participantShowLogs,
-                            onCheckedChange = { checked ->
-                                scope.launch { settingsStore.saveParticipantShowLogs(checked) }
+                    CompactDropdownSetting(
+                        title = BatterySaver.TITLE,
+                        selectedKey = batterySaverMode,
+                        options = BatterySaver.MODES,
+                        enabled = true,
+                        onSelected = { mode -> scope.launch { settingsStore.saveBatterySaverMode(mode) } },
+                        onTitleInfo = { showBatterySaverInfo = true },
+                    )
+
+                    // Уровень важен только в «Свой уровень»; в «Авто» работает экономия самого телефона
+                    if (batterySaverMode != BatterySaver.MODE_OFF) {
+                        CompactDropdownSetting(
+                            title = BatterySaver.LEVEL_TITLE,
+                            selectedKey = batterySaverPercent.toString(),
+                            options = (BatterySaver.PERCENT_CHOICES + batterySaverPercent).distinct().sorted()
+                                .map { percent -> percent.toString() to "≤ $percent %" },
+                            enabled = batterySaverMode == BatterySaver.MODE_LEVEL,
+                            onSelected = { key ->
+                                key.toIntOrNull()?.let { percent -> scope.launch { settingsStore.saveBatterySaverPercent(percent) } }
                             },
                         )
                     }
 
-                    if (!csqttLinkMode) {
+                    run {
                         OutlinedButton(
                             onClick = { showTurnSubnetsDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(CsqttSizes.ControlHeight),
-                            shape = CsqttShapes.Pill,
+                                .height(MrttSizes.ControlHeight),
+                            shape = MrttShapes.Pill,
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = Color.Transparent,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -366,6 +301,9 @@ fun FloatingToolbar(
         }
     }
 
+    if (showBatterySaverInfo) {
+        BatterySaverInfoDialog(onDismiss = { showBatterySaverInfo = false })
+    }
     if (showAutoPauseInfo) {
         WifiAutoPauseInfoDialog(onDismiss = { showAutoPauseInfo = false })
     }
@@ -384,102 +322,4 @@ fun FloatingToolbar(
         )
     }
 
-    editingProfileIndex?.let { p ->
-        Dialog(
-            onDismissRequest = { editingProfileIndex = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Surface(
-                shape = CsqttShapes.Dialog,
-                color = appSectionCardColor(),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                border = BorderStroke(1.dp, appSectionCardBorderColor()),
-                tonalElevation = 0.dp,
-                modifier = Modifier.fillMaxWidth(0.92f),
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Название профиля",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        IconButton(
-                            onClick = { editingProfileIndex = null },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = editingProfileName,
-                        onValueChange = { editingProfileName = it },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = CsqttShapes.Control,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        ),
-                        trailingIcon = {
-                            IconButton(
-                                onClick = { editingProfileName = "" },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Очистить",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        },
-                    )
-
-                    Button(
-                        onClick = {
-                            val targetProfile = p
-                            val targetName = editingProfileName
-                            editingProfileIndex = null
-                            scope.launch {
-                                settingsStore.saveProfileName(targetProfile, targetName)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(CsqttSizes.ControlHeight),
-                        shape = CsqttShapes.Control,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        Text(
-                            text = "Сохранить",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
-    }
 }

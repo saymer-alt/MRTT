@@ -45,7 +45,7 @@ class VpnWidgetToggleReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION = CsqttConstants.Widget.ACTION_TOGGLE
+        const val ACTION = MrttConstants.Widget.ACTION_TOGGLE
         private const val TAG = "VpnWidget"
     }
 }

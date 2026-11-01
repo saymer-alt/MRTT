@@ -22,11 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import com.csqtt.client.CsqttConstants
-import com.csqtt.client.ui.design.CsqttDarkExtendedColors
-import com.csqtt.client.ui.design.CsqttLightExtendedColors
-import com.csqtt.client.ui.design.CsqttMaterialShapes
-import com.csqtt.client.ui.design.LocalCsqttExtendedColors
+import com.csqtt.client.MrttConstants
+import com.csqtt.client.ui.design.MrttDarkExtendedColors
+import com.csqtt.client.ui.design.MrttLightExtendedColors
+import com.csqtt.client.ui.design.MrttMaterialShapes
+import com.csqtt.client.ui.design.LocalMrttExtendedColors
 
 val CSQTTTypography = Typography(
     displayLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Bold, fontSize = 57.sp, lineHeight = 64.sp),
@@ -185,47 +185,47 @@ private val ForestDarkColorScheme = darkColorScheme(
 )
 
 private val BrandLightColorScheme = lightColorScheme(
-    primary = Color(0xFF1A73E8),
+    primary = Color(0xFF3F4448),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE8F0FE),
-    onPrimaryContainer = Color(0xFF111215),
-    secondary = Color(0xFF1A73E8),
+    primaryContainer = Color(0xFFFFFFFF),
+    onPrimaryContainer = Color(0xFF14161A),
+    secondary = Color(0xFF3F4448),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE8F0FE),
-    onSecondaryContainer = Color(0xFF111215),
+    secondaryContainer = Color(0xFFFFFFFF),
+    onSecondaryContainer = Color(0xFF14161A),
     tertiary = Color(0xFFD27D00),
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFFFE4B7),
     onTertiaryContainer = Color(0xFF241400),
-    background = Color(0xFFFDFDFE),
+    background = Color(0xFFF2F3F5),
     onBackground = Color(0xFF111215),
     surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF111215),
-    surfaceVariant = Color(0xFFF2F2F4),
+    surfaceVariant = Color(0xFFF2F3F5),
     onSurfaceVariant = Color(0xFF5F6067),
-    outline = Color(0xFF898B92),
-    outlineVariant = Color(0xFFD7D8DD),
+    outline = Color(0xFF878B92),
+    outlineVariant = Color(0xFFDFE1E6),
     surfaceTint = Color.Transparent,
 )
 
 private val BrandDarkColorScheme = darkColorScheme(
-    primary = Color(0xFF1565D8),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF173B72),
-    onPrimaryContainer = Color(0xFFFFFFFF),
-    secondary = Color(0xFF1565D8),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFF173B72),
-    onSecondaryContainer = Color(0xFFFFFFFF),
+    primary = Color(0xFFD3D7DC),
+    onPrimary = Color(0xFF17191C),
+    primaryContainer = Color(0xFF3A3E44),
+    onPrimaryContainer = Color(0xFFE9EBEE),
+    secondary = Color(0xFFD3D7DC),
+    onSecondary = Color(0xFF17191C),
+    secondaryContainer = Color(0xFF3A3E44),
+    onSecondaryContainer = Color(0xFFE9EBEE),
     tertiary = Color(0xFFFFB74D),
     onTertiary = Color(0xFF271500),
     tertiaryContainer = Color(0xFF5A3900),
     onTertiaryContainer = Color(0xFFFFE5BD),
     background = Color(0xFF09090A),
     onBackground = Color(0xFFFAFAFA),
-    surface = Color(0xFF121214),
+    surface = Color(0xFF141416),
     onSurface = Color(0xFFFAFAFA),
-    surfaceVariant = Color(0xFF202024),
+    surfaceVariant = Color(0xFF202226),
     onSurfaceVariant = Color(0xFFC9C9CF),
     outline = Color(0xFF8C8C94),
     outlineVariant = Color(0xFF35353A),
@@ -261,8 +261,8 @@ fun CSQTTTheme(
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
-        CsqttConstants.Theme.MODE_DARK -> true
-        CsqttConstants.Theme.MODE_LIGHT -> false
+        MrttConstants.Theme.MODE_DARK -> true
+        MrttConstants.Theme.MODE_LIGHT -> false
         else -> isSystemInDarkTheme()
     }
 
@@ -299,13 +299,13 @@ fun CSQTTTheme(
     }
 
     CompositionLocalProvider(
-        LocalCsqttExtendedColors provides if (darkTheme) CsqttDarkExtendedColors else CsqttLightExtendedColors,
+        LocalMrttExtendedColors provides if (darkTheme) MrttDarkExtendedColors else MrttLightExtendedColors,
         LocalDensity provides fixedDensity,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = CSQTTTypography,
-            shapes = CsqttMaterialShapes,
+            shapes = MrttMaterialShapes,
             content = content,
         )
     }

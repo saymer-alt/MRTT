@@ -10,6 +10,6 @@ class CaptchaCancelReceiver : BroadcastReceiver() {
         TunnelManager.stop()
         ManlCaptchaWebViewManager.activeActivity?.finish()
         val notifMgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notifMgr.cancel(CsqttConstants.Notifications.CAPTCHA_NOTIFICATION_ID)
+        notifMgr.cancel(MrttConstants.Notifications.CAPTCHA_NOTIFICATION_ID)
     }
 }

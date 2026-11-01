@@ -11,21 +11,21 @@ internal fun normalizeVkModeSelection(
     hasVkToken: Boolean,
 ): VkModeSelection {
     val authMode = when (requestedAuthMode) {
-        CsqttConstants.VkAuth.MODE_CAPTCHA -> CsqttConstants.VkAuth.MODE_CAPTCHA
-        CsqttConstants.VkAuth.MODE_AUTO_JS -> CsqttConstants.VkAuth.MODE_AUTO_JS
-        else -> CsqttConstants.VkAuth.MODE_CALLS
+        MrttConstants.VkAuth.MODE_CAPTCHA -> MrttConstants.VkAuth.MODE_CAPTCHA
+        MrttConstants.VkAuth.MODE_AUTO_JS -> MrttConstants.VkAuth.MODE_AUTO_JS
+        else -> MrttConstants.VkAuth.MODE_CALLS
     }
     val hashMode = when (requestedHashMode) {
-        "auto", CsqttConstants.VkAutoHash.MODE_AUTO_API -> CsqttConstants.VkAutoHash.MODE_AUTO_API
-        CsqttConstants.VkAutoHash.MODE_AUTO_JS -> CsqttConstants.VkAutoHash.MODE_AUTO_JS
-        else -> CsqttConstants.VkAutoHash.MODE_MANUAL
+        "auto", MrttConstants.VkAutoHash.MODE_AUTO_API -> MrttConstants.VkAutoHash.MODE_AUTO_API
+        MrttConstants.VkAutoHash.MODE_AUTO_JS -> MrttConstants.VkAutoHash.MODE_AUTO_JS
+        else -> MrttConstants.VkAutoHash.MODE_MANUAL
     }
     return when {
-        authMode == CsqttConstants.VkAuth.MODE_AUTO_JS ||
-            hashMode == CsqttConstants.VkAutoHash.MODE_AUTO_JS ->
+        authMode == MrttConstants.VkAuth.MODE_AUTO_JS ||
+            hashMode == MrttConstants.VkAutoHash.MODE_AUTO_JS ->
             VkModeSelection(
-                authMode = CsqttConstants.VkAuth.MODE_AUTO_JS,
-                hashMode = CsqttConstants.VkAutoHash.MODE_AUTO_JS,
+                authMode = MrttConstants.VkAuth.MODE_AUTO_JS,
+                hashMode = MrttConstants.VkAutoHash.MODE_AUTO_JS,
             )
         else -> VkModeSelection(authMode = authMode, hashMode = hashMode)
     }
@@ -36,9 +36,9 @@ internal fun vkHashModeForAuthMode(
     currentHashMode: String?,
     hasVkToken: Boolean,
 ): String = when (requestedAuthMode) {
-    CsqttConstants.VkAuth.MODE_AUTO_JS -> CsqttConstants.VkAutoHash.MODE_AUTO_JS
-    CsqttConstants.VkAuth.MODE_CALLS -> if (currentHashMode == CsqttConstants.VkAutoHash.MODE_AUTO_JS) {
-        if (hasVkToken) CsqttConstants.VkAutoHash.MODE_AUTO_API else CsqttConstants.VkAutoHash.MODE_MANUAL
+    MrttConstants.VkAuth.MODE_AUTO_JS -> MrttConstants.VkAutoHash.MODE_AUTO_JS
+    MrttConstants.VkAuth.MODE_CALLS -> if (currentHashMode == MrttConstants.VkAutoHash.MODE_AUTO_JS) {
+        if (hasVkToken) MrttConstants.VkAutoHash.MODE_AUTO_API else MrttConstants.VkAutoHash.MODE_MANUAL
     } else {
         normalizeVkModeSelection(requestedAuthMode, currentHashMode, hasVkToken).hashMode
     }
@@ -47,17 +47,17 @@ internal fun vkHashModeForAuthMode(
 
 internal fun vkAuthModeForHashMode(requestedHashMode: String, currentAuthMode: String?): String =
     when (requestedHashMode) {
-        CsqttConstants.VkAutoHash.MODE_AUTO_JS -> CsqttConstants.VkAuth.MODE_AUTO_JS
-        CsqttConstants.VkAutoHash.MODE_AUTO_API -> CsqttConstants.VkAuth.MODE_CALLS
-        else -> if (currentAuthMode == CsqttConstants.VkAuth.MODE_AUTO_JS) {
-            CsqttConstants.VkAuth.MODE_CALLS
+        MrttConstants.VkAutoHash.MODE_AUTO_JS -> MrttConstants.VkAuth.MODE_AUTO_JS
+        MrttConstants.VkAutoHash.MODE_AUTO_API -> MrttConstants.VkAuth.MODE_CALLS
+        else -> if (currentAuthMode == MrttConstants.VkAuth.MODE_AUTO_JS) {
+            MrttConstants.VkAuth.MODE_CALLS
         } else {
             normalizeVkModeSelection(currentAuthMode, requestedHashMode, false).authMode
         }
     }
 
 internal fun shouldReplaceUnavailableVkHash(hashMode: String): Boolean =
-    hashMode != CsqttConstants.VkAutoHash.MODE_MANUAL
+    hashMode != MrttConstants.VkAutoHash.MODE_MANUAL
 
 internal fun shouldConfirmAutoJsMode(
     currentMode: String,
@@ -65,5 +65,5 @@ internal fun shouldConfirmAutoJsMode(
     warningAcknowledged: Boolean,
 ): Boolean =
     !warningAcknowledged &&
-        currentMode != CsqttConstants.VkAuth.MODE_AUTO_JS &&
-        requestedMode == CsqttConstants.VkAuth.MODE_AUTO_JS
+        currentMode != MrttConstants.VkAuth.MODE_AUTO_JS &&
+        requestedMode == MrttConstants.VkAuth.MODE_AUTO_JS

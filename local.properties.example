@@ -1,0 +1,5 @@
+sdk.dir=C\:/path/to/Android/Sdk
+KEYSTORE_FILE=./release.keystore
+KEYSTORE_PASSWORD=<fill-locally>
+KEY_ALIAS=YOUR_KEY_ALIAS
+KEY_PASSWORD=<fill-locally>

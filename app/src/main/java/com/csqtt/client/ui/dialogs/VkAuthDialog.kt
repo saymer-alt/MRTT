@@ -59,7 +59,7 @@ import com.csqtt.client.VkAuthPayload
 import com.csqtt.client.VkAuthPhase
 import com.csqtt.client.VkAuthSession
 import com.csqtt.client.VkAuthWebViewManager
-import com.csqtt.client.ui.design.CsqttShapes
+import com.csqtt.client.ui.design.MrttShapes
 
 @Composable
 internal fun VkAuthDialog(
@@ -127,7 +127,7 @@ internal fun VkAuthDialog(
             contentAlignment = Alignment.Center,
         ) {
             Surface(
-                shape = CsqttShapes.Dialog,
+                shape = MrttShapes.Dialog,
                 color = appSectionCardColor(),
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -227,7 +227,7 @@ internal fun VkAuthDialog(
                                 )
                                 Button(
                                     onClick = onDismiss,
-                                    shape = CsqttShapes.Pill,
+                                    shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
                                         contentColor = MaterialTheme.colorScheme.onPrimary,
                                     ),

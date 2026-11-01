@@ -1,0 +1,65 @@
+name: MAX Android WebView smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_class:
+        description: Android WebView test class
+        default: com.csqtt.client.MaxAuthWebViewSmokeTest
+        required: true
+        type: choice
+        options:
+          - com.csqtt.client.MaxAuthWebViewSmokeTest
+          - com.csqtt.client.MaxAuthLifecycleTest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: max-webview-smoke-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Free disk space for the Android emulator
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+      - name: Install compile SDK and enable emulator acceleration
+        run: |
+          sdkmanager --channel=3 --install "platforms;android-37.0" "build-tools;36.0.0"
+          sudo chmod a+rw /dev/kvm
+          chmod +x gradlew
+      - name: Build test APKs before starting the emulator
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pcsqtt.abis=x86_64 '-Dorg.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED' --max-workers=2 --no-daemon --stacktrace
+      - name: Exercise the real MAX login page in Android WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          MAX_WEBVIEW_TEST_CLASS: ${{ inputs.test_class }}
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-boot-timeout: 240
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 1536 -no-metrics
+          script: bash scripts/run_max_webview_smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MAX-WebView-smoke-results
+          path: |
+            work/webview-smoke/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 7

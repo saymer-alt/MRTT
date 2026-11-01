@@ -83,6 +83,35 @@ pub struct PasswordEntry {
     pub sub_uuid: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workers: Option<u32>,
+    /// `None` — одно устройство (по умолчанию), `Some(0)` — без лимита.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_devices: Option<u32>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub devices: BTreeMap<String, BoundDevice>,
+}
+
+/// Устройство, привязанное к ссылке (ключ — device_id клиента, `legacy` для клиентов без device_id).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BoundDevice {
+    pub ip: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    pub bound_at: i64,
+    pub last_seen: i64,
+}
+
+pub const LEGACY_DEVICE_ID: &str = "legacy";
+pub const MAX_DEVICES_LIMIT: u32 = 1000;
+const DEVICE_LAST_SEEN_PERSIST_SECS: i64 = 600;
+
+/// Сколько устройств допускает ссылка; `None` — без лимита.
+pub fn device_limit(max_devices: Option<u32>) -> Option<usize> {
+    match max_devices {
+        None => Some(1),
+        Some(0) => None,
+        Some(n) => Some(n as usize),
+    }
 }
 
 pub const DEFAULT_LOCAL_PROXY_PORT: u16 = 45000;
@@ -210,6 +239,9 @@ impl<'de> serde::Deserialize<'de> for LocalProxyState {
     }
 }
 
+pub const DEFAULT_JITSI_SEATS: u8 = 6;
+pub const MAX_JITSI_SEATS: u8 = 16;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Database {
@@ -237,6 +269,10 @@ pub struct Database {
     pub main_routing_rule_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_workers: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_max_devices: Option<u32>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub main_devices: BTreeMap<String, BoundDevice>,
     #[serde(default, alias = "slots")]
     pub passwords: BTreeMap<String, PasswordEntry>,
     pub web_sessions: BTreeMap<String, i64>,
@@ -247,6 +283,11 @@ pub struct Database {
     pub groups: BTreeMap<String, ClientGroup>,
     #[serde(default)]
     pub routing_rules: BTreeMap<String, RoutingRule>,
+    /// Jitsi room `host/room` the server sits in; empty keeps the Jitsi transport off.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub jitsi_room: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jitsi_seats: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -278,6 +319,10 @@ impl Database {
     pub fn auto_restart_interval_hours(&self) -> u8 {
         self.auto_restart_interval_hours
             .unwrap_or(DEFAULT_AUTO_RESTART_INTERVAL_HOURS)
+    }
+
+    pub fn jitsi_seats(&self) -> u8 {
+        self.jitsi_seats.unwrap_or(DEFAULT_JITSI_SEATS)
     }
 
     pub fn set_auto_restart_interval_hours(&mut self, hours: u8) {
@@ -721,13 +766,35 @@ pub fn is_expired(entry: &PasswordEntry) -> bool {
 
 pub const OWNER_TUNNEL_IP: &str = "10.66.67.2";
 
+// The address an IMPORTED client gets: its own only when it is in this server's pool and no client already has it —
+// an export merged into a server with clients (or two clients of one export on one address) gave two clients one
+// tunnel address, and each broke the other's traffic. Clients are inserted one by one, so earlier ones in the same
+// import count as taken.
+// Is `ip` an address of this server's client pool (.3–.250 of 10.66.67.0/24, as get_next_ip hands out)? One from
+// elsewhere — another server's export, a store copied between servers — is not a usable address here.
+pub fn ip_in_pool(ip: &str) -> bool {
+    ip.parse::<std::net::Ipv4Addr>()
+        .is_ok_and(|a| a.octets()[..3] == [10, 66, 67] && (3..=250).contains(&a.octets()[3]))
+}
+
+pub fn import_ip(db: &Database, ip: &str) -> String {
+    if ip_in_pool(ip) && !db.passwords.values().any(|entry| entry.ip == ip) {
+        return ip.to_owned();
+    }
+    get_next_ip(db).unwrap_or_default()
+}
+
 pub fn get_next_ip(db: &Database) -> Option<String> {
     let mut buf = String::with_capacity(16);
     for i in 3..=250u8 {
         buf.clear();
         use std::fmt::Write;
         let _ = write!(buf, "10.66.67.{i}");
-        let is_used = db.passwords.values().any(|d| d.ip == buf);
+        let is_used = db
+            .passwords
+            .values()
+            .any(|d| d.ip == buf || d.devices.values().any(|device| device.ip == buf))
+            || db.main_devices.values().any(|device| device.ip == buf);
         if !is_used {
             return Some(buf);
         }
@@ -735,9 +802,30 @@ pub fn get_next_ip(db: &Database) -> Option<String> {
     None
 }
 
-pub fn resolve_session_ip(db: &Database, session_password: &str) -> Option<String> {
+pub fn resolve_session_ip(
+    db: &Database,
+    session_password: &str,
+    device_id: &str,
+) -> Option<String> {
+    let device_id = if device_id.is_empty() {
+        LEGACY_DEVICE_ID
+    } else {
+        device_id
+    };
     if secret_eq(session_password, &db.main_password) {
-        return Some(OWNER_TUNNEL_IP.to_owned());
+        return Some(
+            db.main_devices
+                .get(device_id)
+                .map_or_else(|| OWNER_TUNNEL_IP.to_owned(), |device| device.ip.clone()),
+        );
+    }
+    if let Some(device) = db
+        .passwords
+        .get(session_password)
+        .and_then(|entry| entry.devices.get(device_id))
+        .filter(|device| !device.ip.is_empty())
+    {
+        return Some(device.ip.clone());
     }
     db.passwords.get(session_password).and_then(|entry| {
         if !entry.ip.is_empty() {
@@ -746,6 +834,128 @@ pub fn resolve_session_ip(db: &Database, session_password: &str) -> Option<Strin
             None
         }
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceAdmission {
+    pub ip: String,
+    /// Привязки изменились — снимок БД нужно сохранить.
+    pub changed: bool,
+    /// Привязка клиента без device_id вытеснена новым устройством — его сессии надо сбросить.
+    pub evicted_legacy: bool,
+}
+
+/// Привязать устройство к ссылке (или узнать уже привязанное) и выдать ему IP туннеля.
+/// `slot` — `None` для главного пароля. Первое устройство получает основной IP ссылки.
+pub fn admit_device(
+    db: &mut Database,
+    slot: Option<&str>,
+    device_id: &str,
+    device_name: &str,
+    now: i64,
+) -> std::result::Result<DeviceAdmission, &'static str> {
+    let device_id = if device_id.is_empty() {
+        LEGACY_DEVICE_ID
+    } else {
+        device_id
+    };
+    let (limit, primary_ip) = match slot {
+        None => (
+            device_limit(db.main_max_devices),
+            OWNER_TUNNEL_IP.to_owned(),
+        ),
+        Some(key) => {
+            let entry = db.passwords.get(key).ok_or("DENIED:wrong_password")?;
+            (device_limit(entry.max_devices), entry.ip.clone())
+        }
+    };
+    let devices = devices_mut(db, slot)?;
+    if let Some(existing) = devices.get_mut(device_id) {
+        let refresh = now.saturating_sub(existing.last_seen) >= DEVICE_LAST_SEEN_PERSIST_SECS
+            || (!device_name.is_empty() && existing.name != device_name);
+        if refresh {
+            existing.last_seen = now;
+            if !device_name.is_empty() {
+                existing.name = device_name.to_owned();
+            }
+        }
+        return Ok(DeviceAdmission {
+            ip: existing.ip.clone(),
+            changed: refresh,
+            evicted_legacy: false,
+        });
+    }
+    let mut evicted_ip = None;
+    let mut evicted_legacy = false;
+    if let Some(limit) = limit
+        && devices.len() >= limit
+    {
+        // Клиент без device_id (старая версия) уступает место первому устройству с device_id.
+        if device_id != LEGACY_DEVICE_ID && devices.contains_key(LEGACY_DEVICE_ID) {
+            evicted_ip = devices.remove(LEGACY_DEVICE_ID).map(|device| device.ip);
+            evicted_legacy = true;
+        } else {
+            return Err("DENIED:device_limit");
+        }
+    }
+    let primary_free = !primary_ip.is_empty() && !devices.values().any(|d| d.ip == primary_ip);
+    let ip = match evicted_ip {
+        Some(ip) if !ip.is_empty() => ip,
+        _ if primary_free => primary_ip,
+        _ => get_next_ip(db).ok_or("DENIED:no_free_ip")?,
+    };
+    if let Some(key) = slot
+        && let Some(entry) = db.passwords.get_mut(key)
+        && entry.ip.is_empty()
+    {
+        entry.ip = ip.clone();
+    }
+    devices_mut(db, slot)?.insert(
+        device_id.to_owned(),
+        BoundDevice {
+            ip: ip.clone(),
+            name: device_name.to_owned(),
+            bound_at: now,
+            last_seen: now,
+        },
+    );
+    Ok(DeviceAdmission {
+        ip,
+        changed: true,
+        evicted_legacy,
+    })
+}
+
+fn devices_mut<'a>(
+    db: &'a mut Database,
+    slot: Option<&str>,
+) -> std::result::Result<&'a mut BTreeMap<String, BoundDevice>, &'static str> {
+    match slot {
+        None => Ok(&mut db.main_devices),
+        Some(key) => db
+            .passwords
+            .get_mut(key)
+            .map(|entry| &mut entry.devices)
+            .ok_or("DENIED:wrong_password"),
+    }
+}
+
+/// Отвязать устройство (или все, если `device_id` пуст). Возвращает id отвязанных.
+pub fn unbind_devices(db: &mut Database, password: &str, device_id: &str) -> Vec<String> {
+    let devices = if !db.main_password.is_empty() && secret_eq(password, &db.main_password) {
+        &mut db.main_devices
+    } else if let Some(entry) = db.passwords.get_mut(password) {
+        &mut entry.devices
+    } else {
+        return Vec::new();
+    };
+    if device_id.is_empty() {
+        std::mem::take(devices).into_keys().collect()
+    } else if devices.remove(device_id).is_some() {
+        vec![device_id.to_owned()]
+    } else {
+        Vec::new()
+    }
 }
 
 const DATABASE_FILE: &str = "csqtt.db";
@@ -781,7 +991,9 @@ CREATE TABLE IF NOT EXISTS passwords (
     group_id       TEXT    NOT NULL DEFAULT '',
     routing_rule_id TEXT   NOT NULL DEFAULT '',
     sub_uuid       TEXT    NOT NULL DEFAULT '',
-    workers        INTEGER
+    workers        INTEGER,
+    max_devices    INTEGER,
+    devices_json   TEXT    NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS local_proxy_profiles (
     id         TEXT PRIMARY KEY,
@@ -978,6 +1190,19 @@ fn ensure_password_columns(connection: &Connection) -> Result<()> {
             .execute("ALTER TABLE passwords ADD COLUMN workers INTEGER", [])
             .context("add workers column")?;
     }
+    if !columns.iter().any(|column| column == "max_devices") {
+        connection
+            .execute("ALTER TABLE passwords ADD COLUMN max_devices INTEGER", [])
+            .context("add max_devices column")?;
+    }
+    if !columns.iter().any(|column| column == "devices_json") {
+        connection
+            .execute(
+                "ALTER TABLE passwords ADD COLUMN devices_json TEXT NOT NULL DEFAULT '{}'",
+                [],
+            )
+            .context("add devices_json column")?;
+    }
     Ok(())
 }
 
@@ -997,6 +1222,7 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
         .transaction()
         .context("begin database transaction")?;
     let auto_restart_interval_hours = db.auto_restart_interval_hours().to_string();
+    let jitsi_seats = db.jitsi_seats().to_string();
     for (key, value) in [
         ("main_password", db.main_password.as_str()),
         ("main_sub_uuid", db.main_sub_uuid.as_str()),
@@ -1016,6 +1242,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
         ("vk_access_token", db.vk_access_token.as_str()),
         ("vk_hashes", db.vk_hashes.as_str()),
         ("main_routing_rule_id", db.main_routing_rule_id.as_str()),
+        ("jitsi_room", db.jitsi_room.as_str()),
+        ("jitsi_seats", jitsi_seats.as_str()),
     ] {
         transaction
             .execute(
@@ -1024,6 +1252,28 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                 rusqlite::params![key, value],
             )
             .context("write meta")?;
+    }
+    let main_devices_json =
+        serde_json::to_string(&db.main_devices).unwrap_or_else(|_| "{}".to_owned());
+    transaction
+        .execute(
+            "INSERT INTO meta (key, value) VALUES ('main_devices_json', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![main_devices_json],
+        )
+        .context("write main_devices_json")?;
+    if let Some(limit) = db.main_max_devices {
+        transaction
+            .execute(
+                "INSERT INTO meta (key, value) VALUES ('main_max_devices', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![limit.to_string()],
+            )
+            .context("write main_max_devices")?;
+    } else {
+        transaction
+            .execute("DELETE FROM meta WHERE key = 'main_max_devices'", [])
+            .context("clear main_max_devices")?;
     }
     if let Some(w) = db.main_workers {
         transaction
@@ -1164,8 +1414,9 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                 "INSERT INTO passwords (
                     password, ip, expires_at, down_bytes, up_bytes,
                     vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
-                    dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+                    dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
+                    max_devices, devices_json
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
                 ON CONFLICT(password) DO UPDATE SET
                     ip = excluded.ip,
                     expires_at = excluded.expires_at,
@@ -1183,7 +1434,9 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     group_id = excluded.group_id,
                     routing_rule_id = excluded.routing_rule_id,
                     sub_uuid = excluded.sub_uuid,
-                    workers = excluded.workers",
+                    workers = excluded.workers,
+                    max_devices = excluded.max_devices,
+                    devices_json = excluded.devices_json",
             )
             .context("prepare passwords insert")?;
         for (password, entry) in &db.passwords {
@@ -1207,6 +1460,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     entry.routing_rule_id,
                     entry.sub_uuid,
                     entry.workers.map(|w| w as i64),
+                    entry.max_devices.map(i64::from),
+                    serde_json::to_string(&entry.devices).unwrap_or_else(|_| "{}".to_owned()),
                 ])
                 .with_context(|| format!("write password {}", secret_tag(password)))?;
         }
@@ -1293,6 +1548,8 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 "vk_access_token" => db.vk_access_token = value,
                 "vk_hashes" => db.vk_hashes = value,
                 "main_routing_rule_id" => db.main_routing_rule_id = value,
+                "jitsi_room" => db.jitsi_room = value,
+                "jitsi_seats" => db.jitsi_seats = value.parse().ok(),
                 "main_workers" => {
                     db.main_workers = value
                         .parse::<u32>()
@@ -1300,6 +1557,15 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                         .and_then(|w| (3..=100).contains(&w).then_some(w));
                 }
                 "logging_active" => db.logging_active = Some(value == "1"),
+                "main_max_devices" => {
+                    db.main_max_devices = value
+                        .parse::<u32>()
+                        .ok()
+                        .filter(|limit| *limit <= MAX_DEVICES_LIMIT);
+                }
+                "main_devices_json" => {
+                    db.main_devices = serde_json::from_str(&value).unwrap_or_default();
+                }
                 _ => {}
             }
         }
@@ -1317,7 +1583,8 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
             .prepare(
                 "SELECT password, ip, expires_at, down_bytes, up_bytes,
                         vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
-                        dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers
+                        dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
+                        max_devices, devices_json
                  FROM passwords",
             )
             .context("prepare passwords select")?;
@@ -1331,6 +1598,17 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 .ok()
                 .flatten()
                 .and_then(|w| (3..=100).contains(&w).then_some(w as u32));
+            let max_devices: Option<u32> = row
+                .get::<_, Option<i64>>(18)
+                .ok()
+                .flatten()
+                .and_then(|limit| u32::try_from(limit).ok())
+                .filter(|limit| *limit <= MAX_DEVICES_LIMIT);
+            let devices: BTreeMap<String, BoundDevice> = row
+                .get::<_, String>(19)
+                .ok()
+                .and_then(|json| serde_json::from_str(&json).ok())
+                .unwrap_or_default();
             let entry = PasswordEntry {
                 ip,
                 expires_at: row.get(2).context("read password expires_at")?,
@@ -1355,6 +1633,8 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 routing_rule_id: row.get(15).unwrap_or_default(),
                 sub_uuid,
                 workers,
+                max_devices,
+                devices,
             };
             db.passwords.insert(password, entry);
         }
@@ -1790,10 +2070,110 @@ fn write_traffic(connection: &mut Connection, traffic: &TrafficSnapshot) -> Resu
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn import_never_hands_out_a_taken_address() {
+        let mut db = Database::default();
+        let entry = |ip: &str| PasswordEntry {
+            ip: ip.to_owned(),
+            ..Default::default()
+        };
+        db.passwords.insert("existing".into(), entry("10.66.67.3"));
+        // a free in-pool address is kept
+        assert_eq!(super::import_ip(&db, "10.66.67.40"), "10.66.67.40");
+        // a taken one, or one from another subnet, gets the next free address
+        assert_eq!(super::import_ip(&db, "10.66.67.3"), "10.66.67.4");
+        assert_eq!(super::import_ip(&db, "10.66.68.9"), "10.66.67.4");
+        // an earlier client of the same import counts as taken
+        db.passwords
+            .insert("imported-1".into(), entry("10.66.67.4"));
+        assert_eq!(super::import_ip(&db, "10.66.67.4"), "10.66.67.5");
+    }
+
+    #[test]
+    fn ip_in_pool_is_this_servers_pool_only() {
+        // stock config (no --tun-addr): 10.66.67.3–.250
+        assert!(super::ip_in_pool("10.66.67.3") && super::ip_in_pool("10.66.67.250"));
+        for bad in [
+            "",
+            "10.66.67.1",
+            "10.66.67.2",
+            "10.66.67.251",
+            "10.66.68.3",
+            "fd66:67::3",
+            "junk",
+        ] {
+            assert!(!super::ip_in_pool(bad), "{bad}");
+        }
+    }
+
     use super::{
         Database, DatabasePersistence, PasswordEntry, PersistenceQueue, PersistenceUpdate,
         TrafficCounters, TrafficSnapshot, load_database, save_database,
     };
+
+    #[test]
+    fn device_binding_respects_limit_unlimited_and_unbind() {
+        use super::{LEGACY_DEVICE_ID, OWNER_TUNNEL_IP, admit_device, unbind_devices};
+        let mut db = Database {
+            main_password: "owner12345678901".to_owned(),
+            ..Database::default()
+        };
+        db.passwords.insert(
+            "client1234567890".to_owned(),
+            PasswordEntry {
+                ip: "10.66.67.3".to_owned(),
+                ..PasswordEntry::default()
+            },
+        );
+        let slot = Some("client1234567890");
+
+        // По умолчанию одно устройство; первое получает основной IP ссылки.
+        let first = admit_device(&mut db, slot, "phone-a", "Pixel", 100).unwrap();
+        assert_eq!(first.ip, "10.66.67.3");
+        assert!(first.changed);
+        assert!(
+            !admit_device(&mut db, slot, "phone-a", "Pixel", 101)
+                .unwrap()
+                .changed
+        );
+        assert_eq!(
+            admit_device(&mut db, slot, "phone-b", "", 102),
+            Err("DENIED:device_limit")
+        );
+
+        // Без лимита второе устройство получает свой IP из пула.
+        db.passwords
+            .get_mut("client1234567890")
+            .unwrap()
+            .max_devices = Some(0);
+        let second = admit_device(&mut db, slot, "phone-b", "", 103).unwrap();
+        assert_ne!(second.ip, first.ip);
+        assert!(!second.ip.is_empty());
+
+        // Отвязка освобождает место, основной IP снова свободен.
+        assert_eq!(
+            unbind_devices(&mut db, "client1234567890", "phone-a"),
+            vec!["phone-a"]
+        );
+        db.passwords
+            .get_mut("client1234567890")
+            .unwrap()
+            .max_devices = Some(2);
+        assert_eq!(
+            admit_device(&mut db, slot, "phone-c", "", 104).unwrap().ip,
+            "10.66.67.3"
+        );
+        assert_eq!(unbind_devices(&mut db, "client1234567890", "").len(), 2);
+
+        // Старый клиент без device_id уступает место устройству с device_id.
+        let legacy = admit_device(&mut db, None, "", "", 105).unwrap();
+        assert_eq!(legacy.ip, OWNER_TUNNEL_IP);
+        assert!(db.main_devices.contains_key(LEGACY_DEVICE_ID));
+        let modern = admit_device(&mut db, None, "phone-a", "", 106).unwrap();
+        assert!(modern.evicted_legacy);
+        assert_eq!(modern.ip, OWNER_TUNNEL_IP);
+        assert!(!db.main_devices.contains_key(LEGACY_DEVICE_ID));
+    }
 
     #[test]
     fn dns_survives_database_restart() {

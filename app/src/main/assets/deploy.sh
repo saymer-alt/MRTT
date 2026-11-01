@@ -5,7 +5,7 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export TERM="${TERM:-xterm}"
 
-readonly SCRIPT_VERSION="2.5.0"
+readonly SCRIPT_VERSION="1.0-beta1"
 readonly LOG_FILE="/var/log/csqtt-install.log"
 readonly PEER_PORT="${CSQTT_PEER_PORT:-46000}"
 readonly SSH_PORT="${CSQTT_SSH_PORT:-22}"
@@ -225,7 +225,7 @@ force_stop_csqtt_processes() {
         found=0
         while IFS= read -r pid; do
             found=1
-            log_warn "Принудительное завершение CSQTT: PID $pid"
+            log_warn "Принудительное завершение MRTT: PID $pid"
             if [ "$attempt" -le 2 ]; then
                 kill -TERM "$pid" 2>/dev/null || true
             else
@@ -287,7 +287,7 @@ archive_csqtt_docker_state() {
     [ -n "$container_id" ] || return 0
     archive_dir="${CSQTT_RUNTIME_ARCHIVE_DIR}/docker-${container_id:0:12}-$(date +%s)"
     umask 077
-    mkdir -p "$archive_dir" || die "Не удалось подготовить архив состояния Docker CSQTT"
+    mkdir -p "$archive_dir" || die "Не удалось подготовить архив состояния Docker MRTT"
     for source in /etc/csqtt/csqtt.db /etc/csqtt/csqtt.db-wal /etc/csqtt/csqtt.db-shm /etc/csqtt/passwords.json /etc/csqtt/passwords.json.imported; do
         base="${source##*/}"
         if docker cp "${container}:${source}" "${archive_dir}/${base}" >/dev/null 2>&1; then
@@ -296,7 +296,7 @@ archive_csqtt_docker_state() {
         fi
     done
     if [ "$copied" -eq 1 ]; then
-        log_info "Состояние Docker CSQTT сохранено: $archive_dir"
+        log_info "Состояние Docker MRTT сохранено: $archive_dir"
     else
         rmdir "$archive_dir" >/dev/null 2>&1 || true
     fi
@@ -317,7 +317,7 @@ stop_and_archive_csqtt_docker_container() {
     fi
     archive_csqtt_docker_state "$container"
     timeout 10 docker rm -f "$container" >/dev/null 2>&1 || \
-        die "Не удалось остановить старый Docker-контейнер CSQTT"
+        die "Не удалось остановить старый Docker-контейнер MRTT"
 }
 
 remove_all_csqtt_docker_containers() {
@@ -328,7 +328,7 @@ remove_all_csqtt_docker_containers() {
         docker_container_runs_csqtt "$container" || continue
         name="$(docker inspect --format '{{.Name}}' "$container" 2>/dev/null || printf '%s' "$container")"
         name="${name#/}"
-        log_info "Остановка Docker runtime CSQTT: $name"
+        log_info "Остановка Docker runtime MRTT: $name"
         stop_and_archive_csqtt_docker_container "$container"
     done < <(docker ps -aq --no-trunc 2>/dev/null || true)
 }
@@ -381,13 +381,13 @@ stop_csqtt_docker_prereq() {
         SYSTEMD_NEEDS_RELOAD=0
     fi
     if systemctl is-active --quiet "$CSQTT_DOCKER_PREREQ_SERVICE"; then
-        log_info "Остановка Docker prerequisite CSQTT: $CSQTT_DOCKER_PREREQ_SERVICE"
+        log_info "Остановка Docker prerequisite MRTT: $CSQTT_DOCKER_PREREQ_SERVICE"
         timeout 10 systemctl stop "$CSQTT_DOCKER_PREREQ_SERVICE" >/dev/null 2>&1 || true
         if systemctl is-active --quiet "$CSQTT_DOCKER_PREREQ_SERVICE"; then
             timeout 2 systemctl kill --kill-who=all --signal=SIGKILL "$CSQTT_DOCKER_PREREQ_SERVICE" >/dev/null 2>&1 || true
         fi
         if systemctl is-active --quiet "$CSQTT_DOCKER_PREREQ_SERVICE"; then
-            die "Не удалось остановить Docker prerequisite CSQTT: $CSQTT_DOCKER_PREREQ_SERVICE"
+            die "Не удалось остановить Docker prerequisite MRTT: $CSQTT_DOCKER_PREREQ_SERVICE"
         fi
     fi
 }
@@ -397,7 +397,7 @@ stop_all_running_csqtt_systemd_units() {
     local unit
     while IFS= read -r unit; do
         [ -n "$unit" ] || continue
-        log_info "Остановка systemd runtime CSQTT: $unit"
+        log_info "Остановка systemd runtime MRTT: $unit"
         if ! timeout 10 systemctl stop "$unit" >/dev/null 2>&1; then
             log_warn "systemctl stop завершился с ошибкой для $unit; проверяется фактическое состояние"
         fi
@@ -405,7 +405,7 @@ stop_all_running_csqtt_systemd_units() {
             timeout 2 systemctl kill --kill-who=all --signal=SIGKILL "$unit" >/dev/null 2>&1 || true
         fi
         if systemctl is-active --quiet "$unit"; then
-            die "Не удалось остановить systemd runtime CSQTT: $unit"
+            die "Не удалось остановить systemd runtime MRTT: $unit"
         fi
         systemctl disable "$unit" >/dev/null 2>&1 || true
     done < <(list_csqtt_systemd_units)
@@ -750,10 +750,10 @@ secure_persistent_state() {
 ensure_csqtt_directory() {
     local path="$1" mode="$2"
     if [ -L "$path" ] || [ ! -d "$path" ]; then
-        rm -rf -- "$path" || die "Не удалось очистить путь CSQTT: $path"
+        rm -rf -- "$path" || die "Не удалось очистить путь MRTT: $path"
     fi
-    mkdir -p -- "$path" || die "Не удалось подготовить каталог CSQTT: $path"
-    chmod "$mode" "$path" || die "Не удалось установить права на каталог CSQTT: $path"
+    mkdir -p -- "$path" || die "Не удалось подготовить каталог MRTT: $path"
+    chmod "$mode" "$path" || die "Не удалось установить права на каталог MRTT: $path"
 }
 
 clear_runtime_config_preserving_database() {
@@ -799,10 +799,7 @@ cleanup_deploy_uploads() {
 
 validate_candidate_environment() {
     local candidate_env="$1" candidate_overrides="$2"
-    grep -Eq '^[[:space:]]*(export[[:space:]]+)?CSQTT_WEB_USER=.+$' "$candidate_env" || \
-        die "В переданной WEB-конфигурации отсутствует CSQTT_WEB_USER" "$EXIT_PREFLIGHT_FAILED"
-    grep -Eq '^[[:space:]]*(export[[:space:]]+)?CSQTT_WEB_PASS=.+$' "$candidate_env" || \
-        die "В переданной WEB-конфигурации отсутствует CSQTT_WEB_PASS" "$EXIT_PREFLIGHT_FAILED"
+    [ -s "$candidate_env" ] || die "Переданная конфигурация окружения пуста" "$EXIT_PREFLIGHT_FAILED"
     grep -q '"main_password"' "$candidate_overrides" || \
         die "В deploy-конфигурации отсутствует main_password" "$EXIT_PREFLIGHT_FAILED"
 }
@@ -820,7 +817,7 @@ prepare_uploaded_release() {
     chmod 0600 "$UPLOAD_ENV_FILE" "$UPLOAD_OVERRIDES_FILE" || \
         die "Не удалось защитить загруженную конфигурацию" "$EXIT_PREFLIGHT_FAILED"
     validate_candidate_environment "$UPLOAD_ENV_FILE" "$UPLOAD_OVERRIDES_FILE"
-    [ -x "$UPLOAD_BINARY" ] || die "Загруженный бинарник CSQTT не исполняемый" "$EXIT_PREFLIGHT_FAILED"
+    [ -x "$UPLOAD_BINARY" ] || die "Загруженный бинарник MRTT не исполняемый" "$EXIT_PREFLIGHT_FAILED"
     log_info "Загруженный бинарник csqtt проверен"
     log_info "Загруженный бинарник и конфигурация проверены до остановки текущего сервиса"
 }
@@ -868,7 +865,7 @@ remove_csqtt_tun_interface() {
 
 csqtt_cleanup() {
     prog 0.15 "Очистка..."
-    echo "🧹 Переключение со старой установки CSQTT..."
+    echo "🧹 Переключение со старой установки MRTT..."
 
     local had_old_install=0 managed_systemd_unit=0
     if csqtt_systemd_unit_is_managed; then
@@ -888,7 +885,7 @@ csqtt_cleanup() {
         stop_all_running_csqtt_systemd_units
     fi
 
-    force_stop_csqtt_processes || die "Не удалось завершить процессы CSQTT"
+    force_stop_csqtt_processes || die "Не удалось завершить процессы MRTT"
     remove_all_csqtt_systemd_units
     [ -e "/etc/systemd/system/${CSQTT_DOCKER_PREREQ_SERVICE}" ] && SYSTEMD_NEEDS_RELOAD=1
     rm -f "/etc/systemd/system/${CSQTT_DOCKER_PREREQ_SERVICE}"
@@ -1011,9 +1008,8 @@ setup_nat_and_firewall() {
         ip route replace "$gw_ip" dev "$iface" scope link >>"$LOG_FILE" 2>&1 || true
     fi
 
+    # API управления слушает только 127.0.0.1 (приложение ходит через SSH), наружу открыт лишь PEER.
     fw_add_input_udp "$PEER_PORT"
-    fw_add_input_tcp "$WEB_PORT"
-    fw_add_input_tcp "$LE_HTTP_PORT"
 
     fw_add_forward
 
@@ -1022,7 +1018,7 @@ setup_nat_and_firewall() {
     fw_add_mss_clamping "10.66.67.0/24"
 
     echo "✓ NAT: MASQUERADE на $iface для 10.66.67.0/24"
-    echo "✓ Порты CSQTT: ${PEER_PORT}/udp(PEER), ${WEB_PORT}/tcp(WEB), ${LE_HTTP_PORT}/tcp(LE)"
+    echo "✓ Порты MRTT: ${PEER_PORT}/udp(PEER); API управления только на 127.0.0.1:${WEB_PORT}"
     echo "✓ TCP MSS Clamping включен"
 }
 
@@ -1121,8 +1117,6 @@ fi
 
 ipt() { iptables -w "\$XT_WAIT" "\$@"; }
 ipt -C INPUT -p udp --dport "\$PEER_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT 2>/dev/null || ipt -I INPUT -p udp --dport "\$PEER_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT
-ipt -C INPUT -p tcp --dport "\$WEB_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT 2>/dev/null || ipt -I INPUT -p tcp --dport "\$WEB_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT
-ipt -C INPUT -p tcp --dport "\$LE_HTTP_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT 2>/dev/null || ipt -I INPUT -p tcp --dport "\$LE_HTTP_PORT" -m comment --comment "\$IPT_COMMENT" -j ACCEPT
 ipt -C INPUT -i "\$CSQTT_IFACE" -s "\$SUBNET" -m comment --comment "\$IPT_COMMENT" -j ACCEPT 2>/dev/null || ipt -I INPUT -i "\$CSQTT_IFACE" -s "\$SUBNET" -m comment --comment "\$IPT_COMMENT" -j ACCEPT
 ipt -C FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || ipt -I FORWARD 1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 ipt -C FORWARD -i "\$CSQTT_IFACE" -m comment --comment "\$IPT_COMMENT" -j ACCEPT 2>/dev/null || ipt -I FORWARD -i "\$CSQTT_IFACE" -m comment --comment "\$IPT_COMMENT" -j ACCEPT
@@ -1189,22 +1183,22 @@ release_owned_peer_port() {
         peer_port_is_busy || return 0
         pids="\$(peer_port_pids)"
         if [ -z "\$pids" ]; then
-            echo "[CSQTT] UDP/\$PEER_PORT is occupied by a runtime without visible PID" >&2
+            echo "[MRTT] UDP/\$PEER_PORT is occupied by a runtime without visible PID" >&2
             ss -H -lunp "sport = :\$PEER_PORT" >&2 || true
             return 24
         fi
         for pid in \$pids; do
             if [ "\$attempt" -le 2 ]; then
-                echo "[CSQTT] UDP/\$PEER_PORT runtime PID \$pid; terminating" >&2
+                echo "[MRTT] UDP/\$PEER_PORT runtime PID \$pid; terminating" >&2
                 kill -TERM "\$pid" 2>/dev/null || true
             else
-                echo "[CSQTT] UDP/\$PEER_PORT runtime PID \$pid; killing" >&2
+                echo "[MRTT] UDP/\$PEER_PORT runtime PID \$pid; killing" >&2
                 kill -KILL "\$pid" 2>/dev/null || true
             fi
         done
         sleep 0.2
     done
-    echo "[CSQTT] UDP/\$PEER_PORT did not release" >&2
+    echo "[MRTT] UDP/\$PEER_PORT did not release" >&2
     ss -H -lunp "sport = :\$PEER_PORT" >&2 || true
     return 24
 }
@@ -1215,18 +1209,18 @@ if ! ip link show "\$CSQTT_IFACE" >/dev/null 2>&1; then
     exit 0
 fi
 
-echo "[CSQTT] stale TUN interface \$CSQTT_IFACE detected; recovering runtime" >&2
+echo "[MRTT] stale TUN interface \$CSQTT_IFACE detected; recovering runtime" >&2
 for attempt in 1 2 3 4; do
     timeout 2 ip link del "\$CSQTT_IFACE" >/dev/null 2>&1 || true
     if ! ip link show "\$CSQTT_IFACE" >/dev/null 2>&1; then
-        echo "[CSQTT] stale TUN interface \$CSQTT_IFACE removed" >&2
+        echo "[MRTT] stale TUN interface \$CSQTT_IFACE removed" >&2
         exit 0
     fi
     sleep 0.2
 done
 
 ip -d link show "\$CSQTT_IFACE" >&2 || true
-echo "[CSQTT] unable to release TUN interface \$CSQTT_IFACE" >&2
+echo "[MRTT] unable to release TUN interface \$CSQTT_IFACE" >&2
 exit 23
 RECOVEREOF
     chmod 0755 "$target"
@@ -1528,7 +1522,7 @@ issue_letsencrypt_ip_certificate() {
         fi
     fi
     if ! install_letsencrypt_certificate "$public_ip" "$cert_name"; then
-        log_warn "Let’s Encrypt выдал сертификат, но CSQTT не смог безопасно активировать его"
+        log_warn "Let’s Encrypt выдал сертификат, но MRTT не смог безопасно активировать его"
         return 1
     fi
     log_info "Let’s Encrypt IP-сертификат активирован для ${public_ip}"
@@ -1764,7 +1758,7 @@ reload_csqtt_tls() {
 main() {
     local current_ip cert_name
     if [ -s "$CERT_PATH" ] && ! certificate_is_csqtt_managed; then
-        log "Let’s Encrypt: обнаружен пользовательский TLS-сертификат; CSQTT не изменяет его и отключает собственное продление"
+        log "Let’s Encrypt: обнаружен пользовательский TLS-сертификат; MRTT не изменяет его и отключает собственное продление"
         return 0
     fi
     current_ip="$(public_ipv4 2>/dev/null || true)"
@@ -1800,7 +1794,7 @@ main() {
         return 0
     fi
     reload_csqtt_tls
-    log "Let’s Encrypt: IP-сертификат обновлён и TLS-конфигурация CSQTT перезагружена"
+    log "Let’s Encrypt: IP-сертификат обновлён и TLS-конфигурация MRTT перезагружена"
 }
 
 main "$@"
@@ -1816,7 +1810,7 @@ install_letsencrypt_renewal_timer() {
     }
     cat > "/etc/systemd/system/${CSQTT_LE_SERVICE}" << LEUNIT
 [Unit]
-Description=Renew CSQTT Let’s Encrypt IP certificate
+Description=Renew MRTT Let’s Encrypt IP certificate
 After=network-online.target
 Wants=network-online.target
 
@@ -1829,7 +1823,7 @@ ExecStart=${CSQTT_LE_RENEW_HELPER}
 LEUNIT
     cat > "/etc/systemd/system/${CSQTT_LE_TIMER}" << LETIMER
 [Unit]
-Description=Check CSQTT Let’s Encrypt IP certificate lifetime
+Description=Check MRTT Let’s Encrypt IP certificate lifetime
 
 [Timer]
 OnBootSec=5min
@@ -1851,12 +1845,12 @@ LETIMER
 setup_letsencrypt_ip_tls() {
     local public_ip cert_name
     if ! certificate_is_csqtt_letsencrypt && adopt_letsencrypt_certificate; then
-        log_info "Let’s Encrypt IP-сертификат CSQTT принят под автоматическое продление"
+        log_info "Let’s Encrypt IP-сертификат MRTT принят под автоматическое продление"
     fi
     if web_certificate_is_user_managed; then
         rm -f -- "$CSQTT_LE_STATE_FILE"
         disable_letsencrypt_renewal_timer
-        log_info "Используется заранее установленный TLS-сертификат пользователя; CSQTT сохраняет его и не заменяет Let’s Encrypt"
+        log_info "Используется заранее установленный TLS-сертификат пользователя; MRTT сохраняет его и не заменяет Let’s Encrypt"
         return 0
     fi
     public_ip="$(detect_public_ipv4 2>/dev/null || true)"
@@ -1904,22 +1898,18 @@ verify_web_panel() {
     fi
 
     for attempt in $(seq 1 24); do
-        for scheme in https http; do
-            code="$(curl -k -sS -o "$probe_file" -w "%{http_code}" \
-                --connect-timeout 1 --max-time 2 \
-                "${scheme}://127.0.0.1:${WEB_PORT}/${probe_path}" 2>>"$LOG_FILE" || true)"
-            case "$code" in
-                200|301|302|401)
-                    rm -f -- "$probe_file"
-                    log_info "WEB-панель ответила локальной health-проверке (${scheme}, HTTP ${code})"
-                    return 0
-                    ;;
-            esac
-        done
+        code="$(curl -sS -o "$probe_file" -w "%{http_code}" \
+            --connect-timeout 1 --max-time 2 \
+            "http://127.0.0.1:${WEB_PORT}/api/stats" 2>>"$LOG_FILE" || true)"
+        if [ "$code" = "200" ]; then
+            rm -f -- "$probe_file"
+            log_info "API управления ответило локальной health-проверке (HTTP ${code})"
+            return 0
+        fi
         sleep 0.25
     done
     rm -f -- "$probe_file"
-    die "WEB-панель не ответила на локальную health-проверку порта ${WEB_PORT}"
+    die "API управления не ответило на локальную health-проверку порта ${WEB_PORT}"
 }
 
 ensure_docker() {
@@ -1968,7 +1958,7 @@ ensure_tun_device() {
 }
 
 check_kernel_compatibility() {
-    [ "$(uname -s)" = "Linux" ] || die "CSQTT Server поддерживает только Linux"
+    [ "$(uname -s)" = "Linux" ] || die "MRTT Server поддерживает только Linux"
     local release base major minor
     release="$(uname -r)"
     base="${release%%-*}"
@@ -2048,7 +2038,7 @@ PREREQ
     unit_tmp="$(mktemp)"
     cat > "$unit_tmp" << PREREQUNIT
 [Unit]
-Description=Prepare CSQTT Docker TUN and xtables lock
+Description=Prepare MRTT Docker TUN and xtables lock
 After=local-fs.target
 Before=docker.service
 
@@ -2135,7 +2125,7 @@ prepare_docker_candidate() {
     CSQTT_DOCKER_CANDIDATE_IMAGE="${CSQTT_DOCKER_IMAGE}-candidate-$$"
     if ! docker_build_candidate_image "$CSQTT_DOCKER_CANDIDATE_IMAGE" "$context_dir"; then
         tail -n 80 "$LOG_FILE" | sed 's/^/   >> /' >&2 || true
-        die "Сборка Docker-образа CSQTT завершилась ошибкой" "$EXIT_PREFLIGHT_FAILED"
+        die "Сборка Docker-образа MRTT завершилась ошибкой" "$EXIT_PREFLIGHT_FAILED"
     fi
     probe_docker_runtime "$CSQTT_DOCKER_CANDIDATE_IMAGE"
     remove_managed_work_dir "$DOCKER_CONTEXT_DIR" || true
@@ -2210,7 +2200,7 @@ start_csqtt_docker() {
         --listen "0.0.0.0:${PEER_PORT}" \
         --web-port "$WEB_PORT" \
         --config-dir "$CSQTT_CONFIG_DIR" >>"$LOG_FILE" 2>&1 || \
-        die "Не удалось создать Docker-контейнер CSQTT"
+        die "Не удалось создать Docker-контейнер MRTT"
 
     local state running main_pid restarts candidate_pid=0 candidate_restarts=0 found=0
     local attempts=0
@@ -2231,7 +2221,7 @@ start_csqtt_docker() {
 
     if [ "$found" -ne 1 ]; then
         docker logs --tail 50 "$CSQTT_DOCKER_CONTAINER" 2>&1 | sed 's/^/   >> /' || true
-        die "Docker CSQTT не запустился или TUN $CSQTT_IFACE не создан"
+        die "Docker MRTT не запустился или TUN $CSQTT_IFACE не создан"
     fi
 
     sleep "$START_STABILITY_SECONDS"
@@ -2240,7 +2230,7 @@ start_csqtt_docker() {
     if [ "$running" != "true" ] || [ "$main_pid" != "$candidate_pid" ] || [ "$restarts" != "$candidate_restarts" ] || \
        ! ip link show "$CSQTT_IFACE" >/dev/null 2>&1; then
         docker logs --tail 50 "$CSQTT_DOCKER_CONTAINER" 2>&1 | sed 's/^/   >> /' || true
-        die "Docker CSQTT вошёл в crash-loop во время стабильной проверки"
+        die "Docker MRTT вошёл в crash-loop во время стабильной проверки"
     fi
 
     verify_configured_network
@@ -2266,13 +2256,13 @@ start_csqtt_docker() {
 
 setup_csqtt_service() {
     prog 0.75 "Сервис..."
-    echo "🔧 Создание systemd-сервиса CSQTT..."
+    echo "🔧 Создание systemd-сервиса MRTT..."
 
     local unit_tmp
     unit_tmp="$(mktemp)"
     cat > "$unit_tmp" << CSQTTSVC
 [Unit]
-Description=CSQTT VPN Server
+Description=MRTT VPN Server
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60
@@ -2331,7 +2321,7 @@ start_csqtt() {
         return
     fi
     prog 0.90 "Запуск..."
-    echo "🚀 Запуск CSQTT VPN Server..."
+    echo "🚀 Запуск MRTT VPN Server..."
 
     [ -x /usr/local/bin/csqtt ] || die "Исполняемый файл /usr/local/bin/csqtt не установлен"
 
@@ -2369,7 +2359,7 @@ start_csqtt() {
 
     if [ "$found" -ne 1 ]; then
         diagnose_systemd_failure
-        die "CSQTT не запустился: сервис не running или TUN $CSQTT_IFACE не создан"
+        die "MRTT не запустился: сервис не running или TUN $CSQTT_IFACE не создан"
     fi
 
     sleep "$START_STABILITY_SECONDS"
@@ -2387,13 +2377,13 @@ start_csqtt() {
        [ "$restarts" != "$candidate_restarts" ] || ! kill -0 "$candidate_pid" 2>/dev/null || \
        ! ip link show "$CSQTT_IFACE" >/dev/null 2>&1; then
         diagnose_systemd_failure
-        die "CSQTT вошёл в crash-loop или потерял TUN во время стабильной проверки"
+        die "MRTT вошёл в crash-loop или потерял TUN во время стабильной проверки"
     fi
 
     verify_configured_network
     verify_web_panel
     [ "$restarts" -eq 0 ] || log_warn "Во время старта csqtt перезапустился $restarts раз(а), затем стабилизировался"
-    log_info "CSQTT сервер подтверждён: PID $candidate_pid, интерфейс $CSQTT_IFACE активен"
+    log_info "MRTT сервер подтверждён: PID $candidate_pid, интерфейс $CSQTT_IFACE активен"
     finish_deployment
 
     prog 1.0 "Готово!"
@@ -2417,7 +2407,7 @@ start_csqtt() {
 }
 
 do_uninstall() {
-    log_step "Удаление CSQTT..."
+    log_step "Удаление MRTT..."
 
     remove_all_csqtt_docker_containers
     if command -v docker >/dev/null 2>&1; then
@@ -2430,7 +2420,7 @@ do_uninstall() {
         stop_csqtt_docker_prereq
         stop_all_running_csqtt_systemd_units
     fi
-    force_stop_csqtt_processes || log_warn "Не все процессы CSQTT завершились до удаления runtime"
+    force_stop_csqtt_processes || log_warn "Не все процессы MRTT завершились до удаления runtime"
     remove_all_csqtt_systemd_units
     rm -f "/etc/systemd/system/${CSQTT_DOCKER_PREREQ_SERVICE}"
     rm -f "/etc/systemd/system/docker.service.requires/${CSQTT_DOCKER_PREREQ_SERVICE}"
@@ -2449,11 +2439,11 @@ do_uninstall() {
     rm -f "$CSQTT_SYSCTL_FILE" "$CSQTT_UDP_SYSCTL_FILE"
     sysctl --system >/dev/null 2>&1 || true
 
-    log_info "CSQTT удалён. SQLite state и конфигурация сохранены в ${CSQTT_CONFIG_DIR}"
+    log_info "MRTT удалён. SQLite state и конфигурация сохранены в ${CSQTT_CONFIG_DIR}"
 }
 
 do_status() {
-    echo "Статус CSQTT:"
+    echo "Статус MRTT:"
     echo ""
     if command -v docker >/dev/null 2>&1 && docker inspect "$CSQTT_DOCKER_CONTAINER" >/dev/null 2>&1; then
         if [ "$(docker inspect --format '{{.State.Running}}' "$CSQTT_DOCKER_CONTAINER" 2>/dev/null)" = "true" ]; then
@@ -2473,9 +2463,9 @@ do_status() {
         log_warn "Бинарник: НЕ найден"
     fi
     if ip link show "$CSQTT_IFACE" &>/dev/null; then
-        log_info "CSQTT интерфейс ($CSQTT_IFACE): активен"
+        log_info "MRTT интерфейс ($CSQTT_IFACE): активен"
     else
-        log_warn "CSQTT интерфейс ($CSQTT_IFACE): не активен"
+        log_warn "MRTT интерфейс ($CSQTT_IFACE): не активен"
     fi
 }
 
@@ -2496,14 +2486,14 @@ trap 'handle_unexpected_error "$LINENO" "$?"' ERR
 
 main() {
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║       CSQTT VPN Server — Installer v${SCRIPT_VERSION}                    ║"
+    echo "║       MRTT VPN Server — Installer v${SCRIPT_VERSION}                    ║"
     echo "║       PEER: ${PEER_PORT}  |  SSH: ${SSH_PORT}  | WEB: ${WEB_PORT}       ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
 
     local action="${1:-install}"
     check_root
     mkdir -p "$(dirname "$LOG_FILE")"
-    echo "=== CSQTT Installer v${SCRIPT_VERSION} — $(date) ===" >> "$LOG_FILE"
+    echo "=== MRTT Installer v${SCRIPT_VERSION} — $(date) ===" >> "$LOG_FILE"
 
     case "$action" in
         status|--status|-s)       do_status ;;
@@ -2546,7 +2536,8 @@ main() {
             run_timed "NAT/firewall" setup_nat_and_firewall
             install_network_helper
             setup_csqtt_environment
-            run_timed "Let’s Encrypt" setup_letsencrypt_ip_tls
+            # Веб-панели больше нет: TLS не нужен, старый таймер продления сертификата выключаем.
+            disable_letsencrypt_renewal_timer
             DEPLOY_PHASE="activation"
             run_timed "бинарник" setup_csqtt_binary
             run_timed "принудительная остановка" force_stop_csqtt_processes

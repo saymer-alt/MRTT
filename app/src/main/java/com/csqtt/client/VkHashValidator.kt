@@ -71,7 +71,7 @@ object VkHashValidator {
         if (hashes.isEmpty()) return@withContext emptyMap()
         val binary = File(
             context.applicationInfo.nativeLibraryDir,
-            CsqttConstants.Tunnel.BINARY_NAME,
+            MrttConstants.Tunnel.BINARY_NAME,
         )
         if (!binary.isFile) return@withContext emptyMap()
         val command = buildCommand(binary.absolutePath, hashes, fingerprint, clientIds)

@@ -38,7 +38,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.csqtt.client.CsqttConstants
+import com.csqtt.client.MrttConstants
 import kotlin.math.roundToInt
 
 import androidx.compose.runtime.rememberUpdatedState
@@ -56,7 +56,7 @@ internal fun TunnelWorkersControl(
     fixedWorkers: Int? = null,
 ) {
     val isFixed = fixedWorkers != null && fixedWorkers in 3..100
-    val minimum = 5f
+    val minimum = WORKER_STEPS.first()
     val normalizedMaximum = roundToGroup(maximum, maximum)
     val normalizedValue = roundToGroup(value.coerceIn(minimum, normalizedMaximum), normalizedMaximum)
     var localValue by remember(normalizedValue, normalizedMaximum) {
@@ -101,7 +101,7 @@ internal fun TunnelWorkersControl(
                     currentOnValueChange(finalValue)
                 },
                 valueRange = minimum..normalizedMaximum,
-                stepSize = CsqttConstants.Tunnel.WORKERS_PER_GROUP.toFloat(),
+                stepSize = MrttConstants.Tunnel.WORKERS_PER_GROUP.toFloat(),
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -248,10 +248,16 @@ internal fun CompactSteppedSlider(
     }
 }
 
-internal val WORKER_STEPS = floatArrayOf(5f, 10f, 20f, 30f, 40f, 50f, 60f, 70f, 80f, 90f, 100f)
+// Native client and server both cap a session at 100 streams, so the slider stops at the last whole group below it.
+internal const val SLIDER_MAX_WORKERS = 100 / MrttConstants.Tunnel.WORKERS_PER_GROUP * MrttConstants.Tunnel.WORKERS_PER_GROUP
 
-internal fun roundToGroup(value: Float, maxW: Float = 100f): Float {
+// Same whole-group grid as WorkerCountPolicy, otherwise the store re-normalizes and the thumb jumps.
+internal val WORKER_STEPS = FloatArray(SLIDER_MAX_WORKERS / MrttConstants.Tunnel.WORKERS_PER_GROUP) {
+    ((it + 1) * MrttConstants.Tunnel.WORKERS_PER_GROUP).toFloat()
+}
+
+internal fun roundToGroup(value: Float, maxW: Float = SLIDER_MAX_WORKERS.toFloat()): Float {
     val allowed = WORKER_STEPS.filter { it <= maxW }
-    if (allowed.isEmpty()) return 5f
+    if (allowed.isEmpty()) return WORKER_STEPS.first()
     return allowed.minByOrNull { kotlin.math.abs(it - value) } ?: allowed.first()
 }

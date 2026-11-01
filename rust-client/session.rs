@@ -94,7 +94,11 @@ pub struct SessionConfig {
     pub server_stream_repair: Arc<AtomicBool>,
     pub repair: Arc<RepairState>,
     pub configured_workers: usize,
+    pub jitsi_room: Option<Arc<crate::jitsi_room::RoomTarget>>,
 }
+
+/// Placeholder TURN address of room workers: their datagrams go through the Jitsi room, not a relay.
+pub const JITSI_ROOM_ADDRESS: &str = "jitsi-room";
 
 pub struct SessionRuntime {
     pub dispatcher: Arc<Dispatcher>,
@@ -114,14 +118,16 @@ pub struct SessionRuntime {
 }
 
 fn build_registration_payload(config: &SessionConfig) -> Bytes {
-    Bytes::from(config_request(
+    let mut request = config_request(
         &config.local_port,
         &config.password,
         config.generation,
         &config.salt,
         config.id,
         Some(config.configured_workers.max(1)),
-    ))
+    );
+    request.push_str(crate::protocol::process_device_fields());
+    Bytes::from(request)
 }
 
 fn apply_workers_limit(
@@ -942,6 +948,9 @@ pub async fn run_session(
     credentials: TurnCredentials,
     mut runtime: SessionRuntime,
 ) -> Result<bool> {
+    if let Some(room) = config.jitsi_room.clone() {
+        return run_room_session(config, room, runtime).await;
+    }
     if credentials.server_addresses.is_empty() {
         bail!("нет TURN URL в учётных данных");
     }
@@ -1005,6 +1014,32 @@ pub async fn run_session(
         allocation.clone(),
         turn_path,
     ));
+    let result = await_session_task(&cancel, session).await;
+    let _ = tokio::time::timeout(DEALLOCATE_TIMEOUT, allocation.deallocate()).await;
+    result
+}
+
+/// A worker seated in the server's Jitsi room: the room stands in for the TURN allocation, the rest is unchanged.
+async fn run_room_session(
+    config: SessionConfig,
+    room: Arc<crate::jitsi_room::RoomTarget>,
+    mut runtime: SessionRuntime,
+) -> Result<bool> {
+    let cancel = runtime.cancel.clone();
+    crate::log_error!("[JITSI] Вход в комнату {room}");
+    if let Some(started) = runtime.allocation_started.take() {
+        let _ = started.send(());
+    }
+    let allocation = tokio::select! {
+        biased;
+        result = TurnAllocation::room(&room, config.id, runtime.pool.clone()) => result.map_err(TurnAllocateError)?,
+        _ = cancel.cancelled() => return Ok(false),
+    };
+    if let Some(ready) = runtime.allocation_ready.take() {
+        let _ = ready.send(());
+    }
+    crate::log_error!("[СЕССИЯ #{}] Комната Jitsi: место сервера найдено", config.id);
+    let session = tokio::spawn(run_allocated_session(config, runtime, allocation.clone(), Arc::from(JITSI_ROOM_ADDRESS)));
     let result = await_session_task(&cancel, session).await;
     let _ = tokio::time::timeout(DEALLOCATE_TIMEOUT, allocation.deallocate()).await;
     result
@@ -1634,6 +1669,7 @@ mod tests {
             server_stream_repair: Arc::new(AtomicBool::new(false)),
             repair: RepairState::new(18),
             configured_workers: 18,
+            jitsi_room: None,
         };
         assert_eq!(
             select_turn_address(&addresses, &config).unwrap(),
@@ -1662,6 +1698,7 @@ mod tests {
             server_stream_repair: Arc::new(AtomicBool::new(false)),
             repair: RepairState::new(9),
             configured_workers: 18,
+            jitsi_room: None,
         };
         assert_eq!(
             build_registration_payload(&config).as_ref(),

@@ -25,7 +25,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
@@ -33,12 +32,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.VpnKey
 import androidx.compose.material3.*
@@ -52,11 +53,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,14 +71,14 @@ import com.csqtt.client.ui.ExceptionsTab
 import com.csqtt.client.ui.FloatingToolbar
 import com.csqtt.client.ui.LogsTab
 import com.csqtt.client.ui.SettingsTab
-import com.csqtt.client.CsqttConstants
-import com.csqtt.client.ui.DeployTab
+import com.csqtt.client.MrttConstants
 import com.csqtt.client.ui.InfoTab
-import com.csqtt.client.ui.components.LocalCsqttHeaderActions
-import com.csqtt.client.ui.design.CsqttMotion
-import com.csqtt.client.ui.design.CsqttShapes
+import com.csqtt.client.ui.components.LocalMrttHeaderActions
+import com.csqtt.client.ui.design.MrttMotion
+import com.csqtt.client.ui.design.MrttShapes
 import com.csqtt.client.ui.dialogs.VkAuthDialog
-import com.csqtt.client.ui.utils.parseCsqttLink
+import com.csqtt.client.ui.dialogs.MaxAuthDialog
+import com.csqtt.client.ui.utils.parseMrttLink
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
@@ -124,7 +125,7 @@ class MainActivity : ComponentActivity() {
         val discardStaleUiState = UpdateLaunchGuard.consumeStaleSavedState(this)
         super.onCreate(if (discardStaleUiState) null else savedInstanceState)
 
-        importCsqttLink(intent)
+        importMrttLink(intent)
 
         TunnelManager.initObservers(this)
 
@@ -136,11 +137,13 @@ class MainActivity : ComponentActivity() {
             val authContext = LocalContext.current.applicationContext
             val authScope = rememberCoroutineScope()
             val uiStateHolder = rememberSaveableStateHolder()
+            val settingsStore = remember { appSettingsStore }
+            val themeMode by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = MrttConstants.Theme.MODE_SYSTEM)
+            var maxAuthProfile by rememberSaveable { mutableStateOf<Int?>(null) }
+            var maxAuthGroupId by rememberSaveable { mutableStateOf("") }
             if (renderUi) {
                 uiStateHolder.SaveableStateProvider("main_ui") {
-            val settingsStore = remember { appSettingsStore }
-            val themeMode by settingsStore.themeMode.collectAsStateWithLifecycle(initialValue = CsqttConstants.Theme.MODE_SYSTEM)
-            val activeFingerprint by settingsStore.selectedFingerprint.collectAsStateWithLifecycle(initialValue = CsqttConstants.Tunnel.DEFAULT_FINGERPRINT)
+            val activeFingerprint by settingsStore.selectedFingerprint.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_FINGERPRINT)
             val scope = rememberCoroutineScope()
 
             val baseDensity = LocalDensity.current
@@ -154,6 +157,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MainScreen(
                         settingsStore = settingsStore,
+                        onMaxAuthRequested = { profile, groupId ->
+                            maxAuthGroupId = groupId
+                            maxAuthProfile = profile
+                        },
                         themeMode = themeMode,
                         onThemeChange = { mode ->
                             scope.launch {
@@ -171,13 +178,27 @@ class MainActivity : ComponentActivity() {
             }
                 }
             }
+            // Keep the login WebView alive when onStop removes the main screen.
+            maxAuthProfile?.let { profile ->
+                CSQTTTheme(themeMode = themeMode) {
+                    MaxAuthDialog(
+                        requiredGroupId = maxAuthGroupId,
+                        onBind = { credentials ->
+                            settingsStore.saveMaxBinding(credentials.token, credentials.groupId, profile)
+                        },
+                        onDismiss = { maxAuthProfile = null },
+                    )
+                }
+            }
             if (showVkAuthDialog) {
                 VkAuthDialog(
                     onToken = { payload ->
                         showVkAuthDialog = false
                         authScope.launch {
                             appSettingsStore.saveVkAccessToken(payload.token, payload.userId)
-                            authContext.showRaisedToast("Вечный VK access token сохранен", Toast.LENGTH_SHORT)
+                            // VK иногда выдаёт временный токен: пишем, какой сохранён
+                            val kind = if (payload.expiresIn > 0) "VK access token сохранён (временный)" else "Вечный VK access token сохранён"
+                            authContext.showRaisedToast(kind, Toast.LENGTH_SHORT)
                         }
                     },
                     onDismiss = { showVkAuthDialog = false },
@@ -189,24 +210,30 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        importCsqttLink(intent)
+        importMrttLink(intent)
     }
 
-    private fun importCsqttLink(intent: Intent?) {
+    private fun importMrttLink(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
         val raw = intent.dataString ?: return
-        val link = parseCsqttLink(raw)
-        if (link == null) {
-            showRaisedToast("Неверная ссылка CSQTT", Toast.LENGTH_SHORT)
+        val subscription = com.csqtt.client.profiles.decodeSubscription(raw)
+        val link = parseMrttLink(raw)
+        if (subscription == null && link == null) {
+            showRaisedToast("Неверная ссылка MRTT", Toast.LENGTH_SHORT)
             return
         }
+        val message = subscription?.let { "Сабка «${it.name}»: подключений ${it.links.size}" }
+            ?: "Хост: ${link?.host}\nPeer: ${link?.port}"
         android.app.AlertDialog.Builder(this)
-            .setTitle("Импорт конфигурации CSQTT")
-            .setMessage("Хост: ${link.host}\nPeer: ${link.port}\n\nЗаменить текущую конфигурацию?")
-            .setPositiveButton("Импортировать") { _, _ ->
+            .setTitle("Добавить в профили")
+            .setMessage(message)
+            .setPositiveButton("Добавить") { _, _ ->
                 lifecycleScope.launch {
-                    appSettingsStore.saveCsqttParticipantLink(raw)
-                    showRaisedToast("Конфигурация CSQTT успешно подключена", Toast.LENGTH_SHORT)
+                    val added = com.csqtt.client.profiles.ProfileRepository(this@MainActivity).import(raw)
+                    showRaisedToast(
+                        if (added == 0) "Эти ссылки уже есть в профилях" else "Добавлено в профили",
+                        Toast.LENGTH_SHORT,
+                    )
                 }
             }
             .setNegativeButton("Отмена", null)
@@ -268,35 +295,21 @@ private data class NavItem(
 
 private val navItems = listOf(
     NavItem(0, R.string.nav_connection, Icons.Filled.PowerSettingsNew, Icons.Filled.PowerSettingsNew),
+    NavItem(5, R.string.nav_profiles, Icons.Filled.Person, Icons.Outlined.Person),
     NavItem(1, R.string.nav_tunnel, Icons.Filled.VpnKey, Icons.Outlined.VpnKey),
     NavItem(2, R.string.nav_deploy, Icons.Filled.Cloud, Icons.Outlined.Cloud),
     NavItem(3, R.string.nav_logs, Icons.Filled.Terminal, Icons.Outlined.Terminal),
     NavItem(4, R.string.nav_exceptions, Icons.Filled.FilterList, Icons.Outlined.FilterList),
 )
 
-internal fun navigationSwipeProgress(totalDrag: Float, containerWidth: Int): Float =
-    if (containerWidth <= 0) 0f else (abs(totalDrag) / (containerWidth.toFloat() * 0.25f)).coerceIn(0f, 1f)
-
-internal fun shouldCommitNavigationSwipe(progress: Float): Boolean = progress > 0.4f
-
-internal fun resolveActiveNavIds(csqttLinkMode: Boolean, participantShowLogs: Boolean): List<Int> {
-    val allIds = listOf(0, 1, 2, 3, 4)
-    return allIds.filter { id ->
-        if (csqttLinkMode) {
-            if (id == 2) return@filter false
-            if (id == 3 && !participantShowLogs) return@filter false
-        }
-        true
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     settingsStore: SettingsStore,
-    themeMode: String = CsqttConstants.Theme.MODE_SYSTEM,
+    onMaxAuthRequested: (Int, String) -> Unit,
+    themeMode: String = MrttConstants.Theme.MODE_SYSTEM,
     onThemeChange: (String) -> Unit = {},
-    activeFingerprint: String = CsqttConstants.Tunnel.DEFAULT_FINGERPRINT,
+    activeFingerprint: String = MrttConstants.Tunnel.DEFAULT_FINGERPRINT,
     onFingerprintChange: (String) -> Unit = {},
     onVkAuthRequested: () -> Unit = {},
 ) {
@@ -307,15 +320,9 @@ fun MainScreen(
     val context = LocalContext.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val activeProfile by settingsStore.activeProfile.collectAsStateWithLifecycle(initialValue = 0)
-    val deploySettings by settingsStore.deploySettingsSnapshot.collectAsStateWithLifecycle(
-        initialValue = DeploySettingsSnapshot()
-    )
     val tunnelAuthSettings by settingsStore.tunnelAuthSnapshot.collectAsStateWithLifecycle(
         initialValue = TunnelAuthSnapshot()
     )
-    val csqttLinkMode = tunnelAuthSettings.csqttLinkMode
-    val participantShowLogs by settingsStore.participantShowLogs.collectAsStateWithLifecycle(initialValue = false)
     val autoPauseOnWifi by settingsStore.autoPauseOnWifi.collectAsStateWithLifecycle(initialValue = false)
     val excludedApps by settingsStore.excludedApps.collectAsStateWithLifecycle(
         initialValue = SettingsStore.cachedExcludedApps ?: ""
@@ -331,8 +338,6 @@ fun MainScreen(
     val infoProjectExpanded by settingsStore.infoProjectExpanded.collectAsStateWithLifecycle(initialValue = false)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var tunnelValidationRequest by rememberSaveable { mutableIntStateOf(0) }
-    val dragTargetIndex = remember { mutableIntStateOf(-1) }
-    val dragProgress = remember { mutableFloatStateOf(0f) }
     var wasRunning by remember { mutableStateOf(tunnelRunning) }
     val updateCheckIntervalHours by settingsStore.updateCheckIntervalHours.collectAsStateWithLifecycle(
         initialValue = DEFAULT_UPDATE_CHECK_INTERVAL_HOURS
@@ -344,31 +349,20 @@ fun MainScreen(
     val navToolbarBottomMargin = 10.dp
     val navContentGap = 5.dp
     val navOverlayReserve = safeBottomInset + navToolbarBottomMargin + navToolbarHeight + navContentGap
-    val navigationDragSlop = with(density) { 6.dp.toPx() }
 
     val serverRoutingActive by TunnelManager.serverRoutingActive.collectAsStateWithLifecycle()
 
-    val activeNavItems = remember(csqttLinkMode, participantShowLogs) {
-        val allowedIds = resolveActiveNavIds(csqttLinkMode, participantShowLogs)
-        navItems.filter { it.id in allowedIds }
-    }
+    val activeNavItems = navItems
     val tabStateHolder = rememberSaveableStateHolder()
-    LaunchedEffect(csqttLinkMode, participantShowLogs) {
-        if (csqttLinkMode) {
-            if (selectedTab == 2 || (selectedTab == 3 && !participantShowLogs)) {
-                selectedTab = 0
-            }
-        }
-    }
-    LaunchedEffect(activeNavItems) {
-        if (activeNavItems.none { it.id == selectedTab }) {
-            selectedTab = 0
-        }
+    LaunchedEffect(Unit) {
+        // Старые слоты «владельца/участника» один раз переезжают в «Профили» и «Серверы».
+        com.csqtt.client.profiles.ProfileRepository(context).migrateLegacy()
+        com.csqtt.client.servers.ServerRepository(context).migrateLegacy()
     }
 
     LaunchedEffect(tunnelRunning, tunnelAutoPausedForWifi) {
         if (wasRunning && !tunnelRunning && !tunnelAutoPausedForWifi) {
-            TunnelManager.startCooldown(CsqttConstants.Timeouts.VPN_PERMISSION_COOLDOWN_MS)
+            TunnelManager.startCooldown(MrttConstants.Timeouts.VPN_PERMISSION_COOLDOWN_MS)
         }
         wasRunning = tunnelRunning
     }
@@ -394,7 +388,7 @@ fun MainScreen(
             )
 
             if (release == null) {
-                Log.w("CSQTT", "[WARN] Update check: no release info, local=$currentVersion reason=$reason")
+                Log.w("MRTT", "[WARN] Update check: no release info, local=$currentVersion reason=$reason")
                 return
             }
 
@@ -403,7 +397,7 @@ fun MainScreen(
             val postponeUntil = settingsStore.updatePostponeUntil.first()
             val isPostponed = postponeVer == release.versionTag && checkedAt < postponeUntil
             Log.i(
-                "CSQTT",
+                "MRTT",
                 "Update check: local=$currentVersion remote=${release.versionTag} newer=$hasUpdate postponed=$isPostponed reason=$reason"
             )
 
@@ -431,14 +425,9 @@ fun MainScreen(
         AppBackdrop(modifier = Modifier.matchParentSize())
 
         CompositionLocalProvider(
-            LocalCsqttHeaderActions provides {
+            LocalMrttHeaderActions provides {
                 FloatingToolbar(
                     settingsStore = settingsStore,
-                    csqttLinkMode = csqttLinkMode,
-                    activeProfile = activeProfile,
-                    onActiveProfileChange = { profile ->
-                        scope.launch { settingsStore.saveActiveProfile(profile) }
-                    },
                     currentTheme = themeMode,
                     onThemeChange = onThemeChange,
                     activeFingerprint = activeFingerprint,
@@ -459,47 +448,6 @@ fun MainScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .consumeWindowInsets(padding)
-                        .pointerInput(selectedTab, csqttLinkMode, participantShowLogs) {
-                        var totalDrag = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = {
-                                totalDrag = 0f
-                                dragTargetIndex.intValue = -1
-                                dragProgress.floatValue = 0f
-                            },
-                            onDragCancel = {
-                                dragTargetIndex.intValue = -1
-                                dragProgress.floatValue = 0f
-                            },
-                            onDragEnd = {
-                                if (dragTargetIndex.intValue in activeNavItems.indices && shouldCommitNavigationSwipe(dragProgress.floatValue)) {
-                                    selectedTab = activeNavItems[dragTargetIndex.intValue].id
-                                    if (selectedTab == 3) TunnelManager.clearUnreadErrors()
-                                }
-                                dragTargetIndex.intValue = -1
-                                dragProgress.floatValue = 0f
-                            }
-                        ) { change, dragAmount ->
-                            change.consume()
-                            totalDrag += dragAmount
-                            if (abs(totalDrag) < navigationDragSlop) {
-                                dragTargetIndex.intValue = -1
-                                dragProgress.floatValue = 0f
-                                return@detectHorizontalDragGestures
-                            }
-
-                            val currentActiveIndex = activeNavItems.indexOfFirst { it.id == selectedTab }
-                            val candidate = if (totalDrag < 0f) currentActiveIndex + 1 else currentActiveIndex - 1
-                            if (candidate !in activeNavItems.indices) {
-                                dragTargetIndex.intValue = -1
-                                dragProgress.floatValue = 0f
-                                return@detectHorizontalDragGestures
-                            }
-
-                            dragTargetIndex.intValue = candidate
-                            dragProgress.floatValue = navigationSwipeProgress(totalDrag, size.width)
-                        }
-                        }
                 ) {
                     Box(
                         modifier = Modifier
@@ -511,7 +459,7 @@ fun MainScreen(
                             val tabStateKey: Any = when (tab) {
                                 0 -> "connection:${tunnelAuthSettings.profile}"
                                 1 -> "tunnel:${tunnelAuthSettings.profile}"
-                                2 -> "deploy:${deploySettings.profile}"
+                                2 -> "servers"
                                 else -> tab
                             }
                             tabStateHolder.SaveableStateProvider(tabStateKey) {
@@ -532,22 +480,17 @@ fun MainScreen(
                                     SettingsTab(
                                         settingsStore = settingsStore,
                                         tunnelAuthSettings = tunnelAuthSettings,
+                                        onMaxAuthRequested = onMaxAuthRequested,
                                         validationRequest = tunnelValidationRequest,
                                         onVkAuthRequested = onVkAuthRequested,
                                     )
                                 } else {
                                     Spacer(modifier = Modifier.fillMaxSize())
                                 }
-                                2 -> if (!csqttLinkMode) {
-                                    DeployTab(settingsStore, deploySettings)
-                                } else {
-                                    Spacer(modifier = Modifier.fillMaxSize())
-                                }
-                                3 -> if (!csqttLinkMode || participantShowLogs) {
-                                    LogsTab(settingsStore)
-                                } else {
-                                    Spacer(modifier = Modifier.fillMaxSize())
-                                }
+                                2 -> com.csqtt.client.ui.servers.ServersTab()
+                                // Выбранный профиль сразу открывается в «Транспорт» со своими настройками.
+                                5 -> com.csqtt.client.ui.profiles.ProfilesTab(onOpened = { selectedTab = 1 })
+                                3 -> LogsTab(settingsStore)
                                 4 -> ExceptionsTab(
                                     settingsStore = settingsStore,
                                     savedExcluded = excludedApps,
@@ -565,8 +508,6 @@ fun MainScreen(
                     ProxyNavigationBar(
                         navItems = activeNavItems,
                         selectedTab = selectedTab,
-                        dragTargetIndex = dragTargetIndex,
-                        dragProgress = dragProgress,
                         unreadErrors = unreadErrors,
                         tunnelRunning = tunnelRunning,
                         onTabSelected = { index ->
@@ -575,8 +516,6 @@ fun MainScreen(
                                 selectedTab = index
                                 if (index == 3) TunnelManager.clearUnreadErrors()
                             }
-                            dragTargetIndex.intValue = -1
-                            dragProgress.floatValue = 0f
                         },
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
@@ -623,8 +562,6 @@ fun MainScreen(
 private fun ProxyNavigationBar(
     navItems: List<NavItem>,
     selectedTab: Int,
-    dragTargetIndex: IntState,
-    dragProgress: FloatState,
     unreadErrors: Int,
     tunnelRunning: Boolean,
     onTabSelected: (Int) -> Unit,
@@ -650,26 +587,14 @@ private fun ProxyNavigationBar(
         navItems.indexOfFirst { it.id == selectedTab }.coerceAtLeast(0)
     }
     val indicatorIndex = remember { Animatable(selectedVisualIndex.toFloat()) }
-    val isDragging = dragTargetIndex.intValue in navItems.indices
-    val requestedIndicatorIndex = if (isDragging) {
-        selectedVisualIndex.toFloat() +
-            (dragTargetIndex.intValue - selectedVisualIndex) * dragProgress.floatValue
-    } else {
-        selectedVisualIndex.toFloat()
-    }
-
-    LaunchedEffect(isDragging, requestedIndicatorIndex) {
-        if (isDragging) {
-            indicatorIndex.snapTo(requestedIndicatorIndex)
-        } else {
-                indicatorIndex.animateTo(
-                    targetValue = requestedIndicatorIndex,
-                    animationSpec = tween(
-                    durationMillis = CsqttMotion.Fast,
-                    easing = CsqttMotion.StandardEasing,
-                )
+    LaunchedEffect(selectedVisualIndex) {
+        indicatorIndex.animateTo(
+            targetValue = selectedVisualIndex.toFloat(),
+            animationSpec = tween(
+                durationMillis = MrttMotion.Fast,
+                easing = MrttMotion.StandardEasing,
             )
-        }
+        )
     }
     val dragVisualIndex = indicatorIndex.value
 
@@ -677,14 +602,15 @@ private fun ProxyNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-            .padding(horizontal = 22.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        val trackPadding = 6.dp
+        // Шесть вкладок: поля уже и подпись мельче, чтобы «Транспорт» влезал целиком.
+        val trackPadding = 4.dp
         val itemWidth = (maxWidth - trackPadding * 2) / navItems.size
         val indicatorOffset = trackPadding + itemWidth * dragVisualIndex
 
         Surface(
-            shape = CsqttShapes.Card,
+            shape = MrttShapes.Card,
             color = shellColor,
             border = BorderStroke(1.dp, shellBorder),
             tonalElevation = if (isDark) 0.dp else 1.dp,
@@ -721,7 +647,7 @@ private fun ProxyNavigationBar(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clip(CsqttShapes.Control)
+                                .clip(MrttShapes.Control)
                                 .selectable(
                                     selected = item.id == selectedTab,
                                     role = Role.Tab,
@@ -750,10 +676,11 @@ private fun ProxyNavigationBar(
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                 fontWeight = if (emphasis > 0.55f) FontWeight.SemiBold else FontWeight.Medium,
                                 color = iconColor,
-                                maxLines = 1
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

@@ -32,6 +32,36 @@ pub fn config_request(
     format!("GETCONF:{local_port}|{password}|{generation_id}|{salt}|{worker_id}|{desired_count}")
 }
 
+/// Хвост GETCONF с устройством: `|device_id|device_name`. Пустой device_id — сервер
+/// считает клиента старым (одно общее «устройство» на ссылку).
+pub fn device_fields(device_id: &str, device_name: &str) -> String {
+    fn clean(raw: &str, max_len: usize, allow_space: bool) -> String {
+        raw.trim()
+            .chars()
+            .filter(|c| {
+                c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') || (allow_space && *c == ' ')
+            })
+            .take(max_len)
+            .collect()
+    }
+    let device_id = clean(device_id, 64, false);
+    if device_id.is_empty() {
+        return String::new();
+    }
+    format!("|{device_id}|{}", clean(device_name, 40, true))
+}
+
+/// Устройство задаёт приложение через окружение процесса.
+pub fn process_device_fields() -> &'static str {
+    static FIELDS: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        device_fields(
+            &std::env::var("CSQTT_DEVICE_ID").unwrap_or_default(),
+            &std::env::var("CSQTT_DEVICE_NAME").unwrap_or_default(),
+        )
+    });
+    &FIELDS
+}
+
 pub fn parse_config_response(response: &[u8]) -> Result<ConfigResponse> {
     let response = std::str::from_utf8(response)?;
     if response == "NOCONF" {
@@ -42,6 +72,10 @@ pub fn parse_config_response(response: &[u8]) -> Result<ConfigResponse> {
             "wrong_password" => bail!("FATAL_AUTH: неверный пароль подключения"),
             "expired" => bail!("FATAL_AUTH: срок действия пароля истёк"),
             "deactivated" => bail!("FATAL_AUTH: аккаунт деактивирован"),
+            "device_limit" => bail!(
+                "FATAL_AUTH: достигнут лимит устройств для этой ссылки; отвяжите устройство в панели"
+            ),
+            "no_free_ip" => bail!("FATAL_AUTH: на сервере закончились адреса для новых устройств"),
             "protocol_mismatch" => bail!(
                 "FATAL_PROTOCOL: клиент и сервер используют разные версии протокола; выполните деплой из этой версии приложения"
             ),
@@ -166,6 +200,17 @@ mod tests {
 
         let req2 = config_request("9000", "pass1234567890ab", 7, "salt", 4, Some(36));
         assert_eq!(req2, "GETCONF:9000|pass1234567890ab|7|salt|4|36");
+    }
+
+    #[test]
+    fn device_fields_are_optional_and_cannot_break_the_request() {
+        assert_eq!(device_fields("", "Pixel 8"), "");
+        assert_eq!(device_fields("ab-12", "Pixel 8"), "|ab-12|Pixel 8");
+        assert_eq!(device_fields("a|b:c", "x|y"), "|abc|xy");
+        assert!(parse_config_response(b"DENIED:device_limit")
+            .unwrap_err()
+            .to_string()
+            .contains("FATAL_AUTH"));
     }
 
     #[test]

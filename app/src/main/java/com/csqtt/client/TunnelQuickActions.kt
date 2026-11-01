@@ -20,6 +20,8 @@ internal suspend fun buildQuickStartIntent(context: Context): Intent? {
         putExtra("vk_hashes", source.hashes)
         putExtra("vk_hashes_from_link", source.hashesFromLink)
         putExtra("vk_access_token", source.vkAccessToken)
+        putExtra("max_group_id", source.maxGroupId)
+        putExtra("jitsi_room", source.jitsiRoom)
         putExtra("vk_token_from_link", source.tokenFromLink)
         putExtra("secondary_vk_hash", store.secondaryVkHash.first())
         putExtra("workers_per_hash", store.workersPerHash.first())
@@ -35,6 +37,7 @@ internal suspend fun buildQuickStartIntent(context: Context): Intent? {
         putExtra("turn_transport", store.turnTransport.first())
         putExtra("srtp_mode", store.srtpMode.first())
         putExtra("custom_turn_ips", store.customTurnIps.first())
+        putExtra("mtu", store.tunnelMtu.first())
     }
 }
 
@@ -45,13 +48,13 @@ internal suspend fun toggleTunnelFromQuickAction(context: Context, openMain: () 
         return
     }
     if (VpnService.prepare(context) != null) {
-        context.showRaisedToast("Откройте CSQTT и выдайте VPN-разрешение", Toast.LENGTH_LONG)
+        context.showRaisedToast("Откройте MRTT и выдайте VPN-разрешение", Toast.LENGTH_LONG)
         openMain()
         return
     }
     val startIntent = buildQuickStartIntent(context)
     if (startIntent == null) {
-        context.showRaisedToast("Заполните настройки подключения в CSQTT", Toast.LENGTH_LONG)
+        context.showRaisedToast("Заполните настройки подключения в MRTT", Toast.LENGTH_LONG)
         openMain()
         return
     }

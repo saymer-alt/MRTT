@@ -86,7 +86,7 @@ class DeployScriptPreflightTest {
     fun `reserved runtime directories recover from a failed previous install`() {
         val deploy = script()
         assertTrue(deploy.contains("ensure_csqtt_directory()"))
-        assertTrue(deploy.contains("rm -rf -- \"\$path\" || die \"Не удалось очистить путь CSQTT: \$path\""))
+        assertTrue(deploy.contains("rm -rf -- \"\$path\" || die \"Не удалось очистить путь MRTT: \$path\""))
         assertTrue(deploy.contains("ensure_csqtt_directory \"\$CSQTT_CONFIG_DIR\" 700"))
         assertTrue(deploy.contains("ensure_csqtt_directory /usr/local/lib/csqtt 755"))
         assertTrue(deploy.contains("setup_csqtt_environment() {\n    ensure_csqtt_directory \"\$CSQTT_CONFIG_DIR\" 700"))
@@ -143,13 +143,11 @@ class DeployScriptPreflightTest {
     }
 
     @Test
-    fun `web health probe accepts the panel's unauthenticated response without creating sessions`() {
+    fun `management API is probed on loopback only`() {
         val deploy = script()
-        assertTrue(deploy.contains("200|301|302|401"))
-        assertTrue(deploy.contains("${'$'}{scheme}://127.0.0.1:${'$'}{WEB_PORT}/"))
-        assertFalse(deploy.contains("--data-binary @-"))
+        assertTrue(deploy.contains("http://127.0.0.1:${'$'}{WEB_PORT}/api/stats"))
+        assertFalse(deploy.contains("fw_add_input_tcp \"${'$'}WEB_PORT\""))
         assertFalse(deploy.contains("/api/login"))
-        assertFalse(deploy.contains("NETWORK_READY_STAMP"))
     }
 
     @Test
@@ -179,7 +177,7 @@ class DeployScriptPreflightTest {
     }
 
     @Test
-    fun `runtime mode switch removes CSQTT paths and force releases the configured peer port`() {
+    fun `runtime mode switch removes MRTT paths and force releases the configured peer port`() {
         val deploy = script()
         val client = deployOperations()
         assertTrue(deploy.contains("docker_container_runs_csqtt()"))
@@ -207,7 +205,7 @@ class DeployScriptPreflightTest {
         assertTrue(deploy.contains("kill -TERM \"\$pid\""))
         assertTrue(deploy.contains("принудительное освобождение"))
         assertFalse(deploy.contains("unknown runtime; refusing to alter it"))
-        assertFalse(deploy.contains("CSQTT не будет их удалять"))
+        assertFalse(deploy.contains("MRTT не будет их удалять"))
         assertFalse(deploy.contains("pkill -"))
         assertFalse(deploy.contains("pgrep -x csqtt"))
         assertFalse(deploy.contains("ipt_del_repeat"))
@@ -221,7 +219,7 @@ class DeployScriptPreflightTest {
     }
 
     @Test
-    fun `runtime cleanup stops processes before deleting CSQTT runtime paths`() {
+    fun `runtime cleanup stops processes before deleting MRTT runtime paths`() {
         val deploy = script()
         val cleanup = deploy.substringAfter("csqtt_cleanup() {").substringBefore("setup_sysctl()")
         val forceStop = deploy.substringAfter("force_stop_csqtt_processes() {")
@@ -241,7 +239,7 @@ class DeployScriptPreflightTest {
         assertTrue(deploy.contains("systemctl list-units --type=service --all --no-legend --plain 2>/dev/null || true"))
         assertTrue(deploy.contains("systemctl list-unit-files --type=service --no-legend --plain 2>/dev/null || true"))
         assertTrue(deploy.contains("if ! timeout 10 systemctl stop \"\$unit\" >/dev/null 2>&1; then"))
-        assertTrue(deploy.contains("systemctl is-active --quiet \"\$unit\"; then\n            die \"Не удалось остановить systemd runtime CSQTT: \$unit\""))
+        assertTrue(deploy.contains("systemctl is-active --quiet \"\$unit\"; then\n            die \"Не удалось остановить systemd runtime MRTT: \$unit\""))
     }
 
     @Test
@@ -254,30 +252,15 @@ class DeployScriptPreflightTest {
     }
 
     @Test
-    fun `web panel prefers renewable trusted IP TLS with self signed fallback`() {
+    fun `no web panel certificate is issued and no HTTP port is opened`() {
         val deploy = script()
-        assertTrue(deploy.contains("--preferred-profile shortlived"))
-        assertTrue(deploy.contains("--ip-address \"\$public_ip\""))
-        assertTrue(deploy.contains("--force-renewal"))
-        assertTrue(deploy.contains("openssl x509 -noout -checkend \"\$LE_RENEW_BEFORE_SECONDS\""))
-        assertTrue(deploy.contains("OnUnitInactiveSec=24h") || deploy.contains("OnUnitInactiveSec=1h"))
-        assertTrue(deploy.contains("fw_add_input_tcp \"\$LE_HTTP_PORT\""))
-        assertTrue(deploy.contains("web_cert.pem|web_key.pem|letsencrypt-ip.env"))
-        assertTrue(deploy.contains("systemctl kill --kill-who=main --signal USR1 csqtt"))
-        assertTrue(deploy.contains("docker kill --signal USR1 csqtt"))
-        assertTrue(deploy.contains("issuer=\"\${issuer#issuer=}\""))
-        assertTrue(deploy.contains("subject=\"\${subject#subject=}\""))
-        assertTrue(deploy.contains("! python3 -c 'import ensurepip'"))
-        assertTrue(deploy.contains("apt) python_packages=(python3 python3-venv)"))
-        assertTrue(deploy.contains("pkg_install_with_refresh()"))
-        assertTrue(deploy.contains("pkg_install_with_refresh \"\${python_packages[@]}\""))
-        assertTrue(deploy.contains("local ip=\"\$1\" first second third fourth value"))
-        assertTrue(deploy.contains("grep '^csqtp' || true"))
-        assertTrue(deploy.contains("self-signed fallback"))
+        assertTrue(deploy.contains("disable_letsencrypt_renewal_timer"))
+        assertFalse(deploy.contains("run_timed \"Let’s Encrypt\""))
+        assertFalse(deploy.contains("fw_add_input_tcp \"${'$'}LE_HTTP_PORT\""))
     }
 
     @Test
-    fun `certificate ownership keeps user TLS untouched and renews only CSQTT certificates`() {
+    fun `certificate ownership keeps user TLS untouched and renews only MRTT certificates`() {
         val deploy = script()
         assertTrue(deploy.contains("certificate_is_csqtt_rcgen()"))
         assertTrue(deploy.contains("certificate_is_csqtt_letsencrypt()"))
@@ -288,6 +271,6 @@ class DeployScriptPreflightTest {
         assertTrue(deploy.contains("IP Address:\${saved_ip}"))
         assertTrue(deploy.contains("rm -f -- \"\$CSQTT_LE_STATE_FILE\""))
         assertTrue(deploy.contains("disable_letsencrypt_renewal_timer"))
-        assertTrue(deploy.contains("CSQTT не изменяет его и отключает собственное продление"))
+        assertTrue(deploy.contains("MRTT не изменяет его и отключает собственное продление"))
     }
 }

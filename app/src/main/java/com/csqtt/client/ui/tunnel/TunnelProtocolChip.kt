@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.csqtt.client.ui.design.CsqttShapes
+import com.csqtt.client.ui.design.MrttShapes
 
 @Composable
 internal fun ProtocolChip(
@@ -35,14 +35,14 @@ internal fun ProtocolChip(
                 modifier = if (centerText) Modifier.fillMaxWidth() else Modifier,
             )
         },
-        shape = CsqttShapes.Pill,
+        shape = MrttShapes.Pill,
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             labelColor = MaterialTheme.colorScheme.onSurface,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
-            disabledSelectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+            disabledSelectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
             disabledLabelColor = if (isError) {
                 MaterialTheme.colorScheme.error
             } else {
@@ -53,9 +53,9 @@ internal fun ProtocolChip(
             enabled = enabled,
             selected = selected,
             borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            selectedBorderColor = MaterialTheme.colorScheme.outline,
             disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-            disabledSelectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+            disabledSelectedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
         ),
     )
 }

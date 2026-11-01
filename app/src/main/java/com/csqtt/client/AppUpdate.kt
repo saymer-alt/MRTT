@@ -8,20 +8,16 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-const val UPDATE_CHECK_NEVER = CsqttConstants.Update.CHECK_NEVER
-const val DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = CsqttConstants.Update.DEFAULT_CHECK_INTERVAL_HOURS
-const val UPDATE_DIALOG_ACTION_POSTPONED = CsqttConstants.Update.ACTION_POSTPONED
-const val UPDATE_DIALOG_ACTION_UPDATE = CsqttConstants.Update.ACTION_UPDATE
+const val UPDATE_CHECK_NEVER = MrttConstants.Update.CHECK_NEVER
+const val DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = MrttConstants.Update.DEFAULT_CHECK_INTERVAL_HOURS
+const val UPDATE_DIALOG_ACTION_POSTPONED = MrttConstants.Update.ACTION_POSTPONED
+const val UPDATE_DIALOG_ACTION_UPDATE = MrttConstants.Update.ACTION_UPDATE
 
-private const val UPDATE_LOG_TAG = CsqttConstants.General.APP_NAME
-private const val GITHUB_RELEASES_URL = CsqttConstants.Update.GITHUB_RELEASES_URL
-private const val GITHUB_LATEST_RELEASE_URL = CsqttConstants.Update.GITHUB_LATEST_RELEASE_URL
-private const val GITHUB_LATEST_RELEASE_WEB_URL = CsqttConstants.Update.GITHUB_LATEST_RELEASE_WEB_URL
-private const val GITHUB_RELEASE_TAG_URL_PREFIX = CsqttConstants.Update.GITHUB_RELEASE_TAG_URL_PREFIX
-private const val GITHUB_TAGS_URL = CsqttConstants.Update.GITHUB_TAGS_URL
-private const val GITHUB_TAG_TREE_URL_PREFIX = CsqttConstants.Update.GITHUB_TAG_TREE_URL_PREFIX
-private const val GITHUB_API_RATE_LIMIT_FALLBACK_MS = CsqttConstants.Timeouts.UPDATE_RATE_LIMIT_COOLDOWN_MS
-private val VERSION_NUMBER_REGEX = CsqttConstants.Patterns.VERSION_NUMBER
+private const val UPDATE_LOG_TAG = MrttConstants.General.APP_NAME
+private const val GITHUB_RELEASES_URL = MrttConstants.Update.GITHUB_RELEASES_URL
+private const val GITHUB_API_RATE_LIMIT_FALLBACK_MS = MrttConstants.Timeouts.UPDATE_RATE_LIMIT_COOLDOWN_MS
+private val VERSION_NUMBER_REGEX = MrttConstants.Patterns.VERSION_NUMBER
+private val PRE_RELEASE_REGEX = Regex("""^v?\d+(?:\.\d+)*-[A-Za-z]+(\d*)""", RegexOption.IGNORE_CASE)
 
 @Volatile
 private var githubApiCooldownUntilMs = 0L
@@ -43,18 +39,33 @@ enum class RemoteVersionSource {
 }
 
 suspend fun fetchLatestReleaseInfo(localVersion: String? = null): AppReleaseInfo? = withContext(Dispatchers.IO) {
-    val latestRelease = fetchReleaseFromLatestWebRedirect()
-        ?: fetchReleaseFromLatestEndpoint()
-        ?: fetchLatestStableReleaseFromList()
-    val latestTag = fetchLatestTagFromList()
-
-    when {
-        latestRelease == null -> latestTag
-        latestTag == null -> latestRelease
-        isNewerVersion(latestRelease.versionTag, latestTag.versionTag) -> latestTag
-        else -> latestRelease
+    // Pre-releases are offered only to builds that are pre-releases themselves.
+    val includePrereleases = localVersion != null && preReleaseNumber(localVersion) != null
+    val response = fetchGitHubApi(GITHUB_RELEASES_URL) ?: return@withContext null
+    val releases = try {
+        JSONArray(response)
+    } catch (e: Exception) {
+        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: failed to parse releases list", e)
+        return@withContext null
     }
+
+    var bestRelease: AppReleaseInfo? = null
+    for (i in 0 until releases.length()) {
+        val json = releases.optJSONObject(i) ?: continue
+        if (json.optBoolean("draft")) continue
+        if (json.optBoolean("prerelease") && !includePrereleases) continue
+        val release = json.toAppReleaseInfo() ?: continue
+        if (isLegacyRelease(release.versionTag)) continue
+        if (bestRelease == null || isNewerVersion(bestRelease.versionTag, release.versionTag)) {
+            bestRelease = release
+        }
+    }
+    bestRelease
 }
+
+// CSQTT legacy releases live in the same repository but are a separate product, never an update.
+internal fun isLegacyRelease(versionTag: String): Boolean =
+    versionTag.contains("legacy", ignoreCase = true)
 
 fun isNewerVersion(local: String, remote: String): Boolean {
     val localParts = versionParts(local)
@@ -68,105 +79,20 @@ fun isNewerVersion(local: String, remote: String): Boolean {
         if (remotePart > localPart) return true
         if (remotePart < localPart) return false
     }
-    return false
+
+    // Same numbers: 1.0-beta1 < 1.0-beta2 < 1.0.
+    val localPre = preReleaseNumber(local)
+    val remotePre = preReleaseNumber(remote)
+    return when {
+        localPre == null -> false
+        remotePre == null -> true
+        else -> remotePre > localPre
+    }
 }
 
-private fun fetchLatestStableReleaseFromList(): AppReleaseInfo? {
-    val response = fetchGitHubApi(GITHUB_RELEASES_URL) ?: return null
-    val releases = try {
-        JSONArray(response)
-    } catch (e: Exception) {
-        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: failed to parse releases list", e)
-        return null
-    }
-
-    var bestRelease: AppReleaseInfo? = null
-    for (i in 0 until releases.length()) {
-        val json = releases.optJSONObject(i) ?: continue
-        if (json.optBoolean("draft") || json.optBoolean("prerelease")) continue
-        val release = json.toAppReleaseInfo() ?: continue
-        if (bestRelease == null || isNewerVersion(bestRelease.versionTag, release.versionTag)) {
-            bestRelease = release
-        }
-    }
-    return bestRelease
-}
-
-private fun fetchLatestTagFromList(): AppReleaseInfo? {
-    val response = fetchGitHubApi(GITHUB_TAGS_URL) ?: return null
-    val tags = try {
-        JSONArray(response)
-    } catch (e: Exception) {
-        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: failed to parse tags list", e)
-        return null
-    }
-
-    var bestTag: AppReleaseInfo? = null
-    for (i in 0 until tags.length()) {
-        val json = tags.optJSONObject(i) ?: continue
-        val tagName = normalizeVersionTag(json.optString("name"))
-        if (tagName.isBlank()) continue
-        val tag = AppReleaseInfo(
-            versionTag = tagName,
-            releaseUrl = "$GITHUB_TAG_TREE_URL_PREFIX$tagName",
-            source = RemoteVersionSource.Tag
-        )
-        if (bestTag == null || isNewerVersion(bestTag.versionTag, tag.versionTag)) {
-            bestTag = tag
-        }
-    }
-    return bestTag
-}
-
-private fun fetchReleaseFromLatestEndpoint(): AppReleaseInfo? {
-    val response = fetchGitHubApi(GITHUB_LATEST_RELEASE_URL) ?: return null
-    val json = try {
-        JSONObject(response)
-    } catch (e: Exception) {
-        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: failed to parse latest release", e)
-        return null
-    }
-    return json.toAppReleaseInfo()
-}
-
-private fun fetchReleaseFromLatestWebRedirect(): AppReleaseInfo? {
-    var conn: HttpURLConnection? = null
-    return try {
-        conn = URL(GITHUB_LATEST_RELEASE_WEB_URL).openConnection() as HttpURLConnection
-        applyNoCacheHeaders(conn)
-        conn.instanceFollowRedirects = false
-        conn.requestMethod = "GET"
-        conn.setRequestProperty("Accept", "text/html,*/*")
-        conn.setRequestProperty("User-Agent", "CSQTTAndroid/${BuildConfig.VERSION_NAME}")
-        conn.connectTimeout = 8_000
-        conn.readTimeout = 8_000
-
-        val responseCode = conn.responseCode
-        val location = conn.getHeaderField("Location")
-        if (!location.isNullOrBlank()) {
-            val releaseUrl = URL(URL(GITHUB_LATEST_RELEASE_WEB_URL), location).toString()
-            val versionTag = extractTagFromReleaseUrl(releaseUrl)
-            if (!versionTag.isNullOrBlank()) {
-                return AppReleaseInfo(versionTag, releaseUrl, RemoteVersionSource.Release)
-            }
-        }
-
-        if (responseCode in 200..299) {
-            val response = conn.inputStream.bufferedReader().use { it.readText() }
-            val versionTag = Regex("/releases/tag/([^\"?#<]+)").find(response)?.groupValues?.getOrNull(1)
-            if (!versionTag.isNullOrBlank()) {
-                return AppReleaseInfo(versionTag, "$GITHUB_RELEASE_TAG_URL_PREFIX$versionTag", RemoteVersionSource.Release)
-            }
-        }
-
-        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: GitHub web fallback returned $responseCode")
-        null
-    } catch (e: Exception) {
-        Log.w(UPDATE_LOG_TAG, "[WARN] Update check: GitHub web fallback failed", e)
-        null
-    } finally {
-        conn?.disconnect()
-    }
+private fun preReleaseNumber(version: String): Int? {
+    val match = PRE_RELEASE_REGEX.find(version.trim()) ?: return null
+    return match.groupValues[1].toIntOrNull() ?: 0
 }
 
 private fun fetchGitHubApi(url: String): String? {
@@ -261,16 +187,4 @@ internal fun normalizeVersionTag(version: String): String {
     val trimmed = version.trim()
     if (trimmed.isBlank()) return ""
     return if (trimmed.startsWith("v", ignoreCase = true)) trimmed else "v$trimmed"
-}
-
-private fun extractTagFromReleaseUrl(releaseUrl: String): String? {
-    val marker = "/releases/tag/"
-    val index = releaseUrl.indexOf(marker)
-    if (index < 0) return null
-    return releaseUrl.substring(index + marker.length)
-        .substringBefore("?")
-        .substringBefore("#")
-        .substringBefore("/")
-        .takeIf { it.isNotBlank() }
-        ?.let(::normalizeVersionTag)
 }

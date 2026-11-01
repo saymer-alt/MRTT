@@ -47,8 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.csqtt.client.CSQTTColors
 import com.csqtt.client.R
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSpacing
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -94,7 +94,7 @@ internal fun InfoHeroCard(
             Button(
                 onClick = onTelegramClick,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = CsqttShapes.Pill,
+                shape = MrttShapes.Pill,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CSQTTColors.telegram,
                     contentColor = Color.White,
@@ -123,7 +123,7 @@ internal fun InfoHeroCard(
             Button(
                 onClick = onCryptoClick,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = CsqttShapes.Pill,
+                shape = MrttShapes.Pill,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1E293B),
                     contentColor = Color.White,
@@ -161,13 +161,13 @@ internal fun ExpandableSectionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(CsqttShapes.Control)
+                .clip(MrttShapes.Control)
                 .clickable(onClick = onToggle)
                 .padding(vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(shape = CsqttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(shape = MrttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
             }
             Text(
@@ -206,17 +206,17 @@ internal fun WideActionTile(
     icon: @Composable () -> Unit,
 ) {
     Surface(
-        shape = CsqttShapes.Card,
+        shape = MrttShapes.Card,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.70f),
         contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth().clip(CsqttShapes.Card).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clip(MrttShapes.Card).clickable(onClick = onClick),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(shape = CsqttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(shape = MrttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -246,17 +246,17 @@ internal fun ProjectLinkRow(
     icon: @Composable () -> Unit,
 ) {
     Surface(
-        shape = CsqttShapes.Card,
+        shape = MrttShapes.Card,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
         contentColor = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth().clip(CsqttShapes.Card).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clip(MrttShapes.Card).clickable(onClick = onClick),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(shape = CsqttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(shape = MrttShapes.Pill, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(
                     modifier = Modifier.defaultMinSize(minWidth = 40.dp, minHeight = 40.dp),
                     contentAlignment = Alignment.Center,

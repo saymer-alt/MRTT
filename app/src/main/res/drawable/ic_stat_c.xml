@@ -1,13 +1,10 @@
-<!-- SPDX-FileCopyrightText: 2026 amurcanov -->
-<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 -->
-
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M 78.6,36.8 A 30,30 0 1,0 78.6,71.2 L 69.6,64.9 A 19,19 0 1,1 69.6,43.1 Z"
-        android:fillType="nonZero"
-        android:fillColor="#FFFFFFFF" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.95,9.00 L65.68,9.00 L71.14,9.51 L80.66,12.68 L85.48,15.85 L88.65,19.03 L91.07,22.20 L92.72,25.38 L93.73,28.55 L94.37,31.72 L94.49,34.90 L94.24,38.07 L93.61,41.24 L92.46,44.42 L90.56,47.59 L88.02,50.76 L84.08,53.94 L77.86,57.11 L71.39,58.76 L65.68,59.27 L98.05,99.00 L70.50,99.00 L32.93,57.87 L32.80,99.00 L9.95,99.00 L9.95,40.35 L65.68,40.35 C69.74,40.35 72.15,37.56 72.15,34.26 C72.15,31.09 69.74,28.29 65.68,28.29 L9.95,28.29 Z" />
 </vector>

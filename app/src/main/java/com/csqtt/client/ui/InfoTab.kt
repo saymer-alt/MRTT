@@ -1,7 +1,7 @@
 package com.csqtt.client.ui
 
 import com.csqtt.client.showRaisedToast
-import com.csqtt.client.CsqttConstants
+import com.csqtt.client.MrttConstants
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -91,17 +91,17 @@ import com.csqtt.client.CSQTTColors
 import com.csqtt.client.fetchLatestReleaseInfo
 import com.csqtt.client.isNewerVersion
 import kotlinx.coroutines.launch
-import com.csqtt.client.ui.components.CsqttScreen
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
+import com.csqtt.client.ui.components.MrttScreen
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSpacing
 import com.csqtt.client.ui.dialogs.CryptoDonateDialog
 
-private const val ReleasesUrl = CsqttConstants.Links.RELEASES
-private const val IssuesUrl = CsqttConstants.Links.ISSUES
-private const val DeveloperProfileUrl = CsqttConstants.Links.DEVELOPER_PROFILE
-private const val RepositoryUrl = CsqttConstants.Links.REPOSITORY
-private const val TelegramUrl = CsqttConstants.Links.TELEGRAM
-private const val TelegramHandle = CsqttConstants.Links.TELEGRAM_HANDLE
+private const val ReleasesUrl = MrttConstants.Links.RELEASES
+private const val IssuesUrl = MrttConstants.Links.ISSUES
+private const val DeveloperProfileUrl = MrttConstants.Links.DEVELOPER_PROFILE
+private const val RepositoryUrl = MrttConstants.Links.REPOSITORY
+private const val TelegramUrl = MrttConstants.Links.TELEGRAM
+private const val TelegramHandle = MrttConstants.Links.TELEGRAM_HANDLE
 
 private val browserPackages = listOf(
     "com.android.chrome",
@@ -137,7 +137,7 @@ private fun openUrlInBrowser(context: Context, url: String) {
         val intent = Intent(Intent.ACTION_VIEW, uri).apply { addCategory(Intent.CATEGORY_BROWSABLE) }
         if (intent.resolveActivity(pm) != null) context.startActivity(intent)
     } catch (error: Exception) {
-        Log.w("CSQTT", "Не удалось открыть ссылку: $url", error)
+        Log.w("MRTT", "Не удалось открыть ссылку: $url", error)
         context.showRaisedToast("Не удалось открыть ссылку", Toast.LENGTH_SHORT)
     }
 }
@@ -169,7 +169,7 @@ fun InfoTab(
         }
     }
 
-    CsqttScreen {
+    MrttScreen {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -220,7 +220,7 @@ fun InfoTab(
                     subtitle = "Android, ABI, версия, устройство",
                     onClick = {
                         val clipboard = context.getSystemService(ClipboardManager::class.java)
-                        clipboard?.setPrimaryClip(ClipData.newPlainText("CSQTT Report", buildSupportReport()))
+                        clipboard?.setPrimaryClip(ClipData.newPlainText("MRTT Report", buildSupportReport()))
                         context.showRaisedToast("Отчёт сформирован и скопирован", Toast.LENGTH_SHORT)
                     },
                     icon = {
@@ -349,8 +349,8 @@ fun InfoTab(
             )
 
             ProjectLinkRow(
-                title = "Репозиторий CSQTT",
-                subtitle = "Исходники и релизы приложения",
+                title = "Оригинальный CSQTT",
+                subtitle = "MRTT основан на CSQTT от amurcanov",
                 onClick = { openUrlInBrowser(context, RepositoryUrl) },
                 icon = {
                     Icon(
@@ -399,10 +399,10 @@ fun InfoTab(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Surface(
-                shape = CsqttShapes.Pill,
+                shape = MrttShapes.Pill,
                 color = Color.Transparent,
                 modifier = Modifier
-                    .clip(CsqttShapes.Pill)
+                    .clip(MrttShapes.Pill)
                     .clickable { openUrlInBrowser(context, TelegramUrl) }
                     .padding(4.dp)
             ) {
@@ -419,7 +419,7 @@ fun InfoTab(
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
-                    .clip(CsqttShapes.Control)
+                    .clip(MrttShapes.Control)
                     .clickable { openUrlInBrowser(context, TelegramUrl) }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             )

@@ -30,12 +30,12 @@ import kotlin.random.Random
 @SuppressLint("StaticFieldLeak")
 object CaptchaWebViewManager {
     private const val TAG = "CaptchaWV"
-    private const val CAPTCHA_TIMEOUT_MS = CsqttConstants.Timeouts.CAPTCHA_AUTO_TIMEOUT_MS
-    private const val WV_CREATE_TIMEOUT_MS = CsqttConstants.Timeouts.CAPTCHA_WV_CREATE_TIMEOUT_MS
-    const val ERROR_SLIDER_DETECTED = CsqttConstants.Captcha.ERROR_SLIDER_DETECTED
+    private const val CAPTCHA_TIMEOUT_MS = MrttConstants.Timeouts.CAPTCHA_AUTO_TIMEOUT_MS
+    private const val WV_CREATE_TIMEOUT_MS = MrttConstants.Timeouts.CAPTCHA_WV_CREATE_TIMEOUT_MS
+    const val ERROR_SLIDER_DETECTED = MrttConstants.Captcha.ERROR_SLIDER_DETECTED
 
-    private val VIEWPORT_WIDTHS = CsqttConstants.Captcha.AUTO_VIEWPORT_WIDTHS
-    private val VIEWPORT_HEIGHTS = CsqttConstants.Captcha.AUTO_VIEWPORT_HEIGHTS
+    private val VIEWPORT_WIDTHS = MrttConstants.Captcha.AUTO_VIEWPORT_WIDTHS
+    private val VIEWPORT_HEIGHTS = MrttConstants.Captcha.AUTO_VIEWPORT_HEIGHTS
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val captchaMutex = Mutex()
@@ -69,14 +69,14 @@ object CaptchaWebViewManager {
                     try {
                         const data = await clone.json();
                         if (data.response && data.response.success_token) {
-                            window.CsqttCaptcha.onSuccess(data.response.success_token);
+                            window.MrttCaptcha.onSuccess(data.response.success_token);
                         } else if (
                             data.response &&
                             data.response.show_captcha_type === 'slider'
                         ) {
-                            window.CsqttCaptcha.onSliderDetected('check_response');
+                            window.MrttCaptcha.onSliderDetected('check_response');
                         } else if (data.error) {
-                            window.CsqttCaptcha.onError(JSON.stringify(data.error));
+                            window.MrttCaptcha.onError(JSON.stringify(data.error));
                         }
                     } catch(e) {}
                     return response;
@@ -97,14 +97,14 @@ object CaptchaWebViewManager {
                         try {
                             const data = JSON.parse(xhr.responseText);
                             if (data.response && data.response.success_token) {
-                                window.CsqttCaptcha.onSuccess(data.response.success_token);
+                                window.MrttCaptcha.onSuccess(data.response.success_token);
                             } else if (
                                 data.response &&
                                 data.response.show_captcha_type === 'slider'
                             ) {
-                                window.CsqttCaptcha.onSliderDetected('check_response');
+                                window.MrttCaptcha.onSliderDetected('check_response');
                             } else if (data.error) {
-                                window.CsqttCaptcha.onError(JSON.stringify(data.error));
+                                window.MrttCaptcha.onError(JSON.stringify(data.error));
                             }
                         } catch(e) {}
                     });
@@ -199,7 +199,7 @@ object CaptchaWebViewManager {
 
                     Log.d(TAG, "WebView UA: ${settings.userAgentString}")
 
-                    addJavascriptInterface(CaptchaJSBridge(), "CsqttCaptcha")
+                    addJavascriptInterface(CaptchaJSBridge(), "MrttCaptcha")
 
                     webViewClient = object : WebViewClient() {
                         override fun onPageStarted(
@@ -301,7 +301,7 @@ object CaptchaWebViewManager {
             try {
                 wv.stopLoading()
                 wv.loadUrl("about:blank")
-                try { wv.removeJavascriptInterface("CsqttCaptcha") } catch (_: Exception) {}
+                try { wv.removeJavascriptInterface("MrttCaptcha") } catch (_: Exception) {}
                 wv.webViewClient = WebViewClient()
                 wv.webChromeClient = null
                 wv.onPause()

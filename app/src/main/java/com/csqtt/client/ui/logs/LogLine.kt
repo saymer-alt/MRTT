@@ -23,9 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.csqtt.client.LogEntry
 import com.csqtt.client.LogLevel
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
-import com.csqtt.client.ui.design.CsqttTheme
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSpacing
+import com.csqtt.client.ui.design.MrttTheme
 
 private data class TagColors(
     val background: Color,
@@ -70,7 +70,7 @@ private fun resolveTagColors(isGreen: Boolean, isError: Boolean): TagColors {
     return TagColors(
         background = Color(0xFF0A223D),
         text = Color(0xFF3DBFFD),
-        border = Color(0xFF1475FD),
+        border = Color(0xFF8A9099),
     )
 }
 
@@ -133,7 +133,7 @@ internal fun LogLine(
     entry: LogEntry,
     modifier: Modifier = Modifier,
 ) {
-    val terminalColors = CsqttTheme.extendedColors
+    val terminalColors = MrttTheme.extendedColors
     val level = entry.level ?: when {
         entry.isError -> LogLevel.ERR
         entry.priority <= 2 -> LogLevel.OK
@@ -168,11 +168,11 @@ internal fun LogLine(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(CsqttSpacing.Sm),
+        horizontalArrangement = Arrangement.spacedBy(MrttSpacing.Sm),
         verticalAlignment = Alignment.Top,
     ) {
         Surface(
-            shape = CsqttShapes.Pill,
+            shape = MrttShapes.Pill,
             color = tagColors.background,
             contentColor = tagColors.text,
             border = BorderStroke(1.dp, tagColors.border),
@@ -209,7 +209,7 @@ internal fun LogLine(
 
         if (entry.count > 1) {
             Surface(
-                shape = CsqttShapes.Pill,
+                shape = MrttShapes.Pill,
                 color = Color(0xFF142438),
                 contentColor = Color(0xFF3DBFFD),
                 border = BorderStroke(1.dp, Color(0xFF1E4976)),

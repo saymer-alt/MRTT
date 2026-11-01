@@ -1072,7 +1072,7 @@ mod tests {
         packet.extend_from_slice(b"dns");
         let (source, payload) = socks_udp_response(&packet).unwrap();
         assert_eq!(payload, b"dns");
-        assert_eq!(source, "1.1.1.1:53".parse().unwrap());
+        assert_eq!(source, "1.1.1.1:53".parse::<std::net::SocketAddr>().unwrap());
     }
 
     #[test]

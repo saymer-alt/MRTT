@@ -1,8 +1,8 @@
 package com.csqtt.client
 
-object CsqttConstants {
+object MrttConstants {
     object General {
-        const val APP_NAME = "CSQTT"
+        const val APP_NAME = "MRTT"
         const val PACKAGE_VK = "com.vkontakte.android"
         const val PACKAGE_VK_CALLS = "com.vk.calls"
         const val CSQTT_EVENT_PREFIX = "__CSQTT_EVENT__|"
@@ -35,11 +35,19 @@ object CsqttConstants {
         const val DEFAULT_TURN_TRANSPORT = "udp"
         const val TURN_TRANSPORT_TCP_TLS = "tcp_tls"
 
-        const val WORKERS_PER_GROUP = 10
-        const val GROUPS_PER_VK_HASH = 1
-        const val MAX_VK_HASHES = 7
-        const val DEFAULT_MAX_WORKERS = 100
-        const val MAX_WORKERS = 100
+        const val WORKERS_PER_GROUP = 9
+        const val GROUPS_PER_VK_HASH = 3
+        const val MAX_VK_HASHES = 6
+        const val DEFAULT_MAX_WORKERS = 72
+        const val MAX_WORKERS = 126
+    }
+
+    object Transport {
+        const val MODE_VK = "vk"
+        const val MODE_MAX = "max"
+        const val MODE_JITSI = "jitsi"
+        // Серверы Jitsi на выбор при деплое: пускают гостей и держат канал данных видеомоста.
+        val JITSI_HOSTS = listOf("meet.egovm.ru", "meet.mamba.group", "meet.riddlerx.org", "meet.handyweb.org", "conf.expressmoney.com")
     }
 
     object VkAuth {
@@ -85,17 +93,7 @@ object CsqttConstants {
         const val ACTION_UPDATE = "update"
 
         const val GITHUB_RELEASES_URL =
-            "https://api.github.com/repos/amurcanov/csqtt/releases?per_page=30"
-        const val GITHUB_LATEST_RELEASE_URL =
-            "https://api.github.com/repos/amurcanov/csqtt/releases/latest"
-        const val GITHUB_LATEST_RELEASE_WEB_URL =
-            "https://github.com/amurcanov/csqtt/releases/latest"
-        const val GITHUB_RELEASE_TAG_URL_PREFIX =
-            "https://github.com/amurcanov/csqtt/releases/tag/"
-        const val GITHUB_TAGS_URL =
-            "https://api.github.com/repos/amurcanov/csqtt/tags?per_page=100"
-        const val GITHUB_TAG_TREE_URL_PREFIX =
-            "https://github.com/amurcanov/csqtt/tree/"
+            "https://api.github.com/repos/ttrroyy/mrtt/releases?per_page=30"
     }
 
     object Notifications {
@@ -160,7 +158,9 @@ object CsqttConstants {
     }
 
     object Vpn {
-        const val DEFAULT_MTU = 1500
+        const val DEFAULT_MTU = 1280
+        const val MTU_MIN = 1280
+        const val MTU_MAX = 1500
         const val EMPTY_WHITELIST_MESSAGE = "В режиме БС выберите хотя бы одно приложение"
     }
 
@@ -174,7 +174,7 @@ object CsqttConstants {
     }
 
     object Links {
-        const val RELEASES = "https://github.com/amurcanov/csqtt/releases"
+        const val RELEASES = "https://github.com/ttrroyy/mrtt/releases"
         const val ISSUES = "https://github.com/amurcanov/csqtt/issues/new"
         const val DEVELOPER_PROFILE = "https://github.com/amurcanov"
         const val REPOSITORY = "https://github.com/amurcanov/csqtt"

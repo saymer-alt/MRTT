@@ -1,13 +1,32 @@
-.gradle/
-.kotlin/
-**/build/
-**/target/
-local.properties
+# Machine-local Android SDK paths and signing secrets
+/local.properties
+*.keystore
+*.jks
+*.p12
+
+# Compiled code and generated manifests
+/.gradle/
+/.kotlin/
+/build/
+/app/build/
+/app/release/
+/app/src/main/jniLibs/
+/app/src/main/libclient.provenance.json
+/app/src/main/assets/csqtt-linux-*
+/app/src/main/assets/csqtt.server-provenance.json
+/rust-client/target/
+/rust-server/target/
+/rust-server/dist/
+/tools/CsqttrMaxToken/bin/
+/tools/CsqttrMaxToken/obj/
+
+# Tokens/credentials
+call.json
+max-profile/
+*.log
+.idea/
+*.iml
+apk/
 *.apk
 *.aab
-*.jks
-*.keystore
-*.p12
-app/src/main/jniLibs/
-app/src/main/assets/csqtt-linux-*
 .local/

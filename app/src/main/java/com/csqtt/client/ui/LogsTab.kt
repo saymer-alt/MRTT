@@ -45,12 +45,12 @@ import com.csqtt.client.LogEntry
 import com.csqtt.client.R
 import com.csqtt.client.SettingsStore
 import com.csqtt.client.TunnelManager
-import com.csqtt.client.ui.components.CsqttEmptyState
-import com.csqtt.client.ui.components.CsqttScreen
-import com.csqtt.client.ui.components.CsqttSettingRow
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
-import com.csqtt.client.ui.design.CsqttTheme
+import com.csqtt.client.ui.components.MrttEmptyState
+import com.csqtt.client.ui.components.MrttScreen
+import com.csqtt.client.ui.components.MrttSettingRow
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSpacing
+import com.csqtt.client.ui.design.MrttTheme
 import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.BorderStroke
@@ -60,12 +60,12 @@ fun LogsTab(settingsStore: SettingsStore) {
     val loggingEnabled by settingsStore.loggingEnabled.collectAsStateWithLifecycle(initialValue = true)
     val scope = rememberCoroutineScope()
 
-    CsqttScreen {
+    MrttScreen {
         AppSectionCard(
-            contentPadding = PaddingValues(horizontal = CsqttSpacing.Md, vertical = CsqttSpacing.Xs),
-            verticalArrangement = Arrangement.spacedBy(CsqttSpacing.None),
+            contentPadding = PaddingValues(horizontal = MrttSpacing.Md, vertical = MrttSpacing.Xs),
+            verticalArrangement = Arrangement.spacedBy(MrttSpacing.None),
         ) {
-            CsqttSettingRow(
+            MrttSettingRow(
                 title = stringResource(R.string.logs_enabled),
                 checked = loggingEnabled,
                 onCheckedChange = { enabled ->
@@ -81,9 +81,9 @@ fun LogsTab(settingsStore: SettingsStore) {
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            shape = CsqttShapes.Card,
-            color = CsqttTheme.extendedColors.terminalBackground,
-            contentColor = CsqttTheme.extendedColors.terminalText,
+            shape = MrttShapes.Card,
+            color = MrttTheme.extendedColors.terminalBackground,
+            contentColor = MrttTheme.extendedColors.terminalText,
         ) {
             LogsTerminal()
         }
@@ -108,20 +108,20 @@ private fun LogsTerminal() {
     Box(modifier = Modifier.fillMaxSize()) {
         if (currentLogs.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CsqttEmptyState(
+                MrttEmptyState(
                     title = stringResource(R.string.logs_empty_title),
                     icon = Icons.Outlined.Terminal,
-                    modifier = Modifier.padding(CsqttSpacing.Md),
-                    contentColor = CsqttTheme.extendedColors.terminalText,
-                    secondaryContentColor = CsqttTheme.extendedColors.terminalMuted,
+                    modifier = Modifier.padding(MrttSpacing.Md),
+                    contentColor = MrttTheme.extendedColors.terminalText,
+                    secondaryContentColor = MrttTheme.extendedColors.terminalMuted,
                 )
             }
         } else {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = CsqttSpacing.Md, top = CsqttSpacing.Md, end = CsqttSpacing.Md, bottom = 64.dp),
-                verticalArrangement = Arrangement.spacedBy(CsqttSpacing.Xs),
+                contentPadding = PaddingValues(start = MrttSpacing.Md, top = MrttSpacing.Md, end = MrttSpacing.Md, bottom = 64.dp),
+                verticalArrangement = Arrangement.spacedBy(MrttSpacing.Xs),
             ) {
                 items(
                     items = currentLogs,
@@ -144,7 +144,7 @@ private fun LogsTerminal() {
                 onClick = {
                     val text = currentLogs.joinToString("\n") { "${it.message} (x${it.count})" }
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("CSQTT Logs", text))
+                    clipboard.setPrimaryClip(ClipData.newPlainText("MRTT Logs", text))
                     context.showRaisedToast(copiedMessage, Toast.LENGTH_SHORT)
                 },
                 enabled = currentLogs.isNotEmpty(),

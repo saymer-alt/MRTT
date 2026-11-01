@@ -29,8 +29,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.VkHashValidationCodec
 import com.csqtt.client.VkHashValidationStatus
 import com.csqtt.client.ui.utils.stripVkUrlStatic
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,7 +95,7 @@ fun HashesDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -223,7 +223,7 @@ fun HashesDialog(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = CsqttShapes.Control,
+                        shape = MrttShapes.Control,
                         colors = fieldColors,
                     )
                 }
@@ -242,9 +242,9 @@ fun HashesDialog(
                             isChecking = false
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
                     enabled = !isChecking && hashes.any { it.isNotBlank() },
-                    shape = CsqttShapes.Pill,
+                    shape = MrttShapes.Pill,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                 ) {
@@ -268,8 +268,8 @@ fun HashesDialog(
                     onClick = {
                         onSave(h1, h2, h3, h4, h5, h6)
                     },
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(contentColor = MaterialTheme.colorScheme.onPrimary),
                 ) {
                     Text("Сохранить", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)

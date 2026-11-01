@@ -15,8 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSpacing
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSpacing
 
 @Composable
 fun appSectionCardColor(): Color {
@@ -43,12 +43,12 @@ fun appSectionCardBorderColor(): Color {
 @Composable
 fun AppSectionCard(
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(CsqttSpacing.Md),
-    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(CsqttSpacing.Md),
+    contentPadding: PaddingValues = PaddingValues(MrttSpacing.Md),
+    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(MrttSpacing.Md),
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
-        shape = CsqttShapes.Card,
+        shape = MrttShapes.Card,
         color = appSectionCardColor(),
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.dp, appSectionCardBorderColor()),

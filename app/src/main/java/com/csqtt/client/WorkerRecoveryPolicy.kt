@@ -1,7 +1,7 @@
 package com.csqtt.client
 
 internal class WorkerRecoveryPolicy(
-    private val minimumPeak: Int = CsqttConstants.Tunnel.WORKERS_PER_GROUP,
+    private val minimumPeak: Int = MrttConstants.Tunnel.WORKERS_PER_GROUP,
 ) {
     private var peak = 0
     private var armedTarget = 0

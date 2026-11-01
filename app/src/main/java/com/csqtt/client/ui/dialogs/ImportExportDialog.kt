@@ -37,9 +37,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.SettingsStore
 import com.csqtt.client.ui.appSectionCardBorderColor
 import com.csqtt.client.ui.appSectionCardColor
-import com.csqtt.client.ui.components.CsqttSegmentedControl
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.components.MrttSegmentedControl
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -118,7 +118,7 @@ fun ImportExportDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
             tonalElevation = 0.dp,
@@ -156,7 +156,7 @@ fun ImportExportDialog(
                     }
                 }
 
-                CsqttSegmentedControl(
+                MrttSegmentedControl(
                     options = listOf(
                         ImportExportTab.EXPORT to "Экспорт",
                         ImportExportTab.IMPORT to "Импорт"
@@ -165,7 +165,7 @@ fun ImportExportDialog(
                     onSelected = { selectedTab = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(CsqttSizes.CompactControlHeight)
+                        .height(MrttSizes.CompactControlHeight)
                 )
 
                 Column(
@@ -222,8 +222,8 @@ fun ImportExportDialog(
                             enabled = !isProcessing && (includeTunnel || includeDeploy || includeExceptions || includeSettings),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(CsqttSizes.ControlHeight),
-                            shape = CsqttShapes.Pill,
+                                .height(MrttSizes.ControlHeight),
+                            shape = MrttShapes.Pill,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -269,8 +269,8 @@ fun ImportExportDialog(
                             enabled = !isProcessing && (includeTunnel || includeDeploy || includeExceptions || includeSettings),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(CsqttSizes.ControlHeight),
-                            shape = CsqttShapes.Pill,
+                                .height(MrttSizes.ControlHeight),
+                            shape = MrttShapes.Pill,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         ) {
                             Icon(
@@ -305,8 +305,8 @@ fun ImportExportDialog(
                             enabled = !isProcessing && (includeTunnel || includeDeploy || includeExceptions || includeSettings),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(CsqttSizes.ControlHeight),
-                            shape = CsqttShapes.Pill,
+                                .height(MrttSizes.ControlHeight),
+                            shape = MrttShapes.Pill,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         ) {
                             Icon(
@@ -328,8 +328,8 @@ fun ImportExportDialog(
                             enabled = !isProcessing && (includeTunnel || includeDeploy || includeExceptions || includeSettings),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(CsqttSizes.ControlHeight),
-                            shape = CsqttShapes.Pill,
+                                .height(MrttSizes.ControlHeight),
+                            shape = MrttShapes.Pill,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         ) {
                             Icon(

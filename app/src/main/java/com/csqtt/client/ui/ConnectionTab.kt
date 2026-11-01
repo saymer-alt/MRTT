@@ -5,14 +5,18 @@ import android.net.VpnService
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.BatterySaver
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,21 +36,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.csqtt.client.BatterySaver
 import com.csqtt.client.ConnectionSource
 import com.csqtt.client.ConnectionStartBlocker
 import com.csqtt.client.ConnectionStartPolicy
-import com.csqtt.client.CsqttConstants
-import com.csqtt.client.R
+import com.csqtt.client.MrttConstants
 import com.csqtt.client.SettingsStore
 import com.csqtt.client.StoredSecretState
 import com.csqtt.client.TunnelAuthSnapshot
@@ -56,9 +57,9 @@ import com.csqtt.client.VkHashValidationCodec
 import com.csqtt.client.newTunnelSessionId
 import com.csqtt.client.resolveConnectionSource
 import com.csqtt.client.showRaisedToast
-import com.csqtt.client.ui.components.CsqttScreen
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.utils.parseCsqttLink
+import com.csqtt.client.ui.components.MrttScreen
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.utils.parseMrttLink
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -78,33 +79,38 @@ internal fun ConnectionTab(
     val autoPausedForWifi by TunnelManager.autoPausedForWifi.collectAsStateWithLifecycle()
     val cooldownActive by TunnelManager.cooldownActive.collectAsStateWithLifecycle()
 
-    val csqttLinkMode = tunnelAuthSettings.csqttLinkMode
-    val csqttLink = tunnelAuthSettings.csqttLink
+    val mrttLinkMode = tunnelAuthSettings.mrttLinkMode
+    val mrttLink = tunnelAuthSettings.mrttLink
     val peer by settingsStore.peer.collectAsStateWithLifecycle(initialValue = "")
     val vkHashes by settingsStore.vkHashes.collectAsStateWithLifecycle(initialValue = "")
     val vkHashCheckResultsJson by settingsStore.vkHashCheckResults.collectAsStateWithLifecycle(initialValue = "{}")
     val workersPerHash by settingsStore.workersPerHash.collectAsStateWithLifecycle(initialValue = 18)
     val sni by settingsStore.sni.collectAsStateWithLifecycle(initialValue = "")
-    val turnTransport by settingsStore.turnTransport.collectAsStateWithLifecycle(initialValue = CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT)
-    val srtpMode by settingsStore.srtpMode.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedSrtpMode ?: CsqttConstants.SrtpMode.DEFAULT)
+    val turnTransport by settingsStore.turnTransport.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT)
+    val srtpMode by settingsStore.srtpMode.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedSrtpMode ?: MrttConstants.SrtpMode.DEFAULT)
     val customTurnIps by settingsStore.customTurnIps.collectAsStateWithLifecycle(initialValue = "")
+    val tunnelMtu by settingsStore.tunnelMtu.collectAsStateWithLifecycle(initialValue = MrttConstants.Vpn.DEFAULT_MTU)
     val manualPortsEnabled by settingsStore.manualPortsEnabled.collectAsStateWithLifecycle(initialValue = false)
     val serverPeerPort by settingsStore.serverPeerPort.collectAsStateWithLifecycle(
-        initialValue = CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT,
+        initialValue = MrttConstants.Network.DEFAULT_SERVER_PEER_PORT,
     )
-    val vkAuthMode by settingsStore.vkAuthMode.collectAsStateWithLifecycle(initialValue = CsqttConstants.VkAuth.MODE_CALLS)
+    val vkAuthMode by settingsStore.vkAuthMode.collectAsStateWithLifecycle(initialValue = MrttConstants.VkAuth.MODE_CALLS)
     val captchaMode by settingsStore.captchaMode.collectAsStateWithLifecycle(initialValue = "auto")
     val captchaSolveMethod by settingsStore.captchaSolveMethod.collectAsStateWithLifecycle(initialValue = "auto")
-    val activeFingerprint by settingsStore.selectedFingerprint.collectAsStateWithLifecycle(initialValue = CsqttConstants.Tunnel.DEFAULT_FINGERPRINT)
-    val activeClientIds by settingsStore.activeClientIds.collectAsStateWithLifecycle(initialValue = CsqttConstants.Tunnel.DEFAULT_CLIENT_IDS)
+    val activeFingerprint by settingsStore.selectedFingerprint.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_FINGERPRINT)
+    val activeClientIds by settingsStore.activeClientIds.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_CLIENT_IDS)
     val savedHashMode by settingsStore.vkHashMode.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkHashMode)
     val savedVkAccessToken by settingsStore.vkAccessToken.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkAccessToken)
+    val savedMaxGroupId by settingsStore.maxGroupId.collectAsStateWithLifecycle(initialValue = "")
+    val savedMaxAccessToken by settingsStore.maxAccessToken.collectAsStateWithLifecycle(initialValue = "")
+    val transportMode by settingsStore.transportMode.collectAsStateWithLifecycle(initialValue = MrttConstants.Transport.MODE_VK)
+    val jitsiRoomOverride by settingsStore.jitsiRoomOverride.collectAsStateWithLifecycle(initialValue = "")
 
     var pendingStartAfterVpnPermission by remember { mutableStateOf(false) }
 
-    val parsedLink = remember(csqttLink) { parseCsqttLink(csqttLink) }
+    val parsedLink = remember(mrttLink) { parseMrttLink(mrttLink) }
     val linkHashes = parsedLink?.hashes.orEmpty()
-    val linkTokenActive = csqttLinkMode && parsedLink?.vkAccessToken?.isNotEmpty() == true
+    val linkTokenActive = mrttLinkMode && parsedLink?.vkAccessToken?.isNotEmpty() == true
     val rawManualHashes = remember(vkHashes) {
         vkHashes.split(Regex("[,\\s\\n]+"))
             .map(String::trim)
@@ -118,25 +124,32 @@ internal fun ConnectionTab(
         )
     }
     val manualHashes = if (activeManualHashes.isNotEmpty()) activeManualHashes else rawManualHashes
-    val accountAutoJsMode = vkAuthMode == CsqttConstants.VkAuth.MODE_AUTO_JS
+    val accountAutoJsMode = vkAuthMode == MrttConstants.VkAuth.MODE_AUTO_JS
     val hashSettingsLoaded = savedHashMode != null && savedVkAccessToken != null
     val autoHashMode = accountAutoJsMode || (
-        savedHashMode != null && savedHashMode != CsqttConstants.VkAutoHash.MODE_MANUAL
+        savedHashMode != null && savedHashMode != MrttConstants.VkAutoHash.MODE_MANUAL
     )
     val vkTokenActive = savedVkAccessToken?.isNotBlank() == true
-    val hashesReady = hashSettingsLoaded && ConnectionStartPolicy.hasReadyVkCredentials(
-        linkMode = csqttLinkMode,
-        linkHashCount = linkHashes.size,
-        linkTokenPresent = linkTokenActive,
-        autoHashMode = autoHashMode,
-        storedTokenPresent = vkTokenActive,
-        manualHashCount = manualHashes.size,
-    )
+    val maxLinkActive = mrttLinkMode && !parsedLink?.maxGroupId.isNullOrBlank()
+    val maxBindingActive = savedMaxGroupId.isNotBlank()
+    val maxReady = (maxLinkActive || maxBindingActive) && savedMaxAccessToken.isNotBlank()
+    val hashesReady = when (transportMode) {
+        MrttConstants.Transport.MODE_MAX -> maxReady
+        MrttConstants.Transport.MODE_JITSI -> jitsiRoomOverride.isNotBlank() || (mrttLinkMode && !parsedLink?.jitsiRoom.isNullOrBlank())
+        else -> hashSettingsLoaded && ConnectionStartPolicy.hasReadyVkCredentials(
+            linkMode = mrttLinkMode,
+            linkHashCount = linkHashes.size,
+            linkTokenPresent = linkTokenActive,
+            autoHashMode = autoHashMode,
+            storedTokenPresent = vkTokenActive,
+            manualHashCount = manualHashes.size,
+        )
+    }
     val peerPortValid = !manualPortsEnabled || serverPeerPort in 1..65535
     val trimmedPeer = peer.trim()
     val isLocalOrUnspecifiedPeer = trimmedPeer == "0.0.0.0" || trimmedPeer == "127.0.0.1" || trimmedPeer.equals("localhost", ignoreCase = true) || trimmedPeer == "::1"
     val startBlocker = ConnectionStartPolicy.blocker(
-        linkMode = csqttLinkMode,
+        linkMode = mrttLinkMode,
         linkValid = parsedLink != null,
         peerValid = trimmedPeer.isNotBlank() && !trimmedPeer.contains(":") && !isLocalOrUnspecifiedPeer,
         peerPortValid = peerPortValid,
@@ -154,6 +167,8 @@ internal fun ConnectionTab(
             putExtra("vk_hashes_from_link", source.hashesFromLink)
             putExtra("vk_access_token", source.vkAccessToken)
             putExtra("vk_token_from_link", source.tokenFromLink)
+            putExtra("max_group_id", source.maxGroupId)
+            putExtra("jitsi_room", source.jitsiRoom)
             putExtra("workers_per_hash", workersPerHash)
             putExtra("port", 0)
             putExtra("sni", sni)
@@ -163,10 +178,11 @@ internal fun ConnectionTab(
             putExtra("captcha_solve_method", captchaSolveMethod)
             putExtra("fingerprint", activeFingerprint)
             putExtra("client_ids", activeClientIds)
-            putExtra("obfs_mode", CsqttConstants.Tunnel.DEFAULT_OBFS_MODE)
+            putExtra("obfs_mode", MrttConstants.Tunnel.DEFAULT_OBFS_MODE)
             putExtra("turn_transport", turnTransport)
             putExtra("srtp_mode", srtpMode)
             putExtra("custom_turn_ips", customTurnIps)
+            putExtra("mtu", tunnelMtu)
             putExtra("generation_id", generationId)
             putExtra("session_salt", salt)
         }
@@ -251,7 +267,7 @@ internal fun ConnectionTab(
         }
     }
 
-    CsqttScreen {
+    MrttScreen {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -313,32 +329,53 @@ private fun TunnelConnectionPanel(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_c_logo),
-                contentDescription = when {
-                    tunnelStopping -> "Ожидание отключения VPN"
-                    tunnelRunning || autoPausedForWifi -> "Остановить VPN"
-                    else -> "Включить VPN"
-                },
+            val activeWorkers by TunnelManager.activeWorkers.collectAsStateWithLifecycle()
+            val targetWorkers by TunnelManager.targetWorkers.collectAsStateWithLifecycle()
+            val showWorkers = (tunnelRunning || isStarting) && !tunnelStopping && targetWorkers > 0
+            androidx.compose.material3.Surface(
+                onClick = onToggleTunnel,
+                enabled = canToggle,
+                shape = MrttShapes.Pill,
+                color = if (activeVisual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (activeVisual) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (activeVisual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                ),
                 modifier = Modifier
                     .size(172.dp)
-                    .clip(CsqttShapes.Pill)
-                    .clickable(
-                        enabled = canToggle,
-                        onClick = onToggleTunnel,
+                    .scale(logoScale)
+                    .alpha(if (canToggle || activeVisual) 1f else 0.5f)
+                    .semantics {
+                        contentDescription = when {
+                            tunnelStopping -> "Ожидание отключения VPN"
+                            tunnelRunning || autoPausedForWifi -> "Остановить VPN"
+                            else -> "Включить VPN"
+                        }
+                    },
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PowerSettingsNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
                     )
-                    .scale(logoScale),
-                colorFilter = if (activeVisual) {
-                    null
-                } else {
-                    ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
-                },
-                alpha = when {
-                    activeVisual -> 1f
-                    canToggle -> 0.66f
-                    else -> 0.34f
-                },
-            )
+                    if (showWorkers) {
+                        Text(
+                            text = "$activeWorkers / $targetWorkers",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "воркеров",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            }
 
             Text(
                 text = statusText,
@@ -349,6 +386,28 @@ private fun TunnelConnectionPanel(
             )
 
             TunnelUptimeText(tunnelRunning = tunnelRunning || autoPausedForWifi || tunnelStopping)
+
+            // «Экономия батареи» in force: said under the status, where the user looks
+            val batterySaving by BatterySaver.active.collectAsStateWithLifecycle()
+            if (batterySaving && tunnelRunning) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.BatterySaver,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = BatterySaver.BADGE,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }

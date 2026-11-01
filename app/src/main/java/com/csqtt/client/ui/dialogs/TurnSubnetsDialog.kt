@@ -43,8 +43,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.csqtt.client.TurnSubnetRegistry
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 import com.csqtt.client.ui.CompactDropdownSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -81,7 +81,7 @@ internal fun TurnSubnetsDialog(
         .map { it.first }
 
     fun getPingColor(subnetId: String): Color {
-        if (isPinging) return Color(0xFF1475FD)
+        if (isPinging) return Color(0xFF8A9099)
         val ping = pingResults[subnetId] ?: return Color.Unspecified
         if (ping <= 0) return Color(0xFFE53935)
         val rank = sortedEligibleIds.indexOf(subnetId)
@@ -119,7 +119,7 @@ internal fun TurnSubnetsDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -169,7 +169,7 @@ internal fun TurnSubnetsDialog(
                         val isEligible = limitInt == null || subnet.count >= limitInt
                         val isChecked = isEligible && selectedSubnetId == subnet.id
                         Surface(
-                            shape = CsqttShapes.Card,
+                            shape = MrttShapes.Card,
                             color = when {
                                 !isEligible -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
                                 isChecked -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
@@ -291,20 +291,20 @@ internal fun TurnSubnetsDialog(
                     OutlinedButton(
                         onClick = { startPingCheck() },
                         enabled = !isPinging,
-                        shape = CsqttShapes.Pill,
-                        border = BorderStroke(1.dp, Color(0xFF1475FD)),
+                        shape = MrttShapes.Pill,
+                        border = BorderStroke(1.dp, Color(0xFF8A9099)),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF1475FD),
+                            contentColor = Color(0xFF3F4448),
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(CsqttSizes.ControlHeight),
+                            .height(MrttSizes.ControlHeight),
                     ) {
                         if (isPinging) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
-                                color = Color(0xFF1475FD),
+                                color = Color(0xFF3F4448),
                             )
                             Spacer(Modifier.width(6.dp))
                             Text("Пинг...", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -315,14 +315,14 @@ internal fun TurnSubnetsDialog(
 
                     Button(
                         onClick = onDismiss,
-                        shape = CsqttShapes.Pill,
+                        shape = MrttShapes.Pill,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1475FD),
+                            containerColor = Color(0xFF3F4448),
                             contentColor = Color.White,
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(CsqttSizes.ControlHeight),
+                            .height(MrttSizes.ControlHeight),
                     ) {
                         Text("Сохранить", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     }

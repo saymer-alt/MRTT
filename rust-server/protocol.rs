@@ -3,8 +3,8 @@ use crate::{
     dataplane::{self, DataplaneConfig, DataplaneLogic},
     lock_unpoison, log_event,
     model::{
-        Database, TrafficCounters, TrafficSnapshot, cached_now, derive_wrap_key, get_next_ip,
-        is_expired, now, resolve_session_ip, secret_eq, secret_tag,
+        Database, TrafficCounters, TrafficSnapshot, cached_now, derive_wrap_key, is_expired, now,
+        resolve_session_ip, secret_eq, secret_tag,
     },
     packet::{PACKET_CAPACITY, PacketBuf, PacketBuffer},
     tokio_io::{IoCounters, PacketOutput},
@@ -663,8 +663,39 @@ enum CredentialAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SessionEpochIdentity {
     password: String,
+    device_id: String,
     generation_id: u64,
     session_salt: String,
+}
+
+const DEVICE_KEY_SEPARATOR: char = '\u{1f}';
+
+/// Ключ эпохи: у каждого устройства ссылки своя эпоха, иначе устройства вытесняют друг друга.
+pub fn epoch_key(password: &str, device_id: &str) -> String {
+    if device_id.is_empty() {
+        password.to_owned()
+    } else {
+        format!("{password}{DEVICE_KEY_SEPARATOR}{device_id}")
+    }
+}
+
+pub fn session_device_id(session: &Session) -> String {
+    lock_unpoison(&session.device_id).clone()
+}
+
+fn session_is_device(session: &Session, password: &str, device_id: &str) -> bool {
+    session.password == password && *lock_unpoison(&session.device_id) == device_id
+}
+
+/// device_id и имя устройства из GETCONF: только безопасные символы, чтобы не ломать формат и панель.
+fn sanitize_device_field(raw: &str, max_len: usize, allow_space: bool) -> String {
+    raw.trim()
+        .chars()
+        .filter(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') || (allow_space && *c == ' ')
+        })
+        .take(max_len)
+        .collect()
 }
 
 pub struct StreamDebugMetrics {
@@ -756,6 +787,8 @@ pub struct Session {
     pub password: String,
     pub generation_id: AtomicU64,
     pub session_salt: std::sync::Mutex<String>,
+    /// device_id из GETCONF (пусто у клиентов без поддержки устройств).
+    pub device_id: std::sync::Mutex<String>,
     pub worker_id: AtomicU64,
     pub desired_stream_count: AtomicU64,
     pub tunnel_ip: std::sync::Mutex<Option<[u8; 4]>>,
@@ -788,6 +821,7 @@ impl Session {
             password: password.to_owned(),
             generation_id: AtomicU64::new(generation_id),
             session_salt: std::sync::Mutex::new(session_salt.to_owned()),
+            device_id: std::sync::Mutex::new(String::new()),
             worker_id: AtomicU64::new(u64::MAX),
             desired_stream_count: AtomicU64::new(0),
             tunnel_ip: std::sync::Mutex::new(None),
@@ -1425,11 +1459,13 @@ pub(crate) enum ProtocolCommand {
     },
     SetAuthoritativeEpoch {
         password: String,
+        device_id: String,
         generation_id: u64,
         session_salt: String,
     },
     DisconnectPassword {
         password: String,
+        device_id: String,
         requester_session_id: u64,
     },
     ReplaceCredentials(Arc<CredentialSet>),
@@ -1442,6 +1478,7 @@ pub(crate) enum ProtocolCommand {
     UpdateDesiredStreams {
         password: String,
         generation_id: u64,
+        session_salt: String,
         desired_count: u16,
     },
     CompactMemory {
@@ -1634,10 +1671,54 @@ pub async fn broadcast_tunnel_configuration(app: &Arc<App>) -> Result<usize> {
 }
 
 pub fn forget_idle_password_epoch(app: &Arc<App>, password: &str) {
-    app.password_epochs.remove_if(password, |_, _| {
+    let device_prefix = format!("{password}{DEVICE_KEY_SEPARATOR}");
+    let keys = app
+        .password_epochs
+        .iter()
+        .filter(|entry| entry.key() == password || entry.key().starts_with(&device_prefix))
+        .map(|entry| entry.key().clone())
+        .collect::<Vec<_>>();
+    for key in keys {
+        app.password_epochs.remove_if(&key, |_, _| {
+            !app.sessions
+                .iter()
+                .any(|session| session_epoch_key(&session) == key)
+        });
+    }
+}
+
+pub fn session_epoch_key(session: &Session) -> String {
+    epoch_key(&session.password, &session_device_id(session))
+}
+
+/// Сбросить сессии одного устройства ссылки (отвязка в панели, вытеснение старого клиента).
+pub fn drop_device_sessions(app: &Arc<App>, password: &str, device_id: &str) {
+    // У старых клиентов device_id в сессии пуст, а в привязке — `legacy`.
+    let session_device = if device_id == crate::model::LEGACY_DEVICE_ID {
+        ""
+    } else {
+        device_id
+    };
+    let candidates = app
+        .sessions
+        .iter()
+        .filter(|entry| session_is_device(entry.value(), password, session_device))
+        .map(|entry| *entry.key())
+        .collect::<Vec<_>>();
+    for session_id in candidates {
+        let _ = command(app, ProtocolCommand::DropSession { session_id });
+        if let Some((_, session)) = app
+            .sessions
+            .remove_if(&session_id, |_, current| current.id == session_id)
+        {
+            session.cancel_token.cancel();
+        }
+    }
+    let key = epoch_key(password, session_device);
+    app.password_epochs.remove_if(&key, |_, _| {
         !app.sessions
             .iter()
-            .any(|session| session.password == password)
+            .any(|session| session_epoch_key(&session) == key)
     });
 }
 
@@ -2670,9 +2751,12 @@ impl ProtocolEngine {
             if plain == b"READY" {
                 if self.sessions[slot].tunnel_ip.is_none() {
                     let pass = self.sessions[slot].cold.password.clone();
+                    let device = lock_unpoison(&self.sessions[slot].cold.public.device_id).clone();
                     let existing_tunnel = if !pass.is_empty() {
                         self.sessions.iter().find_map(|(_, s)| {
-                            if s.cold.password == pass {
+                            if s.cold.password == pass
+                                && *lock_unpoison(&s.cold.public.device_id) == device
+                            {
                                 s.tunnel_ip.map(|ip| (ip, s.desired_stream_count))
                             } else {
                                 None
@@ -3318,6 +3402,7 @@ impl DataplaneLogic for ProtocolEngine {
             } => self.update_epoch(session_id, password, generation_id, session_salt),
             ProtocolCommand::SetAuthoritativeEpoch {
                 password,
+                device_id,
                 generation_id,
                 session_salt,
             } => {
@@ -3330,7 +3415,8 @@ impl DataplaneLogic for ProtocolEngine {
                         &password,
                         generation_id,
                         &session_salt,
-                    ) {
+                    ) && *lock_unpoison(&session.cold.public.device_id) == device_id
+                    {
                         self.stale_slots.push(slot);
                     }
                 }
@@ -3347,6 +3433,7 @@ impl DataplaneLogic for ProtocolEngine {
             }
             ProtocolCommand::DisconnectPassword {
                 password,
+                device_id,
                 requester_session_id,
             } => {
                 if let Some(slot) = self.by_id.get(&requester_session_id).copied() {
@@ -3373,12 +3460,14 @@ impl DataplaneLogic for ProtocolEngine {
                 }
                 self.stale_slots.clear();
                 for (slot, session) in self.sessions.iter() {
-                    if session_is_disconnected_password(
-                        session.id,
-                        &session.cold.password,
-                        requester_session_id,
-                        &password,
-                    ) {
+                    if session.id == requester_session_id
+                        || (session_is_disconnected_password(
+                            session.id,
+                            &session.cold.password,
+                            requester_session_id,
+                            &password,
+                        ) && *lock_unpoison(&session.cold.public.device_id) == device_id)
+                    {
                         self.stale_slots.push(slot);
                     }
                 }
@@ -3417,11 +3506,13 @@ impl DataplaneLogic for ProtocolEngine {
             ProtocolCommand::UpdateDesiredStreams {
                 password,
                 generation_id,
+                session_salt,
                 desired_count,
             } => {
                 for (_, session) in self.sessions.iter_mut() {
                     if session.cold.password.as_ref() == password
                         && session.cold.generation_id == generation_id
+                        && session.cold.session_salt == session_salt
                     {
                         session.desired_stream_count = desired_count;
                         session
@@ -4301,8 +4392,12 @@ async fn handle_getworkers(
     };
 
     let generation_id = session.generation_id.load(Ordering::Acquire);
+    let session_salt = lock_unpoison(&session.session_salt).clone();
     for s in app.sessions.iter() {
-        if s.password == password && s.generation_id.load(Ordering::Acquire) == generation_id {
+        if s.password == password
+            && s.generation_id.load(Ordering::Acquire) == generation_id
+            && *lock_unpoison(&s.session_salt) == session_salt
+        {
             s.desired_stream_count
                 .store(agreed as u64, Ordering::Release);
         }
@@ -4312,6 +4407,7 @@ async fn handle_getworkers(
         ProtocolCommand::UpdateDesiredStreams {
             password: password.clone(),
             generation_id,
+            session_salt,
             desired_count: agreed as u16,
         },
     );
@@ -4412,6 +4508,7 @@ fn resolve_routing_rule_access<'a>(
 fn session_epoch_identity(session: &Session) -> SessionEpochIdentity {
     SessionEpochIdentity {
         password: session.password.clone(),
+        device_id: session_device_id(session),
         generation_id: session.generation_id.load(Ordering::Acquire),
         session_salt: lock_unpoison(&session.session_salt).clone(),
     }
@@ -4558,6 +4655,7 @@ fn log_getconf_result(
 pub fn purge_stale_password_sessions(
     app: &Arc<App>,
     password: &str,
+    device_id: &str,
     generation_id: u64,
     session_salt: &str,
     current_session_id: u64,
@@ -4572,6 +4670,7 @@ pub fn purge_stale_password_sessions(
             }
             let identity = session_epoch_identity(session);
             (identity.password == password
+                && identity.device_id == device_id
                 && (identity.generation_id != generation_id
                     || identity.session_salt != session_salt))
                 .then_some((session.id, session.address))
@@ -4643,6 +4742,20 @@ async fn handle_getconf(
     let parts: Vec<&str> = content.split('|').collect();
     let client_port = parts.first().copied().unwrap_or("9000").trim();
 
+    // Новый формат: ...|desired|device_id|device_name (последние два — опционально).
+    let (device_id, device_name) = if parts
+        .get(2)
+        .and_then(|s| parse_generation_id(s.trim()))
+        .is_some()
+    {
+        (
+            sanitize_device_field(parts.get(6).copied().unwrap_or(""), 64, false),
+            sanitize_device_field(parts.get(7).copied().unwrap_or(""), 40, true),
+        )
+    } else {
+        (String::new(), String::new())
+    };
+    let device_id = device_id.as_str();
     let (password, generation_text, session_salt, worker_text, desired_text) = if parts
         .get(2)
         .and_then(|s| parse_generation_id(s.trim()))
@@ -4785,6 +4898,7 @@ async fn handle_getconf(
                             .find_map(|s| {
                                 if s.password == password
                                     && s.generation_id.load(Ordering::Acquire) == generation_id
+                                    && *lock_unpoison(&s.session_salt) == session_salt
                                 {
                                     let val = s.desired_stream_count.load(Ordering::Acquire) as u16;
                                     if (3..=MAX_STREAM_WORKERS_U16).contains(&val) {
@@ -4830,7 +4944,8 @@ async fn handle_getconf(
         }
         return Ok(());
     }
-    let (epoch_lock, mut epoch, created_epoch) = lock_password_epoch(app, password).await;
+    let device_epoch_key = epoch_key(password, device_id);
+    let (epoch_lock, mut epoch, created_epoch) = lock_password_epoch(app, &device_epoch_key).await;
     let dns = effective_dns(app).await;
     let (
         response,
@@ -4840,9 +4955,11 @@ async fn handle_getconf(
         changed,
         routing_rule,
         server_worker_limit,
+        evicted_legacy,
     ) = {
         let mut db = db_write(app).await?;
         let mut changed = false;
+        let mut evicted_legacy = false;
         let mut reject_session = false;
         let access = getconf_credential_access(&db, password);
         let server_worker_limit = access
@@ -4859,6 +4976,7 @@ async fn handle_getconf(
                     .find_map(|s| {
                         if s.password == password
                             && s.generation_id.load(Ordering::Acquire) == generation_id
+                            && *lock_unpoison(&s.session_salt) == session_salt
                         {
                             let val = s.desired_stream_count.load(Ordering::Acquire) as u16;
                             if (3..=MAX_STREAM_WORKERS_U16).contains(&val) {
@@ -4893,13 +5011,24 @@ async fn handle_getconf(
         let authorization_rejected = access.is_err();
         let mut tunnel_ip = None;
         let mut routing_rule = None;
-        let response = match access {
+        let admission = access.and_then(|access| {
+            let slot = match &access {
+                CredentialAccess::Main => None,
+                CredentialAccess::Slot(slot_key) => Some(slot_key.as_str()),
+            };
+            crate::model::admit_device(&mut db, slot, device_id, &device_name, now())
+                .map(|admission| (access, admission))
+        });
+        let response = match admission {
             Err(response) => {
                 reject_session = true;
                 response.to_owned()
             }
-            Ok(access) => match epoch.admit(generation_id, session_salt) {
+            Ok((access, admission)) => match epoch.admit(generation_id, session_salt) {
                 PasswordEpochDecision::Current | PasswordEpochDecision::Replaced => {
+                    changed |= admission.changed;
+                    evicted_legacy = admission.evicted_legacy;
+                    *lock_unpoison(&session.device_id) = device_id.to_owned();
                     set_public_epoch(session, generation_id, session_salt);
                     session
                         .worker_id
@@ -4910,6 +5039,7 @@ async fn handle_getconf(
                     purge_stale_password_sessions(
                         app,
                         password,
+                        device_id,
                         generation_id,
                         session_salt,
                         session.id,
@@ -4922,23 +5052,7 @@ async fn handle_getconf(
                         u64::from(worker_id),
                         session.id,
                     );
-                    let ip_str = match &access {
-                        CredentialAccess::Main => crate::model::OWNER_TUNNEL_IP.to_string(),
-                        CredentialAccess::Slot(slot_key) => {
-                            let needs_ip =
-                                db.passwords.get(slot_key).is_some_and(|e| e.ip.is_empty());
-                            let next_ip = if needs_ip { get_next_ip(&db) } else { None };
-                            if let Some(entry) = db.passwords.get_mut(slot_key) {
-                                if let Some(ip) = next_ip {
-                                    entry.ip = ip;
-                                    changed = true;
-                                }
-                                entry.ip.clone()
-                            } else {
-                                String::new()
-                            }
-                        }
-                    };
+                    let ip_str = admission.ip;
                     if !ip_str.is_empty() {
                         tunnel_ip = crate::tun_device::parse_ipv4(&ip_str);
                         routing_rule = resolve_routing_rule_access(&db, &access).cloned();
@@ -4958,16 +5072,22 @@ async fn handle_getconf(
         (
             response,
             reject_session,
-            authorization_rejected,
+            authorization_rejected || reject_session,
             tunnel_ip,
             changed,
             routing_rule,
             server_worker_limit,
+            evicted_legacy,
         )
     };
     if authorization_rejected && created_epoch {
         app.password_epochs
-            .remove_if(password, |_, current| Arc::ptr_eq(current, &epoch_lock));
+            .remove_if(&device_epoch_key, |_, current| {
+                Arc::ptr_eq(current, &epoch_lock)
+            });
+    }
+    if evicted_legacy {
+        drop_device_sessions(app, password, crate::model::LEGACY_DEVICE_ID);
     }
     if !reject_session {
         command(
@@ -4983,6 +5103,7 @@ async fn handle_getconf(
             app,
             ProtocolCommand::SetAuthoritativeEpoch {
                 password: password.to_owned(),
+                device_id: device_id.to_owned(),
                 generation_id,
                 session_salt: session_salt.to_owned(),
             },
@@ -5104,7 +5225,7 @@ async fn ensure_control_tunnel(app: &Arc<App>, session: &Arc<Session>) -> Result
     } else {
         let ip = {
             let db = db_read(app).await?;
-            resolve_session_ip(&db, &session.password)
+            resolve_session_ip(&db, &session.password, &session_device_id(session))
         }
         .ok_or_else(|| anyhow!("no IP assigned for this session"))?;
         let parsed =
@@ -5170,7 +5291,8 @@ pub async fn handle_disconnect(
     if preliminary.password != effective_password || preliminary.session_salt != target_salt {
         return Err("DENIED:not_owner");
     }
-    let Some((_epoch_lock, epoch)) = lock_existing_password_epoch(app, effective_password).await
+    let device_epoch_key = epoch_key(effective_password, &preliminary.device_id);
+    let Some((_epoch_lock, epoch)) = lock_existing_password_epoch(app, &device_epoch_key).await
     else {
         return Err("DENIED:not_owner");
     };
@@ -5191,14 +5313,16 @@ pub async fn handle_disconnect(
         .iter()
         .filter_map(|entry| {
             let session = entry.value();
-            (session.id == requester.id || secret_eq(&session.password, effective_password))
-                .then_some(session.id)
+            (session.id == requester.id
+                || session_is_device(session, effective_password, &requester_identity.device_id))
+            .then_some(session.id)
         })
         .collect::<Vec<_>>();
     command(
         app,
         ProtocolCommand::DisconnectPassword {
             password: effective_password.to_owned(),
+            device_id: requester_identity.device_id.clone(),
             requester_session_id: requester.id,
         },
     )
@@ -5207,7 +5331,12 @@ pub async fn handle_disconnect(
     for session_id in candidates {
         if let Some((_, session)) = app.sessions.remove_if(&session_id, |_, current| {
             current.id == session_id
-                && (current.id == requester.id || secret_eq(&current.password, effective_password))
+                && (current.id == requester.id
+                    || session_is_device(
+                        current,
+                        effective_password,
+                        &requester_identity.device_id,
+                    ))
         }) {
             session.cancel_token.cancel();
             removed += 1;

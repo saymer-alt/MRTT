@@ -1,7 +1,7 @@
 package com.csqtt.client.ui
 
 import android.content.Context
-import com.csqtt.client.CsqttConstants
+import com.csqtt.client.MrttConstants
 import com.csqtt.client.DeployManager
 import com.csqtt.client.SshHostKeyStore
 import com.csqtt.client.TunnelManager
@@ -25,7 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-private const val CMD_TIMEOUT = CsqttConstants.Timeouts.DEPLOY_CMD_TIMEOUT_MS
+private const val CMD_TIMEOUT = MrttConstants.Timeouts.DEPLOY_CMD_TIMEOUT_MS
 private const val SFTP_UPLOAD_ATTEMPTS = 2
 private const val UPLOAD_RECONNECT_ATTEMPTS = 1
 
@@ -182,9 +182,9 @@ internal fun serverArchitectureForMachine(output: String): ServerArchitecture {
 
 private fun deployAssetLabel(fileName: String): String = when (fileName) {
     "deploy.sh" -> "скрипт установки"
-    "csqtt-linux-amd64" -> "сервер CSQTT (amd64)"
-    "csqtt-linux-arm64" -> "сервер CSQTT (ARM64)"
-    "csqtt-linux-armv7" -> "сервер CSQTT (ARM32)"
+    "csqtt-linux-amd64" -> "сервер MRTT (amd64)"
+    "csqtt-linux-arm64" -> "сервер MRTT (ARM64)"
+    "csqtt-linux-armv7" -> "сервер MRTT (ARM32)"
     "csqtt.env" -> "настройки веб-панели"
     "csqtt-deploy.json" -> "настройки доступа"
     "hev-socks5-tunnel" -> "C-движок туннеля"
@@ -425,7 +425,7 @@ private fun ensureBouncyCastle() {
     }
 }
 
-private fun createSSHClient(
+internal fun createSSHClient(
     context: Context,
     host: String,
     user: String,
@@ -550,14 +550,12 @@ private fun isBenignStderr(line: String): Boolean = BENIGN_STDERR.containsMatchI
 internal suspend fun performDeploy(
     context: Context,
     host: String, user: String, pass: String, port: Int,
-    mainPass: String, webLogin: String, webPass: String,
+    mainPass: String,
     peerPort: Int, webPort: Int,
     onProgress: (Float, String) -> Unit,
     privateKey: String = "",
     keyPassphrase: String = "",
-    certificate: String = "",
     installInDocker: Boolean = false,
-    secretPath: String = "",
 ): Boolean = withContext(Dispatchers.IO) {
     var ssh: SshjClient? = null
     var tempDir: File? = null
@@ -608,14 +606,7 @@ internal suspend fun performDeploy(
         val serverFile = extractAsset(serverArchitecture.assetName)
         val environmentFile = File(workingDir, "csqtt.env").apply {
             writeText(
-                buildString {
-                    appendLine("CSQTT_WEB_USER=${deployEnvironmentValue(webLogin, installInDocker)}")
-                    appendLine("CSQTT_WEB_PASS=${deployEnvironmentValue(webPass, installInDocker)}")
-                    appendLine("CSQTT_PUBLIC_IP=${deployEnvironmentValue(host.trim(), installInDocker)}")
-                    if (secretPath.isNotBlank()) {
-                        appendLine("CSQTT_WEB_SECRET_PATH=${deployEnvironmentValue(secretPath.trim(), installInDocker)}")
-                    }
-                }
+                "CSQTT_PUBLIC_IP=${deployEnvironmentValue(host.trim(), installInDocker)}\n"
             )
         }
         val overridesFile = File(workingDir, "csqtt-deploy.json").apply {
@@ -630,9 +621,8 @@ internal suspend fun performDeploy(
         onProgress(0.06f, "Подготовка сервера...")
         sshClient.upload(scriptFile, "/tmp/deploy.sh")
 
-        val secretEnv = if (secretPath.isNotBlank()) "CSQTT_WEB_SECRET_PATH=${deployEnvironmentValue(secretPath.trim(), false)} " else ""
         val deployEnvironment =
-            "env ${secretEnv}CSQTT_PEER_PORT=$peerPort CSQTT_SSH_PORT=$port CSQTT_WEB_PORT=$webPort CSQTT_PUBLIC_IP=${host.trim()} " +
+            "env CSQTT_PEER_PORT=$peerPort CSQTT_SSH_PORT=$port CSQTT_WEB_PORT=$webPort CSQTT_PUBLIC_IP=${host.trim()} " +
                 "CSQTT_DEPLOY_MODE=${deployMode(installInDocker)}"
         onProgress(0.10f, "Загрузка нового сервера...")
         sshClient.upload(serverFile, "/tmp/.csqtt-upload-server")
@@ -650,9 +640,9 @@ internal suspend fun performDeploy(
         if (isSuccessfulDeployResult(deployResult.exitStatus, output)) {
             TunnelManager.addDeploySuccessLog(
                 if (installInDocker) {
-                    "Установка завершена · Docker-контейнер CSQTT активен"
+                    "Установка завершена · Docker-контейнер MRTT активен"
                 } else {
-                    "Установка завершена · служба CSQTT активна"
+                    "Установка завершена · служба MRTT активна"
                 }
             )
             DeployManager.stopDeploy("success")
@@ -695,7 +685,6 @@ internal suspend fun performUninstall(
     onProgress: (Float, String) -> Unit,
     privateKey: String = "",
     keyPassphrase: String = "",
-    certificate: String = "",
 ): Boolean = withContext(Dispatchers.IO) {
     var ssh: SshjClient? = null
     var uninstallScript: File? = null
@@ -710,13 +699,13 @@ internal suspend fun performUninstall(
         TunnelManager.addDeploySuccessLog("SSH-соединение установлено")
 
         onProgress(0.15f, "Подготовка штатного удаления...")
-        TunnelManager.addDeployInfoLog("Загрузка штатного установщика CSQTT")
+        TunnelManager.addDeployInfoLog("Загрузка штатного установщика MRTT")
         uninstallScript = File(context.cacheDir, "csqtt-uninstall-${System.nanoTime()}.sh")
         context.assets.open("deploy.sh").use { input ->
             FileOutputStream(uninstallScript).use { output -> input.copyTo(output) }
         }
         if (!uninstallScript.isFile || uninstallScript.length() == 0L) {
-            throw IOException("Не удалось подготовить штатный установщик CSQTT")
+            throw IOException("Не удалось подготовить штатный установщик MRTT")
         }
         sshClient.upload(uninstallScript, "/tmp/deploy.sh")
 
@@ -728,7 +717,7 @@ internal suspend fun performUninstall(
         )
 
         onProgress(1.0f, "Готово!")
-        TunnelManager.addDeploySuccessLog("Удаление CSQTT завершено")
+        TunnelManager.addDeploySuccessLog("Удаление MRTT завершено")
         DeployManager.stopDeploy("success")
         return@withContext true
 

@@ -575,11 +575,11 @@ mod tests {
     async fn literal_socket_does_not_require_dns() {
         assert_eq!(
             resolve_socket("127.0.0.1:46000").await.unwrap(),
-            "127.0.0.1:46000".parse().unwrap()
+            "127.0.0.1:46000".parse::<std::net::SocketAddr>().unwrap()
         );
         assert_eq!(
             resolve_socket("[::1]:46000").await.unwrap(),
-            "[::1]:46000".parse().unwrap()
+            "[::1]:46000".parse::<std::net::SocketAddr>().unwrap()
         );
     }
 

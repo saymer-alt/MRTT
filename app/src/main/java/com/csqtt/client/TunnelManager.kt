@@ -186,6 +186,8 @@ object TunnelManager {
     val config = MutableStateFlow<String?>(null)
     val stats = MutableStateFlow("Ожидание данных...")
     val activeWorkers = MutableStateFlow(0)
+    // Сколько воркеров запущено в этой сессии: знаменатель счётчика на кнопке подключения
+    val targetWorkers = MutableStateFlow(0)
     val autoPausedForWifi = MutableStateFlow(false)
     val vpnReady = MutableStateFlow(false)
     val serverRoutingActive = MutableStateFlow(false)
@@ -529,7 +531,7 @@ object TunnelManager {
 
     private fun handleServerAssignedWorkers(assignedWorkers: Int, identity: ProcessIdentity) {
         if (!isCurrent(identity)) return
-        serverAssignedWorkers.value = if (assignedWorkers in TunnelEventParser.MIN_SERVER_WORKERS..CsqttConstants.Tunnel.MAX_WORKERS) assignedWorkers else null
+        serverAssignedWorkers.value = if (assignedWorkers in TunnelEventParser.MIN_SERVER_WORKERS..MrttConstants.Tunnel.MAX_WORKERS) assignedWorkers else null
     }
 
     private fun verifyVkReachability(identity: ProcessIdentity) {
@@ -538,7 +540,7 @@ object TunnelManager {
         runCatching {
             context.applicationContext.startService(
                 Intent(context.applicationContext, TunnelService::class.java).apply {
-                    action = CsqttConstants.General.ACTION_VERIFY_VK_REACHABILITY
+                    action = MrttConstants.General.ACTION_VERIFY_VK_REACHABILITY
                 },
             )
         }
@@ -553,8 +555,8 @@ object TunnelManager {
         runCatching {
             context.applicationContext.startService(
                 Intent(context.applicationContext, TunnelService::class.java).apply {
-                    action = CsqttConstants.General.ACTION_RECOVER_VK_CALL
-                    putExtra(CsqttConstants.General.EXTRA_UNAVAILABLE_VK_HASH, hash)
+                    action = MrttConstants.General.ACTION_RECOVER_VK_CALL
+                    putExtra(MrttConstants.General.EXTRA_UNAVAILABLE_VK_HASH, hash)
                 },
             )
         }.onFailure {
@@ -663,7 +665,7 @@ object TunnelManager {
                 putExtra("dns", dns)
                 putExtra("force_rebuild", forceRebuild)
                 putExtra("reason", reason)
-                putExtra("mtu", CsqttConstants.Vpn.DEFAULT_MTU)
+                putExtra("mtu", currentParams?.mtu ?: MrttConstants.Vpn.DEFAULT_MTU)
             }
             try {
                 startTunVpnService(ctx, vpnIntent)
@@ -730,7 +732,7 @@ object TunnelManager {
             runCatching {
                 context.startService(
                     Intent(context, TunnelService::class.java).apply {
-                        action = CsqttConstants.General.ACTION_RESTART_WHEN_VK_REACHABLE
+                        action = MrttConstants.General.ACTION_RESTART_WHEN_VK_REACHABLE
                     },
                 )
             }.onFailure {
@@ -1058,48 +1060,65 @@ object TunnelManager {
             .split(Regex("[,\\s\\n]+"))
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-            .take(CsqttConstants.Tunnel.MAX_VK_HASHES)
+            .take(MrttConstants.Tunnel.MAX_VK_HASHES)
 
-        val jsHashMode = params.vkHashMode == CsqttConstants.VkAutoHash.MODE_AUTO_JS
-        val jsAuthMode = params.vkAuthMode == CsqttConstants.VkAuth.MODE_AUTO_JS
+        val jsHashMode = params.vkHashMode == MrttConstants.VkAutoHash.MODE_AUTO_JS
+        val jsAuthMode = params.vkAuthMode == MrttConstants.VkAuth.MODE_AUTO_JS
         val effectiveAuthMode = if (jsAuthMode && !jsHashMode) {
-            CsqttConstants.VkAuth.MODE_CALLS
+            MrttConstants.VkAuth.MODE_CALLS
         } else {
             params.vkAuthMode
         }
-        if (hashList.isEmpty() && !jsHashMode) {
+        val maxMode = params.maxGroupId.isNotBlank()
+        val jitsiMode = params.jitsiRoom.isNotBlank()
+        if (hashList.isEmpty() && !jsHashMode && !maxMode && !jitsiMode) {
             failStartLocked("hash_error", "Ошибка: Хеш не указан")
             return
         }
-        if (jsHashMode && params.vkAccessToken.isBlank()) {
+        if (maxMode && params.maxAccessToken.isBlank()) {
+            failStartLocked("max_token_error", "MAX token не указан: войдите в MAX или введите токен в настройках")
+            return
+        }
+        if (jsHashMode && params.vkAccessToken.isBlank() && !maxMode && !jitsiMode) {
             failStartLocked("vk_token_error", "Ошибка: VK access token не указан")
             return
         }
 
-        val binaryPath = context.applicationInfo.nativeLibraryDir + "/${CsqttConstants.Tunnel.BINARY_NAME}"
+        val binaryPath = context.applicationInfo.nativeLibraryDir + "/${MrttConstants.Tunnel.BINARY_NAME}"
         if (!File(binaryPath).exists()) {
             failStartLocked("binary_error", "Ошибка: Бинарный файл не найден")
             return
         }
 
+        // MAX has no VK hashes, so the hash-count cap would pin it at one group.
         val totalWorkers = WorkerCountPolicy.normalizeForHashValues(
             params.workersPerHash,
             hashList,
-            params.allowHashRedistribution || jsHashMode,
+            params.allowHashRedistribution || jsHashMode || maxMode || jitsiMode,
         )
+        targetWorkers.value = totalWorkers
         val cmd = mutableListOf(
             binaryPath,
             "-peer", params.peer,
             "-n", totalWorkers.toString(),
-            "-listen", "${CsqttConstants.Network.LOCAL_LISTEN_HOST}:${params.port}",
+            // Without it the native client re-rounds to groups of 10 and the slider value is not what runs.
+            "--exact-workers",
+            "-listen", "${MrttConstants.Network.LOCAL_LISTEN_HOST}:${params.port}",
             "-tun-uds", "csqtt_tun_uds",
         )
-        if (hashList.isNotEmpty()) {
+        if (jitsiMode) {
+            cmd.add("--jitsi")
+            cmd.add(params.jitsiRoom)
+        } else if (maxMode) {
+            cmd.add("--max")
+            cmd.add(params.maxGroupId)
+        }
+        if (hashList.isNotEmpty() && !maxMode && !jitsiMode) {
             cmd.add("-vk")
             cmd.add(hashList.joinToString(","))
         }
         cmd.add("-vk-hash-mode")
-        cmd.add(params.vkHashMode)
+        cmd.add(if (maxMode || jitsiMode) MrttConstants.VkAutoHash.MODE_MANUAL else params.vkHashMode)
         if (params.fingerprint.isNotEmpty()) {
             cmd.add("-fingerprint")
             cmd.add(params.fingerprint)
@@ -1114,7 +1133,8 @@ object TunnelManager {
         cmd.add(params.turnTransport)
         cmd.add("-srtp-mode")
         cmd.add(params.srtpMode)
-        if (params.customTurnIps.isNotBlank()) {
+        // Свои TURN-подсети относятся к VK: Jitsi работает через комнату, без TURN
+        if (params.customTurnIps.isNotBlank() && !jitsiMode) {
             cmd.add("-custom-turn-ips")
             cmd.add(params.customTurnIps)
         }
@@ -1181,11 +1201,13 @@ object TunnelManager {
         pb.directory(context.filesDir)
         pb.redirectErrorStream(true)
         pb.environment()["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
-        pb.environment()[CsqttConstants.Tunnel.PROCESS_ENV_EVENTS] = "1"
+        pb.environment()[MrttConstants.Tunnel.PROCESS_ENV_EVENTS] = "1"
         pb.environment()["RAYON_NUM_THREADS"] = "2"
         if (params.connectionPassword.isNotEmpty()) {
             pb.environment()["CSQTT_PASSWORD"] = params.connectionPassword
         }
+        pb.environment()["CSQTT_DEVICE_ID"] = DeviceIdentity.id(context)
+        pb.environment()["CSQTT_DEVICE_NAME"] = DeviceIdentity.name()
 
         val ticket = lifecycleState.reserveProcess(epoch, process == null)
         if (ticket == null) {
@@ -1199,9 +1221,9 @@ object TunnelManager {
             failStartLocked("critical_start_error", "Критическая ошибка запуска: ${e.readableMessage()}")
             return
         }
-        if (jsHashMode) {
+        if ((jsHashMode || maxMode) && !jitsiMode) {
             val bootstrap = JSONObject()
-                .put("token", params.vkAccessToken)
+                .put("token", if (maxMode) params.maxAccessToken else params.vkAccessToken)
                 .toString()
             val encoded = Base64.encodeToString(
                 bootstrap.toByteArray(Charsets.UTF_8),
@@ -1209,7 +1231,7 @@ object TunnelManager {
             )
             try {
                 startedProcess.outputStream.write(
-                    "VK_JS_BOOTSTRAP:$encoded\n".toByteArray(Charsets.UTF_8),
+                    "${if (maxMode) "MAX_BOOTSTRAP" else "VK_JS_BOOTSTRAP"}:$encoded\n".toByteArray(Charsets.UTF_8),
                 )
                 startedProcess.outputStream.flush()
             } catch (e: Exception) {
@@ -1292,7 +1314,7 @@ object TunnelManager {
                             line
                         }
                     var lineTrim = stripped.trim()
-                    val eventPrefix = CsqttConstants.General.CSQTT_EVENT_PREFIX
+                    val eventPrefix = MrttConstants.General.CSQTT_EVENT_PREFIX
                     val eventIdx = lineTrim.indexOf(eventPrefix)
                     if (eventIdx >= 0) {
                         val eventPart = lineTrim.substring(eventIdx)
@@ -1842,6 +1864,7 @@ object TunnelManager {
                         putExtra("force_rebuild", true)
                         putExtra("is_routing_reload", true)
                         putExtra("reason", "reload_vpn")
+                        putExtra("mtu", currentParams?.mtu ?: MrttConstants.Vpn.DEFAULT_MTU)
                     }
                     try { startTunVpnService(ctx, vpnIntent) } catch (_: Exception) {}
                 }
@@ -1961,15 +1984,21 @@ object TunnelManager {
                     ipIsWhitelist = newServerRule.ipIsWhite,
                     directIps = newServerRule.ips.joinToString(","),
                 )
+                // the VPN's excludeRoutes come from ips/ipIsWhite too: a change there alone (App routing from the panel)
+                // left stale routes until a reconnect
                 val vpnInputsChanged = previousRule == null ||
                     previousRule.isWhite != newServerRule.isWhite ||
-                    previousRule.packages.toSet() != newServerRule.packages.toSet()
+                    previousRule.packages.toSet() != newServerRule.packages.toSet() ||
+                    previousRule.ipIsWhite != newServerRule.ipIsWhite ||
+                    // only a blacklist's IPs become VPN routes (excludeRoute); a whitelist's list changes no route
+                    (!newServerRule.ipIsWhite && previousRule.ips.toSet() != newServerRule.ips.toSet())
                 if (vpnReady.value && vpnInputsChanged) {
                     val reloadIntent = Intent(ctx, TunVpnService::class.java).apply {
                         action = "RELOAD_ROUTING"
                         putExtra("client_ip", clientIp)
                         putExtra("dns", dns)
                         putExtra("reason", "routing_changed")
+                        putExtra("mtu", currentParams?.mtu ?: MrttConstants.Vpn.DEFAULT_MTU)
                     }
                     startTunVpnService(ctx, reloadIntent)
                 }
@@ -1982,12 +2011,11 @@ object TunnelManager {
                     val templateEnabled = settingsStore.templateDomainsEnabled.first()
                     val domains = if (domainWhite) settingsStore.directDomainsWhite.first() else settingsStore.directDomainsBlack.first()
                     val ipWhite = settingsStore.ipIsWhitelist.first()
-                    val ipEnabled = settingsStore.ipRoutingEnabled.first()
                     val ips = if (ipWhite) settingsStore.directIpsWhite.first() else settingsStore.directIpsBlack.first()
                     val hasDomains = if (domainWhite) domains.isNotBlank() else (domains.isNotBlank() || templateEnabled || excludeRu)
                     val effectiveDomainEnabled = domainEnabled && hasDomains
                     val hasIps = ips.isNotBlank()
-                    val effectiveIpEnabled = ipEnabled && hasIps
+                    val effectiveIpEnabled = hasIps   // the list is the switch (TunVpnService)
                     updateDomainRouting(
                         enabled = effectiveDomainEnabled,
                         excludeRuZones = if (domainWhite) false else excludeRu,
@@ -2004,6 +2032,7 @@ object TunnelManager {
                             putExtra("client_ip", clientIp)
                             putExtra("dns", dns)
                             putExtra("reason", "routing_cleared")
+                            putExtra("mtu", currentParams?.mtu ?: MrttConstants.Vpn.DEFAULT_MTU)
                         }
                         startTunVpnService(ctx, reloadIntent)
                     }
@@ -2037,12 +2066,11 @@ object TunnelManager {
             val templateEnabled = settingsStore.templateDomainsEnabled.first()
             val domains = if (domainWhite) settingsStore.directDomainsWhite.first() else settingsStore.directDomainsBlack.first()
             val ipWhite = settingsStore.ipIsWhitelist.first()
-            val ipEnabled = settingsStore.ipRoutingEnabled.first()
             val ips = if (ipWhite) settingsStore.directIpsWhite.first() else settingsStore.directIpsBlack.first()
             val hasDomains = if (domainWhite) domains.isNotBlank() else (domains.isNotBlank() || templateEnabled || excludeRu)
             val effectiveDomainEnabled = domainEnabled && hasDomains
             val hasIps = ips.isNotBlank()
-            val effectiveIpEnabled = ipEnabled && hasIps
+            val effectiveIpEnabled = hasIps   // the list is the switch (TunVpnService)
             updateDomainRouting(
                 enabled = effectiveDomainEnabled,
                 excludeRuZones = if (domainWhite) false else excludeRu,
@@ -2119,15 +2147,19 @@ data class TunnelParams(
     val captchaMode: String = "auto",
     val captchaSolveMethod: String = "auto",
     val fingerprint: String = "firefox",
-    val clientIds: String = CsqttConstants.Tunnel.DEFAULT_CLIENT_IDS,
-    val obfsMode: String = CsqttConstants.Tunnel.DEFAULT_OBFS_MODE,
-    val turnTransport: String = CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
-    val srtpMode: String = CsqttConstants.SrtpMode.DEFAULT,
+    val clientIds: String = MrttConstants.Tunnel.DEFAULT_CLIENT_IDS,
+    val obfsMode: String = MrttConstants.Tunnel.DEFAULT_OBFS_MODE,
+    val turnTransport: String = MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
+    val srtpMode: String = MrttConstants.SrtpMode.DEFAULT,
+    val mtu: Int = MrttConstants.Vpn.DEFAULT_MTU,
     val generationId: Long = 0,
     val sessionSalt: String = "",
     val allowHashRedistribution: Boolean = false,
-    val vkHashMode: String = CsqttConstants.VkAutoHash.MODE_MANUAL,
+    val vkHashMode: String = MrttConstants.VkAutoHash.MODE_MANUAL,
     val vkAccessToken: String = "",
+    val maxGroupId: String = "",
+    val maxAccessToken: String = "",
+    val jitsiRoom: String = "",
     val customTurnIps: String = "",
     val domainRoutingEnabled: Boolean = false,
     val domainIsWhitelist: Boolean = false,

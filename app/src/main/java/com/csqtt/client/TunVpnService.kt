@@ -55,7 +55,8 @@ class TunVpnService : VpnService() {
     // LOW_LATENCY Wi-Fi lock is active only with the screen on, so the deprecated HIGH_PERF mode is kept for the background VPN.
     @Suppress("DEPRECATION")
     private fun acquireLocks() {
-        if (wakeLock?.isHeld != true) {
+        // «Экономия батареи» in force: no CPU wake lock (the Wi-Fi lock stays)
+        if (!BatterySaver.active.value && wakeLock?.isHeld != true) {
             val pm = getSystemService(PowerManager::class.java)
             wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "csqtt:tun_vpn_service")?.apply {
                 setReferenceCounted(false)
@@ -68,6 +69,16 @@ class TunVpnService : VpnService() {
                 setReferenceCounted(false)
                 acquire()
             }
+        }
+    }
+
+    /** «Экономия батареи» came into force (let the CPU sleep) or ended (hold it again while the VPN runs). */
+    fun onBatterySaverChanged(save: Boolean) {
+        if (save) {
+            runCatching { if (wakeLock?.isHeld == true) wakeLock?.release() }
+            wakeLock = null
+        } else if (!stopRequested && !serviceDestroyed) {
+            acquireLocks()
         }
     }
 
@@ -87,7 +98,7 @@ class TunVpnService : VpnService() {
         instance = this
         acquireLocks()
         getSystemService(NotificationManager::class.java)
-            .deleteNotificationChannel(CsqttConstants.Notifications.VPN_CHANNEL_ID)
+            .deleteNotificationChannel(MrttConstants.Notifications.VPN_CHANNEL_ID)
         Log.d(TAG, "TunVpnService created")
     }
 
@@ -119,7 +130,7 @@ class TunVpnService : VpnService() {
                 val forceRebuild = intent.getBooleanExtra("force_rebuild", false)
                 val isRoutingReload = intent.getBooleanExtra("is_routing_reload", false)
                 val reason = intent.getStringExtra("reason") ?: "start"
-                val mtu = intent.getIntExtra("mtu", CsqttConstants.Vpn.DEFAULT_MTU)
+                val mtu = intent.getIntExtra("mtu", MrttConstants.Vpn.DEFAULT_MTU)
                 if (!forceRebuild) recoveryAttempts = 0
                 serviceScope.launch {
                     startVpn(clientIp, dns, forceRebuild, isRoutingReload, reason, mtu)
@@ -129,7 +140,7 @@ class TunVpnService : VpnService() {
                 val clientIp = intent.getStringExtra("client_ip") ?: activeClientIp ?: return START_NOT_STICKY
                 val dns = intent.getStringExtra("dns") ?: activeDns ?: return START_NOT_STICKY
                 val reason = intent.getStringExtra("reason") ?: "routing_reload"
-                val mtu = intent.getIntExtra("mtu", CsqttConstants.Vpn.DEFAULT_MTU)
+                val mtu = intent.getIntExtra("mtu", MrttConstants.Vpn.DEFAULT_MTU)
                 serviceScope.launch {
                     startVpn(clientIp, dns, forceRebuild = true, isRoutingReload = true, reason = reason, mtu = mtu)
                 }
@@ -153,7 +164,7 @@ class TunVpnService : VpnService() {
         forceRebuild: Boolean,
         isRoutingReload: Boolean = false,
         reason: String = "unknown",
-        mtu: Int = CsqttConstants.Vpn.DEFAULT_MTU,
+        mtu: Int = MrttConstants.Vpn.DEFAULT_MTU,
     ) {
         vpnMutex.withLock {
         try {
@@ -175,8 +186,8 @@ class TunVpnService : VpnService() {
             }
             val transportPackages = setOf(
                 applicationContext.packageName,
-                CsqttConstants.General.PACKAGE_VK,
-                CsqttConstants.General.PACKAGE_VK_CALLS
+                MrttConstants.General.PACKAGE_VK,
+                MrttConstants.General.PACKAGE_VK_CALLS
             )
 
             val existing = synchronized(interfaceLock) {
@@ -209,7 +220,7 @@ class TunVpnService : VpnService() {
             }
 
             val builder = Builder()
-                .setSession("CSQTT")
+                .setSession("MRTT")
                 .setMtu(mtu)
                 .addAddress(clientIp, 32)
                 .addRoute("0.0.0.0", 0)
@@ -224,11 +235,10 @@ class TunVpnService : VpnService() {
                     } else {
                         val settingsStore = SettingsStore(applicationContext)
                         ipWhite = settingsStore.ipIsWhitelist.first()
-                        ipListStr = if (ipWhite) {
-                            settingsStore.directIpsWhite.first()
-                        } else {
-                            settingsStore.directIpsBlack.first()
-                        }
+                        // IP routing is on exactly when the list is non-empty: the UI has no off switch (saving IPs sets
+                        // ipRoutingEnabled, nothing clears it; configs from before it have none), so the list is the intent
+                        // — the same rule as the client's command line (TunnelManager) and every TunnelParams builder
+                        ipListStr = if (ipWhite) settingsStore.directIpsWhite.first() else settingsStore.directIpsBlack.first()
                     }
 
                     if (!ipWhite && ipListStr.isNotBlank()) {
@@ -302,8 +312,8 @@ class TunVpnService : VpnService() {
                         try {
                             builder.addDisallowedApplication(applicationContext.packageName)
                         } catch (e: Exception) {
-                            Log.e(TAG, "Unable to exclude CSQTT UID from its VPN", e)
-                            failVpn("Android не разрешил исключить CSQTT из собственного VPN")
+                            Log.e(TAG, "Unable to exclude MRTT UID from its VPN", e)
+                            failVpn("Android не разрешил исключить MRTT из собственного VPN")
                             return
                         }
                         transportPackages
@@ -331,8 +341,8 @@ class TunVpnService : VpnService() {
                 try {
                     builder.addDisallowedApplication(applicationContext.packageName)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Unable to exclude CSQTT UID from its VPN", e)
-                    failVpn("Android не разрешил исключить CSQTT из собственного VPN")
+                    Log.e(TAG, "Unable to exclude MRTT UID from its VPN", e)
+                    failVpn("Android не разрешил исключить MRTT из собственного VPN")
                     return
                 }
                 val excluded = transportPackages.toMutableSet()

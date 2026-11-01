@@ -48,8 +48,14 @@ class TunnelEventParserTest {
 
         assertEquals(100, event100.workers)
 
+        val event126 = TunnelEventParser.parse(
+            "__CSQTT_EVENT__|WORKERS|{\"workers\":126}"
+        ) as TunnelEventParser.Event.Workers
+
+        assertEquals(126, event126.workers)
+
         assertNull(TunnelEventParser.parse("__CSQTT_EVENT__|WORKERS|{\"workers\":2}"))
-        assertNull(TunnelEventParser.parse("__CSQTT_EVENT__|WORKERS|{\"workers\":101}"))
+        assertNull(TunnelEventParser.parse("__CSQTT_EVENT__|WORKERS|{\"workers\":127}"))
     }
 
     @Test

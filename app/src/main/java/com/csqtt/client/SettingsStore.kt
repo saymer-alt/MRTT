@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -31,10 +32,10 @@ internal data class DeploySettingsSnapshot(
     val webLogin: String = "",
     val webPassword: String = "",
     val mainPassword: String = "",
-    val sshPort: String = CsqttConstants.Network.DEFAULT_SSH_PORT.toString(),
+    val sshPort: String = MrttConstants.Network.DEFAULT_SSH_PORT.toString(),
     val manualPortsEnabled: Boolean = false,
-    val serverPeerPort: Int = CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT,
-    val serverWebPort: Int = CsqttConstants.Network.DEFAULT_SERVER_WEB_PORT,
+    val serverPeerPort: Int = MrttConstants.Network.DEFAULT_SERVER_PEER_PORT,
+    val serverWebPort: Int = MrttConstants.Network.DEFAULT_SERVER_WEB_PORT,
     val sshKeysMode: Boolean = false,
     val dockerInstall: Boolean = false,
     val secretPathEnabled: Boolean = true,
@@ -51,8 +52,8 @@ internal data class TunnelAuthSnapshot(
     val profile: Int = -1,
     val connectionPassword: String = "",
     val connectionPasswordState: StoredSecretState = StoredSecretState.Missing,
-    val csqttLink: String = "",
-    val csqttLinkMode: Boolean = false,
+    val mrttLink: String = "",
+    val mrttLinkMode: Boolean = false,
 ) {
     val isLoaded: Boolean
         get() = profile >= 0
@@ -70,6 +71,11 @@ class SettingsStore(context: Context) {
         private val CSQTT_LINK = stringPreferencesKey("csqtt_link")
         private val CSQTT_LINK_MODE = booleanPreferencesKey("csqtt_link_mode")
         private val PARTICIPANT_SHOW_LOGS = booleanPreferencesKey("participant_show_logs")
+        private val VPS_SERVERS = stringPreferencesKey("vps_servers")
+        private val VPS_SERVERS_MIGRATED = booleanPreferencesKey("vps_servers_migrated")
+        private val CONNECTION_PROFILES = stringPreferencesKey("connection_profiles")
+        private val CONNECTION_PROFILES_MIGRATED = booleanPreferencesKey("connection_profiles_migrated")
+        private val ACTIVE_CONNECTION_PROFILE = stringPreferencesKey("active_connection_profile")
 
         private val PEER = stringPreferencesKey("peer")
         private val VK_HASHES = stringPreferencesKey("vk_hashes")
@@ -134,15 +140,23 @@ class SettingsStore(context: Context) {
         private val VK_ACCESS_TOKEN = stringPreferencesKey("vk_access_token")
         private val VK_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("vk_access_token_encrypted")
         private val VK_ACCESS_TOKEN_USER_ID = stringPreferencesKey("vk_access_token_user_id")
+        private val MAX_GROUP_ID = stringPreferencesKey("max_group_id")
+        private val TRANSPORT_MODE = stringPreferencesKey("transport_mode")
+        private val JITSI_ROOM_OVERRIDE = stringPreferencesKey("jitsi_room_override")
+        private val MAX_ACCESS_TOKEN = stringPreferencesKey("max_access_token")
+        private val MAX_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("max_access_token_encrypted")
 
         private val IS_WHITELIST = booleanPreferencesKey("is_whitelist")
         private val SPLIT_TUNNEL_WHITELIST_MIGRATED = booleanPreferencesKey("split_tunnel_whitelist_migrated")
         private val EXTRA_WORKERS = booleanPreferencesKey("extra_workers")
         private val AUTO_JS_RISK_ACKNOWLEDGED = booleanPreferencesKey("auto_js_risk_acknowledged")
         private val TCP_TRANSPORT_RISK_ACKNOWLEDGED = booleanPreferencesKey("tcp_transport_risk_acknowledged")
+        private val MAX_TRANSPORT_RISK_ACKNOWLEDGED = booleanPreferencesKey("max_transport_risk_acknowledged")
         private val BATTERY_OPTIMIZATION_PROMPT_HANDLED =
             booleanPreferencesKey("battery_optimization_prompt_handled")
         private val AUTO_PAUSE_ON_WIFI = booleanPreferencesKey("auto_pause_on_wifi")
+        private val BATTERY_SAVER_MODE = stringPreferencesKey("battery_saver_mode")
+        private val BATTERY_SAVER_PERCENT = intPreferencesKey("battery_saver_percent")
         private val DOMAIN_ROUTING_ENABLED = booleanPreferencesKey("domain_routing_enabled")
         private val DOMAIN_IS_WHITELIST = booleanPreferencesKey("domain_is_whitelist")
         private val EXCLUDE_RU_ZONES_ENABLED = booleanPreferencesKey("exclude_ru_zones_enabled")
@@ -155,6 +169,8 @@ class SettingsStore(context: Context) {
         private val IP_IS_WHITELIST = booleanPreferencesKey("ip_is_whitelist")
         private val DIRECT_IPS_BLACK = stringPreferencesKey("direct_ips_black")
         private val DIRECT_IPS_WHITE = stringPreferencesKey("direct_ips_white")
+
+        private val TUNNEL_MTU = intPreferencesKey("tunnel_mtu")
 
         private val THEME_MODE = stringPreferencesKey("theme_mode") 
         private val IS_DYNAMIC_COLOR = booleanPreferencesKey("is_dynamic_color")
@@ -198,7 +214,7 @@ class SettingsStore(context: Context) {
         internal var cachedSrtpMode: String? = null
 
         @Volatile
-        internal var cachedCsqttLinkMode: Boolean? = null
+        internal var cachedMrttLinkMode: Boolean? = null
 
         @Volatile
         internal var cachedWorkersPerHash: Int? = null
@@ -277,56 +293,10 @@ class SettingsStore(context: Context) {
     private val dataStore = appContext.dataStore
     private val secureStore = SecureStringStore(appContext)
 
-    init {
-        if (migrationsStarted.compareAndSet(false, true)) {
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                migrateConnectionPasswordsToLocalStorage()
-                migrateSecretsToKeystore()
-                migrateLegacyWhitelistMode()
-            }
-        }
-        if (uiCacheStarted.compareAndSet(false, true)) {
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                launch {
-                    dataStore.edit { prefs ->
-                        for (p in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
-                            prefs[getProfileKey(EXTRA_WORKERS, p)] = false
-                        }
-                    }
-                }
-                launch { vkHashMode.collect { cachedVkHashMode = it } }
-                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
-                launch { obfsMode.collect { cachedObfsMode = it } }
-                launch { turnTransport.collect { cachedTurnTransport = it } }
-                launch { srtpMode.collect { cachedSrtpMode = it } }
-                launch { csqttLinkMode.collect { cachedCsqttLinkMode = it } }
-                launch { workersPerHash.collect { cachedWorkersPerHash = it } }
-                launch { manualPortsEnabled.collect { cachedManualPortsEnabled = it } }
-                launch { serverPeerPort.collect { cachedServerPeerPort = it } }
-                cachedExtraWorkers = false
-                launch { customTurnIps.collect { cachedCustomTurnIps = it } }
-                launch { excludedApps.collect { cachedExcludedApps = it } }
-                launch { whitelistApps.collect { cachedWhitelistApps = it } }
-                launch { isWhitelist.collect { cachedIsWhitelist = it } }
-                launch { domainRoutingEnabled.collect { cachedDomainRoutingEnabled = it } }
-                launch { domainIsWhitelist.collect { cachedDomainIsWhitelist = it } }
-                launch { excludeRuZonesEnabled.collect { cachedExcludeRuZonesEnabled = it } }
-                launch { templateDomainsEnabled.collect { cachedTemplateDomainsEnabled = it } }
-                launch { directDomains.collect { cachedDirectDomains = it } }
-                launch { directDomainsBlack.collect { cachedDirectDomainsBlack = it } }
-                launch { directDomainsWhite.collect { cachedDirectDomainsWhite = it } }
-                launch { ipRoutingEnabled.collect { cachedIpRoutingEnabled = it } }
-                launch { ipIsWhitelist.collect { cachedIpIsWhitelist = it } }
-                launch { directIpsBlack.collect { cachedDirectIpsBlack = it } }
-                launch { directIpsWhite.collect { cachedDirectIpsWhite = it } }
-            }
-        }
-    }
-
     val activeProfile: Flow<Int> = dataStore.data.map {
-        (it[ACTIVE_PROFILE] ?: CsqttConstants.Profiles.MIN_INDEX).coerceIn(
-            CsqttConstants.Profiles.MIN_INDEX,
-            CsqttConstants.Profiles.MAX_INDEX,
+        (it[ACTIVE_PROFILE] ?: MrttConstants.Profiles.MIN_INDEX).coerceIn(
+            MrttConstants.Profiles.MIN_INDEX,
+            MrttConstants.Profiles.MAX_INDEX,
         )
     }
     val tunnelLastDiagnostic: Flow<String> = dataStore.data.map {
@@ -336,18 +306,15 @@ class SettingsStore(context: Context) {
     val loggingEnabled: Flow<Boolean> = dataStore.data.map { it[LOGGING_ENABLED] ?: true }
     val infoActionsExpanded: Flow<Boolean> = dataStore.data.map { it[INFO_ACTIONS_EXPANDED] ?: false }
     val infoProjectExpanded: Flow<Boolean> = dataStore.data.map { it[INFO_PROJECT_EXPANDED] ?: false }
-    val csqttLink: Flow<String> = dataStore.data.map { prefs ->
+    val mrttLink: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         prefs[getProfileKey(CSQTT_LINK, profile)] ?: ""
     }
-    val csqttLinkMode: Flow<Boolean> = dataStore.data.map { prefs ->
-        val profile = prefs[ACTIVE_PROFILE] ?: 0
-        prefs[getProfileKey(CSQTT_LINK_MODE, profile)] ?: false
-    }
-    val participantShowLogs: Flow<Boolean> = dataStore.data.map { prefs ->
-        val profile = prefs[ACTIVE_PROFILE] ?: 0
-        prefs[getProfileKey(PARTICIPANT_SHOW_LOGS, profile)] ?: false
-    }
+    // Режимов «владелец/участник» больше нет: подключение всегда идёт по ссылке выбранного профиля.
+    val mrttLinkMode: Flow<Boolean> = dataStore.data.map { true }
+    val vpsServersJson: Flow<String> = dataStore.data.map { it[VPS_SERVERS] ?: "[]" }
+    val connectionProfilesJson: Flow<String> = dataStore.data.map { it[CONNECTION_PROFILES] ?: "[]" }
+    val activeConnectionProfileId: Flow<String> = dataStore.data.map { it[ACTIVE_CONNECTION_PROFILE] ?: "" }
 
     val peer: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
@@ -363,10 +330,8 @@ class SettingsStore(context: Context) {
     }
     val workersPerHash: Flow<Int> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
-        val isExtra = prefs[getProfileKey(EXTRA_WORKERS, profile)] ?: false
-        val max = WorkerCountPolicy.defaultMaximum(isExtra)
         val current = prefs[getProfileKey(WORKERS_PER_HASH, profile)] ?: 18
-        WorkerCountPolicy.normalize(current, maximum = max)
+        WorkerCountPolicy.normalize(current)
     }
     val protocol: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
@@ -382,11 +347,16 @@ class SettingsStore(context: Context) {
     }
     val serverPeerPort: Flow<Int> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
-        prefs[getProfileKey(SERVER_PEER_PORT, profile)] ?: CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT
+        prefs[getProfileKey(SERVER_PEER_PORT, profile)] ?: MrttConstants.Network.DEFAULT_SERVER_PEER_PORT
     }
     val sni: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         prefs[getProfileKey(SNI, profile)] ?: ""
+    }
+    val tunnelMtu: Flow<Int> = dataStore.data.map { prefs ->
+        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        (prefs[getProfileKey(TUNNEL_MTU, profile)] ?: MrttConstants.Vpn.DEFAULT_MTU)
+            .coerceIn(MrttConstants.Vpn.MTU_MIN, MrttConstants.Vpn.MTU_MAX)
     }
 
     val deployIp: Flow<String> = dataStore.data.map { prefs ->
@@ -406,7 +376,10 @@ class SettingsStore(context: Context) {
         prefs[getProfileKey(DEPLOY_SSH_PORT, profile)] ?: ""
     }
     internal val deploySettingsSnapshot: Flow<DeploySettingsSnapshot> = dataStore.data.map { prefs ->
-        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        readDeploySnapshot(prefs, prefs[ACTIVE_PROFILE] ?: 0)
+    }.onIo()
+
+    private fun readDeploySnapshot(prefs: Preferences, profile: Int): DeploySettingsSnapshot =
         DeploySettingsSnapshot(
             profile = profile,
             ip = prefs[getProfileKey(DEPLOY_IP, profile)] ?: "",
@@ -416,13 +389,13 @@ class SettingsStore(context: Context) {
             webPassword = readSecret(prefs, DEPLOY_WEB_PASSWORD_ENCRYPTED, DEPLOY_WEB_PASSWORD, profile),
             mainPassword = readSecret(prefs, DEPLOY_MAIN_PASSWORD_ENCRYPTED, DEPLOY_MAIN_PASSWORD, profile),
             sshPort = prefs[getProfileKey(DEPLOY_SSH_PORT, profile)]
-                ?.ifBlank { CsqttConstants.Network.DEFAULT_SSH_PORT.toString() }
-                ?: CsqttConstants.Network.DEFAULT_SSH_PORT.toString(),
+                ?.ifBlank { MrttConstants.Network.DEFAULT_SSH_PORT.toString() }
+                ?: MrttConstants.Network.DEFAULT_SSH_PORT.toString(),
             manualPortsEnabled = prefs[getProfileKey(MANUAL_PORTS_ENABLED, profile)] ?: false,
             serverPeerPort = prefs[getProfileKey(SERVER_PEER_PORT, profile)]
-                ?: CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT,
+                ?: MrttConstants.Network.DEFAULT_SERVER_PEER_PORT,
             serverWebPort = prefs[getProfileKey(SERVER_WEB_PORT, profile)]
-                ?: CsqttConstants.Network.DEFAULT_SERVER_WEB_PORT,
+                ?: MrttConstants.Network.DEFAULT_SERVER_WEB_PORT,
             sshKeysMode = prefs[getProfileKey(SSH_KEYS_MODE, profile)] ?: false,
             dockerInstall = prefs[getProfileKey(DOCKER_INSTALL, profile)] ?: false,
             secretPathEnabled = true,
@@ -431,7 +404,6 @@ class SettingsStore(context: Context) {
             sshKeyPassphrase = readSecret(prefs, SSH_KEY_PASSPHRASE_ENCRYPTED, SSH_KEY_PASSPHRASE, profile),
             sshCertificate = readSecret(prefs, SSH_CERTIFICATE_ENCRYPTED, SSH_CERTIFICATE, profile),
         )
-    }.onIo()
     internal val tunnelAuthSnapshot: Flow<TunnelAuthSnapshot> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         val connectionPassword = readConnectionPasswordState(prefs, profile)
@@ -439,8 +411,8 @@ class SettingsStore(context: Context) {
             profile = profile,
             connectionPassword = connectionPassword.value,
             connectionPasswordState = connectionPassword.state,
-            csqttLink = prefs[getProfileKey(CSQTT_LINK, profile)] ?: "",
-            csqttLinkMode = prefs[getProfileKey(CSQTT_LINK_MODE, profile)] ?: false,
+            mrttLink = prefs[getProfileKey(CSQTT_LINK, profile)] ?: "",
+            mrttLinkMode = true,
         )
     }.onIo()
     val excludedApps: Flow<String> = dataStore.data.map { prefs ->
@@ -471,15 +443,15 @@ class SettingsStore(context: Context) {
     }.onIo()
     val serverWebPort: Flow<Int> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
-        prefs[getProfileKey(SERVER_WEB_PORT, profile)] ?: CsqttConstants.Network.DEFAULT_SERVER_WEB_PORT
+        prefs[getProfileKey(SERVER_WEB_PORT, profile)] ?: MrttConstants.Network.DEFAULT_SERVER_WEB_PORT
     }
 
     val vkAuthMode: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         when (prefs[getProfileKey(VK_AUTH_MODE, profile)]) {
-            CsqttConstants.VkAuth.MODE_CAPTCHA -> CsqttConstants.VkAuth.MODE_CAPTCHA
-            CsqttConstants.VkAuth.MODE_AUTO_JS -> CsqttConstants.VkAuth.MODE_AUTO_JS
-            else -> CsqttConstants.VkAuth.MODE_CALLS
+            MrttConstants.VkAuth.MODE_CAPTCHA -> MrttConstants.VkAuth.MODE_CAPTCHA
+            MrttConstants.VkAuth.MODE_AUTO_JS -> MrttConstants.VkAuth.MODE_AUTO_JS
+            else -> MrttConstants.VkAuth.MODE_CALLS
         }
     }
     val obfsMode: Flow<String> = dataStore.data.map { prefs ->
@@ -488,24 +460,24 @@ class SettingsStore(context: Context) {
         if (mode == "unified") {
             mode
         } else {
-            CsqttConstants.Tunnel.DEFAULT_OBFS_MODE
+            MrttConstants.Tunnel.DEFAULT_OBFS_MODE
         }
     }
 
     val turnTransport: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         when (prefs[getProfileKey(TURN_TRANSPORT, profile)]) {
-            CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS -> CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS
-            else -> CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT
+            MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS -> MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS
+            else -> MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT
         }
     }
 
     val srtpMode: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         when (prefs[getProfileKey(SRTP_MODE, profile)]) {
-            CsqttConstants.SrtpMode.WRAP -> CsqttConstants.SrtpMode.WRAP
-            CsqttConstants.SrtpMode.DTLS -> CsqttConstants.SrtpMode.DTLS
-            else -> CsqttConstants.SrtpMode.DEFAULT
+            MrttConstants.SrtpMode.WRAP -> MrttConstants.SrtpMode.WRAP
+            MrttConstants.SrtpMode.DTLS -> MrttConstants.SrtpMode.DTLS
+            else -> MrttConstants.SrtpMode.DEFAULT
         }
     }
 
@@ -551,17 +523,43 @@ class SettingsStore(context: Context) {
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         val mode = prefs[getProfileKey(VK_HASH_MODE, profile)]
         when (mode) {
-            "auto", CsqttConstants.VkAutoHash.MODE_AUTO_API ->
-                CsqttConstants.VkAutoHash.MODE_AUTO_API
-            CsqttConstants.VkAutoHash.MODE_AUTO_JS ->
-                CsqttConstants.VkAutoHash.MODE_AUTO_JS
-            else -> CsqttConstants.VkAutoHash.MODE_MANUAL
+            "auto", MrttConstants.VkAutoHash.MODE_AUTO_API ->
+                MrttConstants.VkAutoHash.MODE_AUTO_API
+            MrttConstants.VkAutoHash.MODE_AUTO_JS ->
+                MrttConstants.VkAutoHash.MODE_AUTO_JS
+            else -> MrttConstants.VkAutoHash.MODE_MANUAL
         }
     }
     val vkAccessToken: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         readSecret(prefs, VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, profile)
     }.onIo()
+    val maxGroupId: Flow<String> = dataStore.data.map { prefs ->
+        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        prefs[getProfileKey(MAX_GROUP_ID, profile)] ?: ""
+    }.onIo()
+    val maxAccessToken: Flow<String> = dataStore.data.map { prefs ->
+        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        readSecret(prefs, MAX_ACCESS_TOKEN_ENCRYPTED, MAX_ACCESS_TOKEN, profile)
+    }.onIo()
+
+    val transportMode: Flow<String> = dataStore.data.map { prefs ->
+        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        when (prefs[getProfileKey(TRANSPORT_MODE, profile)]) {
+            MrttConstants.Transport.MODE_MAX -> MrttConstants.Transport.MODE_MAX
+            MrttConstants.Transport.MODE_JITSI -> MrttConstants.Transport.MODE_JITSI
+            else -> MrttConstants.Transport.MODE_VK
+        }
+    }.onIo()
+
+
+    /** Своя комната Jitsi вместо комнаты из ссылки профиля; пусто — берётся из ссылки. */
+    val jitsiRoomOverride: Flow<String> = dataStore.data.map { prefs -> prefs[JITSI_ROOM_OVERRIDE].orEmpty() }.onIo()
+
+    suspend fun saveJitsiRoomOverride(room: String) {
+        dataStore.edit { prefs -> prefs[JITSI_ROOM_OVERRIDE] = room }
+    }
+
     val vkAccessTokenUserId: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         prefs[getProfileKey(VK_ACCESS_TOKEN_USER_ID, profile)] ?: ""
@@ -630,7 +628,7 @@ class SettingsStore(context: Context) {
     }
 
     val profileNames: Flow<Map<Int, String>> = dataStore.data.map { prefs ->
-        (CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX).associateWith { p ->
+        (MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX).associateWith { p ->
             val name = prefs[getProfileKey(PROFILE_NAME, p)]
             if (name.isNullOrBlank()) "Профиль $p" else name
         }
@@ -654,9 +652,14 @@ class SettingsStore(context: Context) {
     val tcpTransportRiskAcknowledged: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[TCP_TRANSPORT_RISK_ACKNOWLEDGED] ?: false
     }
+    val maxTransportRiskAcknowledged: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[MAX_TRANSPORT_RISK_ACKNOWLEDGED] ?: false
+    }
     val autoPauseOnWifi: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[AUTO_PAUSE_ON_WIFI] ?: false
     }
+    val batterySaverMode: Flow<String> = dataStore.data.map { it[BATTERY_SAVER_MODE] ?: BatterySaver.DEFAULT_MODE }
+    val batterySaverPercent: Flow<Int> = dataStore.data.map { it[BATTERY_SAVER_PERCENT] ?: BatterySaver.DEFAULT_PERCENT }
     suspend fun isBatteryOptimizationPromptHandled(): Boolean =
         dataStore.data.first()[BATTERY_OPTIMIZATION_PROMPT_HANDLED] ?: false
 
@@ -670,7 +673,7 @@ class SettingsStore(context: Context) {
     }
     val activeClientIds: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
-        prefs[getProfileKey(ACTIVE_CLIENT_IDS, profile)] ?: CsqttConstants.Tunnel.DEFAULT_CLIENT_IDS
+        prefs[getProfileKey(ACTIVE_CLIENT_IDS, profile)] ?: MrttConstants.Tunnel.DEFAULT_CLIENT_IDS
     }
     val clientIdCheckResults: Flow<String> = dataStore.data.map { prefs ->
         prefs[CLIENT_ID_CHECK_RESULTS] ?: "{}"
@@ -690,6 +693,55 @@ class SettingsStore(context: Context) {
     val updateCheckIntervalHours: Flow<Int> = dataStore.data.map { it[UPDATE_CHECK_INTERVAL_HOURS] ?: 24 }
     val updatePostponeUntil: Flow<Long> = dataStore.data.map { it[UPDATE_POSTPONE_UNTIL] ?: 0L }
     val updatePostponeVersion: Flow<String> = dataStore.data.map { it[UPDATE_POSTPONE_VERSION] ?: "" }
+
+    // Last in the class, after every property: Kotlin assigns them top to bottom, and the collectors below start on
+    // other threads at once. Above the flows they read, a collector could run before its flow was assigned and call
+    // collect on null, which crashed the app at launch on slower phones (Redmi).
+    init {
+        if (migrationsStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                migrateConnectionPasswordsToLocalStorage()
+                migrateSecretsToKeystore()
+                migrateLegacyWhitelistMode()
+            }
+        }
+        if (uiCacheStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                launch {
+                    dataStore.edit { prefs ->
+                        for (p in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
+                            prefs[getProfileKey(EXTRA_WORKERS, p)] = false
+                        }
+                    }
+                }
+                launch { vkHashMode.collect { cachedVkHashMode = it } }
+                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
+                launch { obfsMode.collect { cachedObfsMode = it } }
+                launch { turnTransport.collect { cachedTurnTransport = it } }
+                launch { srtpMode.collect { cachedSrtpMode = it } }
+                launch { mrttLinkMode.collect { cachedMrttLinkMode = it } }
+                launch { workersPerHash.collect { cachedWorkersPerHash = it } }
+                launch { manualPortsEnabled.collect { cachedManualPortsEnabled = it } }
+                launch { serverPeerPort.collect { cachedServerPeerPort = it } }
+                cachedExtraWorkers = false
+                launch { customTurnIps.collect { cachedCustomTurnIps = it } }
+                launch { excludedApps.collect { cachedExcludedApps = it } }
+                launch { whitelistApps.collect { cachedWhitelistApps = it } }
+                launch { isWhitelist.collect { cachedIsWhitelist = it } }
+                launch { domainRoutingEnabled.collect { cachedDomainRoutingEnabled = it } }
+                launch { domainIsWhitelist.collect { cachedDomainIsWhitelist = it } }
+                launch { excludeRuZonesEnabled.collect { cachedExcludeRuZonesEnabled = it } }
+                launch { templateDomainsEnabled.collect { cachedTemplateDomainsEnabled = it } }
+                launch { directDomains.collect { cachedDirectDomains = it } }
+                launch { directDomainsBlack.collect { cachedDirectDomainsBlack = it } }
+                launch { directDomainsWhite.collect { cachedDirectDomainsWhite = it } }
+                launch { ipRoutingEnabled.collect { cachedIpRoutingEnabled = it } }
+                launch { ipIsWhitelist.collect { cachedIpIsWhitelist = it } }
+                launch { directIpsBlack.collect { cachedDirectIpsBlack = it } }
+                launch { directIpsWhite.collect { cachedDirectIpsWhite = it } }
+            }
+        }
+    }
 
     suspend fun saveTunnelWasRunning(running: Boolean) {
         dataStore.edit { prefs ->
@@ -834,8 +886,8 @@ class SettingsStore(context: Context) {
     suspend fun saveActiveProfile(profile: Int) {
         dataStore.edit { prefs ->
             prefs[ACTIVE_PROFILE] = profile.coerceIn(
-                CsqttConstants.Profiles.MIN_INDEX,
-                CsqttConstants.Profiles.MAX_INDEX,
+                MrttConstants.Profiles.MIN_INDEX,
+                MrttConstants.Profiles.MAX_INDEX,
             )
         }
     }
@@ -864,21 +916,14 @@ class SettingsStore(context: Context) {
         }
     }
 
-    suspend fun saveCsqttLink(link: String) {
+    suspend fun saveMrttLink(link: String) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(CSQTT_LINK, profile)] = link
         }
     }
 
-    suspend fun saveCsqttLinkMode(enabled: Boolean) {
-        dataStore.edit { prefs ->
-            val profile = prefs[ACTIVE_PROFILE] ?: 0
-            prefs[getProfileKey(CSQTT_LINK_MODE, profile)] = enabled
-        }
-    }
-
-    suspend fun saveCsqttParticipantLink(link: String) {
+    suspend fun saveMrttParticipantLink(link: String) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(CSQTT_LINK, profile)] = link
@@ -886,17 +931,76 @@ class SettingsStore(context: Context) {
         }
     }
 
-    suspend fun saveParticipantShowLogs(show: Boolean) {
+    suspend fun saveVpsServersJson(json: String) {
+        dataStore.edit { it[VPS_SERVERS] = json }
+    }
+
+    suspend fun vpsServersMigrated(): Boolean = dataStore.data.first()[VPS_SERVERS_MIGRATED] == true
+
+    suspend fun markVpsServersMigrated() {
+        dataStore.edit { it[VPS_SERVERS_MIGRATED] = true }
+    }
+
+    suspend fun saveConnectionProfilesJson(json: String) {
+        dataStore.edit { it[CONNECTION_PROFILES] = json }
+    }
+
+    /** Делает профиль активным: его ссылка становится ссылкой подключения. */
+    suspend fun activateConnectionProfile(id: String, link: String) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
-            prefs[getProfileKey(PARTICIPANT_SHOW_LOGS, profile)] = show
+            prefs[ACTIVE_CONNECTION_PROFILE] = id
+            prefs[getProfileKey(CSQTT_LINK, profile)] = link
+            prefs[getProfileKey(CSQTT_LINK_MODE, profile)] = true
+        }
+    }
+
+    suspend fun connectionProfilesMigrated(): Boolean =
+        dataStore.data.first()[CONNECTION_PROFILES_MIGRATED] == true
+
+    suspend fun markConnectionProfilesMigrated() {
+        dataStore.edit { it[CONNECTION_PROFILES_MIGRATED] = true }
+    }
+
+    /** Старые слоты профилей, где был настроен деплой. */
+    internal suspend fun legacyDeployServers(): List<DeploySettingsSnapshot> = withContext(Dispatchers.IO) {
+        val prefs = dataStore.data.first()
+        (MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX)
+            .map { readDeploySnapshot(prefs, it) }
+            .filter { it.ip.isNotBlank() }
+    }
+
+    /** Ссылки старых слотов: ссылка участника или собранная из настроек владельца. */
+    internal suspend fun legacyConnectionLinks(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val prefs = dataStore.data.first()
+        (MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX).mapNotNull { profile ->
+            val name = prefs[getProfileKey(PROFILE_NAME, profile)] ?: "Профиль $profile"
+            val link = prefs[getProfileKey(CSQTT_LINK, profile)].orEmpty().trim()
+            if (prefs[getProfileKey(CSQTT_LINK_MODE, profile)] == true) {
+                return@mapNotNull link.takeIf { it.isNotEmpty() }?.let { name to it }
+            }
+            val peer = prefs[getProfileKey(PEER, profile)].orEmpty().trim()
+            val password = readConnectionPasswordState(prefs, profile).value
+            if (peer.isEmpty() || password.isEmpty()) return@mapNotNull null
+            val host = peer.substringBeforeLast(':').takeIf { peer.count { it == ':' } == 1 } ?: peer
+            val port = peer.substringAfterLast(':', "").toIntOrNull()
+                ?: if (prefs[getProfileKey(MANUAL_PORTS_ENABLED, profile)] == true) {
+                    prefs[getProfileKey(SERVER_PEER_PORT, profile)] ?: MrttConstants.Network.DEFAULT_SERVER_PEER_PORT
+                } else {
+                    MrttConstants.Network.DEFAULT_SERVER_PEER_PORT
+                }
+            val hashes = prefs[getProfileKey(VK_HASHES, profile)].orEmpty()
+                .split(Regex("[,\\s]+")).map(String::trim).filter { it.length >= 16 }.distinct().take(6)
+            runCatching {
+                name to com.csqtt.client.ui.utils.formatMrttLink(host, port, password, hashes)
+            }.getOrNull()
         }
     }
 
     suspend fun saveWorkersPerHash(workersPerHash: Int) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
-            prefs[getProfileKey(WORKERS_PER_HASH, profile)] = WorkerCountPolicy.normalize(workersPerHash, maximum = CsqttConstants.Tunnel.MAX_WORKERS)
+            prefs[getProfileKey(WORKERS_PER_HASH, profile)] = WorkerCountPolicy.normalize(workersPerHash, maximum = MrttConstants.Tunnel.MAX_WORKERS)
         }
     }
 
@@ -905,7 +1009,7 @@ class SettingsStore(context: Context) {
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(VK_HASHES, profile)] = vkHashes
             prefs[getProfileKey(WORKERS_PER_HASH, profile)] =
-                WorkerCountPolicy.normalize(workersPerHash, maximum = CsqttConstants.Tunnel.MAX_WORKERS)
+                WorkerCountPolicy.normalize(workersPerHash, maximum = MrttConstants.Tunnel.MAX_WORKERS)
         }
     }
 
@@ -924,11 +1028,30 @@ class SettingsStore(context: Context) {
             prefs[getProfileKey(PEER, profile)] = peer
             prefs[getProfileKey(VK_HASHES, profile)] = vkHashes
             prefs[getProfileKey(SECONDARY_VK_HASH, profile)] = secondaryVkHash
-            prefs[getProfileKey(WORKERS_PER_HASH, profile)] = WorkerCountPolicy.normalize(workersPerHash, maximum = CsqttConstants.Tunnel.MAX_WORKERS)
+            prefs[getProfileKey(WORKERS_PER_HASH, profile)] = WorkerCountPolicy.normalize(workersPerHash, maximum = MrttConstants.Tunnel.MAX_WORKERS)
             prefs[getProfileKey(PROTOCOL, profile)] = protocol
             prefs[getProfileKey(LISTEN_PORT, profile)] = listenPort
             prefs[getProfileKey(SNI, profile)] = sni
             prefs[getProfileKey(NO_DNS, profile)] = noDns
+        }
+    }
+
+    suspend fun saveTransportMode(mode: String) {
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            prefs[getProfileKey(TRANSPORT_MODE, profile)] =
+                when (mode) {
+                    MrttConstants.Transport.MODE_MAX, MrttConstants.Transport.MODE_JITSI -> mode
+                    else -> MrttConstants.Transport.MODE_VK
+                }
+        }
+    }
+
+    suspend fun saveTunnelMtu(mtu: Int) {
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            prefs[getProfileKey(TUNNEL_MTU, profile)] =
+                mtu.coerceIn(MrttConstants.Vpn.MTU_MIN, MrttConstants.Vpn.MTU_MAX)
         }
     }
 
@@ -937,9 +1060,9 @@ class SettingsStore(context: Context) {
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(MANUAL_PORTS_ENABLED, profile)] = enabled
             if (!enabled) {
-                prefs[getProfileKey(DEPLOY_SSH_PORT, profile)] = CsqttConstants.Network.DEFAULT_SSH_PORT.toString()
-                prefs[getProfileKey(SERVER_PEER_PORT, profile)] = CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT
-                prefs[getProfileKey(SERVER_WEB_PORT, profile)] = CsqttConstants.Network.DEFAULT_SERVER_WEB_PORT
+                prefs[getProfileKey(DEPLOY_SSH_PORT, profile)] = MrttConstants.Network.DEFAULT_SSH_PORT.toString()
+                prefs[getProfileKey(SERVER_PEER_PORT, profile)] = MrttConstants.Network.DEFAULT_SERVER_PEER_PORT
+                prefs[getProfileKey(SERVER_WEB_PORT, profile)] = MrttConstants.Network.DEFAULT_SERVER_WEB_PORT
             }
         }
     }
@@ -1093,9 +1216,9 @@ class SettingsStore(context: Context) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             val normalized = when (mode) {
-                CsqttConstants.VkAuth.MODE_CAPTCHA -> CsqttConstants.VkAuth.MODE_CAPTCHA
-                CsqttConstants.VkAuth.MODE_AUTO_JS -> CsqttConstants.VkAuth.MODE_AUTO_JS
-                else -> CsqttConstants.VkAuth.MODE_CALLS
+                MrttConstants.VkAuth.MODE_CAPTCHA -> MrttConstants.VkAuth.MODE_CAPTCHA
+                MrttConstants.VkAuth.MODE_AUTO_JS -> MrttConstants.VkAuth.MODE_AUTO_JS
+                else -> MrttConstants.VkAuth.MODE_CALLS
             }
             prefs[getProfileKey(VK_AUTH_MODE, profile)] = normalized
             prefs[getProfileKey(VK_HASH_MODE, profile)] = vkHashModeForAuthMode(
@@ -1117,8 +1240,8 @@ class SettingsStore(context: Context) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(TURN_TRANSPORT, profile)] = when (transport) {
-                CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS -> CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS
-                else -> CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT
+                MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS -> MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS
+                else -> MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT
             }
         }
     }
@@ -1127,9 +1250,9 @@ class SettingsStore(context: Context) {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs[getProfileKey(SRTP_MODE, profile)] = when (mode) {
-                CsqttConstants.SrtpMode.WRAP -> CsqttConstants.SrtpMode.WRAP
-                CsqttConstants.SrtpMode.DTLS -> CsqttConstants.SrtpMode.DTLS
-                else -> CsqttConstants.SrtpMode.DEFAULT
+                MrttConstants.SrtpMode.WRAP -> MrttConstants.SrtpMode.WRAP
+                MrttConstants.SrtpMode.DTLS -> MrttConstants.SrtpMode.DTLS
+                else -> MrttConstants.SrtpMode.DEFAULT
             }
         }
     }
@@ -1175,7 +1298,7 @@ class SettingsStore(context: Context) {
 
     suspend fun saveExtraWorkers(enabled: Boolean = false) {
         dataStore.edit { prefs ->
-            for (p in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
+            for (p in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
                 prefs[getProfileKey(EXTRA_WORKERS, p)] = false
             }
         }
@@ -1193,10 +1316,24 @@ class SettingsStore(context: Context) {
         }
     }
 
+    suspend fun saveMaxTransportRiskAcknowledged(acknowledged: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[MAX_TRANSPORT_RISK_ACKNOWLEDGED] = acknowledged
+        }
+    }
+
     suspend fun saveAutoPauseOnWifi(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[AUTO_PAUSE_ON_WIFI] = enabled
         }
+    }
+
+    suspend fun saveBatterySaverMode(mode: String) {
+        dataStore.edit { prefs -> prefs[BATTERY_SAVER_MODE] = mode }
+    }
+
+    suspend fun saveBatterySaverPercent(percent: Int) {
+        dataStore.edit { prefs -> prefs[BATTERY_SAVER_PERCENT] = percent.coerceIn(5, 95) }
     }
 
     suspend fun markBatteryOptimizationPromptHandled() {
@@ -1258,6 +1395,17 @@ class SettingsStore(context: Context) {
             prefs.remove(getProfileKey(VK_ACCESS_TOKEN_ENCRYPTED, profile))
             prefs.remove(getProfileKey(VK_ACCESS_TOKEN, profile))
             prefs.remove(getProfileKey(VK_ACCESS_TOKEN_USER_ID, profile))
+        }
+    }
+
+    suspend fun saveMaxBinding(token: String, groupId: String, expectedProfile: Int) = withContext(Dispatchers.IO) {
+        require(token.length >= 32 && token.none(Char::isWhitespace))
+        require(com.csqtt.client.ui.utils.isValidMaxGroupId(groupId))
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            check(profile == expectedProfile) { "Профиль изменился во время привязки MAX" }
+            prefs.putSecret(MAX_ACCESS_TOKEN_ENCRYPTED, MAX_ACCESS_TOKEN, token, profile)
+            prefs[getProfileKey(MAX_GROUP_ID, profile)] = groupId
         }
     }
 
@@ -1363,7 +1511,7 @@ class SettingsStore(context: Context) {
 
     private suspend fun migrateSecretsToKeystore() {
         dataStore.edit { prefs ->
-            for (profile in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
+            for (profile in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
                 prefs.migrateSecret(getProfileKey(DEPLOY_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_PASSWORD, profile))
                 prefs.migrateSecret(getProfileKey(DEPLOY_MAIN_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_MAIN_PASSWORD, profile))
                 prefs.migrateSecret(getProfileKey(DEPLOY_WEB_PASSWORD_ENCRYPTED, profile), getProfileKey(DEPLOY_WEB_PASSWORD, profile))
@@ -1373,7 +1521,7 @@ class SettingsStore(context: Context) {
 
     private suspend fun migrateConnectionPasswordsToLocalStorage() {
         dataStore.edit { prefs ->
-            for (profile in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
+            for (profile in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
                 val localKey = getProfileKey(CONNECTION_PASSWORD_LOCAL, profile)
                 val legacyKey = getProfileKey(CONNECTION_PASSWORD, profile)
                 val encryptedKey = getProfileKey(CONNECTION_PASSWORD_ENCRYPTED, profile)
@@ -1401,14 +1549,14 @@ class SettingsStore(context: Context) {
         if (currentPrefs[SPLIT_TUNNEL_WHITELIST_MIGRATED] == true) return
 
         val hasLegacyWhitelist =
-            (CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX).any { profile ->
+            (MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX).any { profile ->
             currentPrefs[getProfileKey(IS_WHITELIST, profile)] == true
         }
         val installedApps = if (hasLegacyWhitelist) installedSplitTunnelPackages() else emptySet()
         dataStore.edit { prefs ->
             if (prefs[SPLIT_TUNNEL_WHITELIST_MIGRATED] == true) return@edit
 
-            for (profile in CsqttConstants.Profiles.MIN_INDEX..CsqttConstants.Profiles.MAX_INDEX) {
+            for (profile in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
                 val whitelistKey = getProfileKey(IS_WHITELIST, profile)
                 val appsKey = getProfileKey(EXCLUDED_APPS, profile)
                 val whitelistAppsKey = getProfileKey(WHITELIST_APPS, profile)
@@ -1520,63 +1668,66 @@ class SettingsStore(context: Context) {
         includeSettings: Boolean
     ): String {
         val prefs = dataStore.data.first()
+        // the ACTIVE profile's values (base keys are profile 0's), and secrets the way the store keeps them
+        val p = prefs[ACTIVE_PROFILE] ?: 0
         val root = JSONObject()
         root.put("version", 1)
         root.put("exported_at", System.currentTimeMillis())
 
         if (includeTunnel) {
             val tunnel = JSONObject()
-            tunnel.put("peer", prefs[PEER] ?: "")
-            tunnel.put("listen_port", prefs[LISTEN_PORT] ?: CsqttConstants.Network.DEFAULT_LOCAL_PORT)
-            tunnel.put("manual_ports_enabled", prefs[MANUAL_PORTS_ENABLED] ?: false)
-            tunnel.put("server_peer_port", prefs[SERVER_PEER_PORT] ?: CsqttConstants.Network.DEFAULT_SERVER_PEER_PORT)
-            tunnel.put("connection_password", prefs[CONNECTION_PASSWORD_LOCAL] ?: prefs[CONNECTION_PASSWORD] ?: "")
-            tunnel.put("obfs_mode", prefs[OBFS_MODE] ?: CsqttConstants.Tunnel.DEFAULT_OBFS_MODE)
-            tunnel.put("turn_transport", prefs[TURN_TRANSPORT] ?: CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT)
-            tunnel.put("srtp_mode", prefs[SRTP_MODE] ?: CsqttConstants.SrtpMode.DEFAULT)
-            tunnel.put("custom_turn_ips", prefs[CUSTOM_TURN_IPS] ?: "")
-            tunnel.put("sni", prefs[SNI] ?: "")
-            tunnel.put("no_dns", prefs[NO_DNS] ?: false)
+            tunnel.put("peer", prefs[getProfileKey(PEER, p)] ?: "")
+            tunnel.put("listen_port", prefs[getProfileKey(LISTEN_PORT, p)] ?: MrttConstants.Network.DEFAULT_LOCAL_PORT)
+            tunnel.put("manual_ports_enabled", prefs[getProfileKey(MANUAL_PORTS_ENABLED, p)] ?: false)
+            tunnel.put("server_peer_port", prefs[getProfileKey(SERVER_PEER_PORT, p)] ?: MrttConstants.Network.DEFAULT_SERVER_PEER_PORT)
+            tunnel.put("connection_password", readConnectionPasswordState(prefs, p).value)
+            tunnel.put("obfs_mode", prefs[getProfileKey(OBFS_MODE, p)] ?: MrttConstants.Tunnel.DEFAULT_OBFS_MODE)
+            tunnel.put("turn_transport", prefs[getProfileKey(TURN_TRANSPORT, p)] ?: MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT)
+            tunnel.put("srtp_mode", prefs[getProfileKey(SRTP_MODE, p)] ?: MrttConstants.SrtpMode.DEFAULT)
+            tunnel.put("custom_turn_ips", prefs[getProfileKey(CUSTOM_TURN_IPS, p)] ?: "")
+            tunnel.put("sni", prefs[getProfileKey(SNI, p)] ?: "")
+            tunnel.put("no_dns", prefs[getProfileKey(NO_DNS, p)] ?: false)
             root.put("tunnel", tunnel)
         }
 
         if (includeDeploy) {
             val deploy = JSONObject()
-            deploy.put("deploy_ip", prefs[DEPLOY_IP] ?: "")
-            deploy.put("deploy_login", prefs[DEPLOY_LOGIN] ?: "")
-            deploy.put("deploy_ssh_port", prefs[DEPLOY_SSH_PORT] ?: "")
-            deploy.put("server_web_port", prefs[SERVER_WEB_PORT] ?: CsqttConstants.Network.DEFAULT_SERVER_WEB_PORT)
-            deploy.put("docker_install", prefs[DOCKER_INSTALL] ?: true)
-            deploy.put("ssh_keys_mode", prefs[SSH_KEYS_MODE] ?: false)
-            deploy.put("vk_hashes", prefs[VK_HASHES] ?: "")
-            deploy.put("secondary_vk_hash", prefs[SECONDARY_VK_HASH] ?: "")
-            deploy.put("vk_auth_mode", prefs[VK_AUTH_MODE] ?: CsqttConstants.VkAuth.MODE_CALLS)
-            deploy.put("vk_hash_mode", prefs[VK_HASH_MODE] ?: CsqttConstants.VkAutoHash.MODE_MANUAL)
-            deploy.put("vk_access_token", prefs[VK_ACCESS_TOKEN] ?: "")
-            deploy.put("workers_per_hash", prefs[WORKERS_PER_HASH] ?: 18)
-            deploy.put("extra_workers", prefs[EXTRA_WORKERS] ?: false)
-            deploy.put("csqtt_link", prefs[CSQTT_LINK] ?: "")
-            deploy.put("csqtt_link_mode", prefs[CSQTT_LINK_MODE] ?: false)
-            deploy.put("secret_path_enabled", prefs[getProfileKey(DEPLOY_SECRET_PATH_ENABLED, prefs[ACTIVE_PROFILE] ?: 0)] ?: false)
-            deploy.put("secret_path_uuid", prefs[getProfileKey(DEPLOY_SECRET_PATH_UUID, prefs[ACTIVE_PROFILE] ?: 0)] ?: "")
+            deploy.put("deploy_ip", prefs[getProfileKey(DEPLOY_IP, p)] ?: "")
+            deploy.put("deploy_login", prefs[getProfileKey(DEPLOY_LOGIN, p)] ?: "")
+            deploy.put("deploy_ssh_port", prefs[getProfileKey(DEPLOY_SSH_PORT, p)] ?: "")
+            deploy.put("server_web_port", prefs[getProfileKey(SERVER_WEB_PORT, p)] ?: MrttConstants.Network.DEFAULT_SERVER_WEB_PORT)
+            deploy.put("docker_install", prefs[getProfileKey(DOCKER_INSTALL, p)] ?: true)
+            deploy.put("ssh_keys_mode", prefs[getProfileKey(SSH_KEYS_MODE, p)] ?: false)
+            deploy.put("vk_hashes", prefs[getProfileKey(VK_HASHES, p)] ?: "")
+            deploy.put("secondary_vk_hash", prefs[getProfileKey(SECONDARY_VK_HASH, p)] ?: "")
+            deploy.put("vk_auth_mode", prefs[getProfileKey(VK_AUTH_MODE, p)] ?: MrttConstants.VkAuth.MODE_CALLS)
+            deploy.put("vk_hash_mode", prefs[getProfileKey(VK_HASH_MODE, p)] ?: MrttConstants.VkAutoHash.MODE_MANUAL)
+            // the VK access token is a VK account credential: it stays on this device (an export goes to the clipboard
+            // and Downloads). Older exports carried it blank in practice; the import below leaves a stored one alone.
+            deploy.put("workers_per_hash", prefs[getProfileKey(WORKERS_PER_HASH, p)] ?: 18)
+            deploy.put("extra_workers", prefs[getProfileKey(EXTRA_WORKERS, p)] ?: false)
+            deploy.put("csqtt_link", prefs[getProfileKey(CSQTT_LINK, p)] ?: "")
+            deploy.put("csqtt_link_mode", prefs[getProfileKey(CSQTT_LINK_MODE, p)] ?: false)
+            deploy.put("secret_path_enabled", prefs[getProfileKey(DEPLOY_SECRET_PATH_ENABLED, p)] ?: false)
+            deploy.put("secret_path_uuid", prefs[getProfileKey(DEPLOY_SECRET_PATH_UUID, p)] ?: "")
             root.put("deploy", deploy)
         }
 
         if (includeExceptions) {
             val exc = JSONObject()
-            exc.put("excluded_apps", prefs[EXCLUDED_APPS] ?: "")
-            exc.put("whitelist_apps", prefs[WHITELIST_APPS] ?: "")
-            exc.put("is_whitelist", prefs[IS_WHITELIST] ?: false)
-            exc.put("domain_routing_enabled", prefs[DOMAIN_ROUTING_ENABLED] ?: false)
-            exc.put("domain_is_whitelist", prefs[DOMAIN_IS_WHITELIST] ?: false)
-            exc.put("exclude_ru_zones_enabled", prefs[EXCLUDE_RU_ZONES_ENABLED] ?: false)
-            exc.put("template_domains_enabled", prefs[TEMPLATE_DOMAINS_ENABLED] ?: false)
-            exc.put("direct_domains_black", prefs[DIRECT_DOMAINS_BLACK] ?: prefs[DIRECT_DOMAINS] ?: "")
-            exc.put("direct_domains_white", prefs[DIRECT_DOMAINS_WHITE] ?: "")
-            exc.put("ip_routing_enabled", prefs[IP_ROUTING_ENABLED] ?: false)
-            exc.put("ip_is_whitelist", prefs[IP_IS_WHITELIST] ?: false)
-            exc.put("direct_ips_black", prefs[DIRECT_IPS_BLACK] ?: "")
-            exc.put("direct_ips_white", prefs[DIRECT_IPS_WHITE] ?: "")
+            exc.put("excluded_apps", prefs[getProfileKey(EXCLUDED_APPS, p)] ?: "")
+            exc.put("whitelist_apps", prefs[getProfileKey(WHITELIST_APPS, p)] ?: "")
+            exc.put("is_whitelist", prefs[getProfileKey(IS_WHITELIST, p)] ?: false)
+            exc.put("domain_routing_enabled", prefs[getProfileKey(DOMAIN_ROUTING_ENABLED, p)] ?: false)
+            exc.put("domain_is_whitelist", prefs[getProfileKey(DOMAIN_IS_WHITELIST, p)] ?: false)
+            exc.put("exclude_ru_zones_enabled", prefs[getProfileKey(EXCLUDE_RU_ZONES_ENABLED, p)] ?: false)
+            exc.put("template_domains_enabled", prefs[getProfileKey(TEMPLATE_DOMAINS_ENABLED, p)] ?: false)
+            exc.put("direct_domains_black", prefs[getProfileKey(DIRECT_DOMAINS_BLACK, p)] ?: prefs[getProfileKey(DIRECT_DOMAINS, p)] ?: "")
+            exc.put("direct_domains_white", prefs[getProfileKey(DIRECT_DOMAINS_WHITE, p)] ?: "")
+            exc.put("ip_routing_enabled", prefs[getProfileKey(IP_ROUTING_ENABLED, p)] ?: false)
+            exc.put("ip_is_whitelist", prefs[getProfileKey(IP_IS_WHITELIST, p)] ?: false)
+            exc.put("direct_ips_black", prefs[getProfileKey(DIRECT_IPS_BLACK, p)] ?: "")
+            exc.put("direct_ips_white", prefs[getProfileKey(DIRECT_IPS_WHITE, p)] ?: "")
             root.put("exceptions", exc)
         }
 
@@ -1586,12 +1737,14 @@ class SettingsStore(context: Context) {
             settings.put("is_dynamic_color", prefs[IS_DYNAMIC_COLOR] ?: false)
             settings.put("theme_palette", prefs[THEME_PALETTE] ?: "pure_black")
             settings.put("auto_pause_on_wifi", prefs[AUTO_PAUSE_ON_WIFI] ?: false)
-            settings.put("selected_fingerprint", prefs[SELECTED_FINGERPRINT] ?: "chrome")
-            settings.put("selected_turn_subnet", prefs[SELECTED_TURN_SUBNET] ?: "")
-            settings.put("turn_subnet_ip_limit", prefs[TURN_SUBNET_IP_LIMIT] ?: "ALL")
+            settings.put("battery_saver_mode", prefs[BATTERY_SAVER_MODE] ?: BatterySaver.DEFAULT_MODE)
+            settings.put("battery_saver_percent", prefs[BATTERY_SAVER_PERCENT] ?: BatterySaver.DEFAULT_PERCENT)
+            settings.put("selected_fingerprint", prefs[getProfileKey(SELECTED_FINGERPRINT, p)] ?: "chrome")
+            settings.put("selected_turn_subnet", prefs[getProfileKey(SELECTED_TURN_SUBNET, p)] ?: "")
+            settings.put("turn_subnet_ip_limit", prefs[getProfileKey(TURN_SUBNET_IP_LIMIT, p)] ?: "ALL")
             settings.put("logging_enabled", prefs[LOGGING_ENABLED] ?: true)
             settings.put("detailed_logs", prefs[DETAILED_LOGS] ?: false)
-            settings.put("participant_show_logs", prefs[getProfileKey(PARTICIPANT_SHOW_LOGS, prefs[ACTIVE_PROFILE] ?: 0)] ?: false)
+            settings.put("participant_show_logs", prefs[getProfileKey(PARTICIPANT_SHOW_LOGS, p)] ?: false)
             root.put("settings", settings)
         }
 
@@ -1608,59 +1761,68 @@ class SettingsStore(context: Context) {
         return runCatching {
             val root = JSONObject(jsonString)
             dataStore.edit { mutable ->
+                // into the ACTIVE profile (base keys are profile 0's), secrets the way the store keeps them
+                val p = mutable[ACTIVE_PROFILE] ?: 0
                 if (includeTunnel && root.has("tunnel")) {
                     val tunnel = root.getJSONObject("tunnel")
-                    if (tunnel.has("peer")) mutable[PEER] = tunnel.getString("peer")
-                    if (tunnel.has("listen_port")) mutable[LISTEN_PORT] = tunnel.getInt("listen_port")
-                    if (tunnel.has("manual_ports_enabled")) mutable[MANUAL_PORTS_ENABLED] = tunnel.getBoolean("manual_ports_enabled")
-                    if (tunnel.has("server_peer_port")) mutable[SERVER_PEER_PORT] = tunnel.getInt("server_peer_port")
-                    if (tunnel.has("connection_password")) {
-                        val pw = tunnel.getString("connection_password")
-                        mutable[CONNECTION_PASSWORD_LOCAL] = pw
-                        mutable[CONNECTION_PASSWORD] = pw
+                    if (tunnel.has("peer")) mutable[getProfileKey(PEER, p)] = tunnel.getString("peer")
+                    if (tunnel.has("listen_port")) mutable[getProfileKey(LISTEN_PORT, p)] = tunnel.getInt("listen_port")
+                    if (tunnel.has("manual_ports_enabled")) mutable[getProfileKey(MANUAL_PORTS_ENABLED, p)] = tunnel.getBoolean("manual_ports_enabled")
+                    if (tunnel.has("server_peer_port")) mutable[getProfileKey(SERVER_PEER_PORT, p)] = tunnel.getInt("server_peer_port")
+                    // a blank password in an export is "none in that export" (older exports carried a stored one blank):
+                    // it never wipes the password this profile has
+                    val pw = if (tunnel.has("connection_password")) tunnel.getString("connection_password") else ""
+                    if (pw.isNotBlank()) {
+                        // as saveConnectionPassword stores it
+                        mutable[getProfileKey(CONNECTION_PASSWORD_LOCAL, p)] = pw
+                        mutable.remove(getProfileKey(CONNECTION_PASSWORD, p))
+                        mutable.remove(getProfileKey(CONNECTION_PASSWORD_ENCRYPTED, p))
                     }
-                    if (tunnel.has("obfs_mode")) mutable[OBFS_MODE] = tunnel.getString("obfs_mode")
-                    if (tunnel.has("turn_transport")) mutable[TURN_TRANSPORT] = tunnel.getString("turn_transport")
-                    if (tunnel.has("srtp_mode")) mutable[SRTP_MODE] = tunnel.getString("srtp_mode")
-                    if (tunnel.has("custom_turn_ips")) mutable[CUSTOM_TURN_IPS] = tunnel.getString("custom_turn_ips")
-                    if (tunnel.has("sni")) mutable[SNI] = tunnel.getString("sni")
-                    if (tunnel.has("no_dns")) mutable[NO_DNS] = tunnel.getBoolean("no_dns")
+                    if (tunnel.has("obfs_mode")) mutable[getProfileKey(OBFS_MODE, p)] = tunnel.getString("obfs_mode")
+                    if (tunnel.has("turn_transport")) mutable[getProfileKey(TURN_TRANSPORT, p)] = tunnel.getString("turn_transport")
+                    if (tunnel.has("srtp_mode")) mutable[getProfileKey(SRTP_MODE, p)] = tunnel.getString("srtp_mode")
+                    if (tunnel.has("custom_turn_ips")) mutable[getProfileKey(CUSTOM_TURN_IPS, p)] = tunnel.getString("custom_turn_ips")
+                    if (tunnel.has("sni")) mutable[getProfileKey(SNI, p)] = tunnel.getString("sni")
+                    if (tunnel.has("no_dns")) mutable[getProfileKey(NO_DNS, p)] = tunnel.getBoolean("no_dns")
                 }
                 if (includeDeploy && root.has("deploy")) {
                     val deploy = root.getJSONObject("deploy")
-                    if (deploy.has("deploy_ip")) mutable[DEPLOY_IP] = deploy.getString("deploy_ip")
-                    if (deploy.has("deploy_login")) mutable[DEPLOY_LOGIN] = deploy.getString("deploy_login")
-                    if (deploy.has("deploy_ssh_port")) mutable[DEPLOY_SSH_PORT] = deploy.getString("deploy_ssh_port")
-                    if (deploy.has("server_web_port")) mutable[SERVER_WEB_PORT] = deploy.getInt("server_web_port")
-                    if (deploy.has("docker_install")) mutable[DOCKER_INSTALL] = deploy.getBoolean("docker_install")
-                    if (deploy.has("ssh_keys_mode")) mutable[SSH_KEYS_MODE] = deploy.getBoolean("ssh_keys_mode")
-                    if (deploy.has("vk_hashes")) mutable[VK_HASHES] = deploy.getString("vk_hashes")
-                    if (deploy.has("secondary_vk_hash")) mutable[SECONDARY_VK_HASH] = deploy.getString("secondary_vk_hash")
-                    if (deploy.has("vk_auth_mode")) mutable[VK_AUTH_MODE] = deploy.getString("vk_auth_mode")
-                    if (deploy.has("vk_hash_mode")) mutable[VK_HASH_MODE] = deploy.getString("vk_hash_mode")
-                    if (deploy.has("vk_access_token")) mutable[VK_ACCESS_TOKEN] = deploy.getString("vk_access_token")
-                    if (deploy.has("workers_per_hash")) mutable[WORKERS_PER_HASH] = deploy.getInt("workers_per_hash")
-                    if (deploy.has("extra_workers")) mutable[EXTRA_WORKERS] = deploy.getBoolean("extra_workers")
-                    if (deploy.has("csqtt_link")) mutable[CSQTT_LINK] = deploy.getString("csqtt_link")
-                    if (deploy.has("csqtt_link_mode")) mutable[CSQTT_LINK_MODE] = deploy.getBoolean("csqtt_link_mode")
-                    if (deploy.has("secret_path_enabled")) mutable[DEPLOY_SECRET_PATH_ENABLED] = deploy.getBoolean("secret_path_enabled")
-                    if (deploy.has("secret_path_uuid")) mutable[DEPLOY_SECRET_PATH_UUID] = deploy.getString("secret_path_uuid")
+                    if (deploy.has("deploy_ip")) mutable[getProfileKey(DEPLOY_IP, p)] = deploy.getString("deploy_ip")
+                    if (deploy.has("deploy_login")) mutable[getProfileKey(DEPLOY_LOGIN, p)] = deploy.getString("deploy_login")
+                    if (deploy.has("deploy_ssh_port")) mutable[getProfileKey(DEPLOY_SSH_PORT, p)] = deploy.getString("deploy_ssh_port")
+                    if (deploy.has("server_web_port")) mutable[getProfileKey(SERVER_WEB_PORT, p)] = deploy.getInt("server_web_port")
+                    if (deploy.has("docker_install")) mutable[getProfileKey(DOCKER_INSTALL, p)] = deploy.getBoolean("docker_install")
+                    if (deploy.has("ssh_keys_mode")) mutable[getProfileKey(SSH_KEYS_MODE, p)] = deploy.getBoolean("ssh_keys_mode")
+                    if (deploy.has("vk_hashes")) mutable[getProfileKey(VK_HASHES, p)] = deploy.getString("vk_hashes")
+                    if (deploy.has("secondary_vk_hash")) mutable[getProfileKey(SECONDARY_VK_HASH, p)] = deploy.getString("secondary_vk_hash")
+                    if (deploy.has("vk_auth_mode")) mutable[getProfileKey(VK_AUTH_MODE, p)] = deploy.getString("vk_auth_mode")
+                    if (deploy.has("vk_hash_mode")) mutable[getProfileKey(VK_HASH_MODE, p)] = deploy.getString("vk_hash_mode")
+                    // blank (every older export) leaves the stored token alone; exports no longer carry it
+                    deploy.optString("vk_access_token").takeIf { it.isNotBlank() }?.let {
+                        mutable.putSecret(VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, it, p)
+                    }
+                    if (deploy.has("workers_per_hash")) mutable[getProfileKey(WORKERS_PER_HASH, p)] = deploy.getInt("workers_per_hash")
+                    if (deploy.has("extra_workers")) mutable[getProfileKey(EXTRA_WORKERS, p)] = deploy.getBoolean("extra_workers")
+                    if (deploy.has("csqtt_link")) mutable[getProfileKey(CSQTT_LINK, p)] = deploy.getString("csqtt_link")
+                    if (deploy.has("csqtt_link_mode")) mutable[getProfileKey(CSQTT_LINK_MODE, p)] = deploy.getBoolean("csqtt_link_mode")
+                    if (deploy.has("secret_path_enabled")) mutable[getProfileKey(DEPLOY_SECRET_PATH_ENABLED, p)] = deploy.getBoolean("secret_path_enabled")
+                    if (deploy.has("secret_path_uuid")) mutable[getProfileKey(DEPLOY_SECRET_PATH_UUID, p)] = deploy.getString("secret_path_uuid")
                 }
                 if (includeExceptions && root.has("exceptions")) {
                     val exc = root.getJSONObject("exceptions")
-                    if (exc.has("excluded_apps")) mutable[EXCLUDED_APPS] = exc.getString("excluded_apps")
-                    if (exc.has("whitelist_apps")) mutable[WHITELIST_APPS] = exc.getString("whitelist_apps")
-                    if (exc.has("is_whitelist")) mutable[IS_WHITELIST] = exc.getBoolean("is_whitelist")
-                    if (exc.has("domain_routing_enabled")) mutable[DOMAIN_ROUTING_ENABLED] = exc.getBoolean("domain_routing_enabled")
-                    if (exc.has("domain_is_whitelist")) mutable[DOMAIN_IS_WHITELIST] = exc.getBoolean("domain_is_whitelist")
-                    if (exc.has("exclude_ru_zones_enabled")) mutable[EXCLUDE_RU_ZONES_ENABLED] = exc.getBoolean("exclude_ru_zones_enabled")
-                    if (exc.has("template_domains_enabled")) mutable[TEMPLATE_DOMAINS_ENABLED] = exc.getBoolean("template_domains_enabled")
-                    if (exc.has("direct_domains_black")) mutable[DIRECT_DOMAINS_BLACK] = exc.getString("direct_domains_black")
-                    if (exc.has("direct_domains_white")) mutable[DIRECT_DOMAINS_WHITE] = exc.getString("direct_domains_white")
-                    if (exc.has("ip_routing_enabled")) mutable[IP_ROUTING_ENABLED] = exc.getBoolean("ip_routing_enabled")
-                    if (exc.has("ip_is_whitelist")) mutable[IP_IS_WHITELIST] = exc.getBoolean("ip_is_whitelist")
-                    if (exc.has("direct_ips_black")) mutable[DIRECT_IPS_BLACK] = exc.getString("direct_ips_black")
-                    if (exc.has("direct_ips_white")) mutable[DIRECT_IPS_WHITE] = exc.getString("direct_ips_white")
+                    if (exc.has("excluded_apps")) mutable[getProfileKey(EXCLUDED_APPS, p)] = exc.getString("excluded_apps")
+                    if (exc.has("whitelist_apps")) mutable[getProfileKey(WHITELIST_APPS, p)] = exc.getString("whitelist_apps")
+                    if (exc.has("is_whitelist")) mutable[getProfileKey(IS_WHITELIST, p)] = exc.getBoolean("is_whitelist")
+                    if (exc.has("domain_routing_enabled")) mutable[getProfileKey(DOMAIN_ROUTING_ENABLED, p)] = exc.getBoolean("domain_routing_enabled")
+                    if (exc.has("domain_is_whitelist")) mutable[getProfileKey(DOMAIN_IS_WHITELIST, p)] = exc.getBoolean("domain_is_whitelist")
+                    if (exc.has("exclude_ru_zones_enabled")) mutable[getProfileKey(EXCLUDE_RU_ZONES_ENABLED, p)] = exc.getBoolean("exclude_ru_zones_enabled")
+                    if (exc.has("template_domains_enabled")) mutable[getProfileKey(TEMPLATE_DOMAINS_ENABLED, p)] = exc.getBoolean("template_domains_enabled")
+                    if (exc.has("direct_domains_black")) mutable[getProfileKey(DIRECT_DOMAINS_BLACK, p)] = exc.getString("direct_domains_black")
+                    if (exc.has("direct_domains_white")) mutable[getProfileKey(DIRECT_DOMAINS_WHITE, p)] = exc.getString("direct_domains_white")
+                    if (exc.has("ip_routing_enabled")) mutable[getProfileKey(IP_ROUTING_ENABLED, p)] = exc.getBoolean("ip_routing_enabled")
+                    if (exc.has("ip_is_whitelist")) mutable[getProfileKey(IP_IS_WHITELIST, p)] = exc.getBoolean("ip_is_whitelist")
+                    if (exc.has("direct_ips_black")) mutable[getProfileKey(DIRECT_IPS_BLACK, p)] = exc.getString("direct_ips_black")
+                    if (exc.has("direct_ips_white")) mutable[getProfileKey(DIRECT_IPS_WHITE, p)] = exc.getString("direct_ips_white")
                 }
                 if (includeSettings && root.has("settings")) {
                     val s = root.getJSONObject("settings")
@@ -1668,9 +1830,13 @@ class SettingsStore(context: Context) {
                     if (s.has("is_dynamic_color")) mutable[IS_DYNAMIC_COLOR] = s.getBoolean("is_dynamic_color")
                     if (s.has("theme_palette")) mutable[THEME_PALETTE] = s.getString("theme_palette")
                     if (s.has("auto_pause_on_wifi")) mutable[AUTO_PAUSE_ON_WIFI] = s.getBoolean("auto_pause_on_wifi")
-                    if (s.has("selected_fingerprint")) mutable[SELECTED_FINGERPRINT] = s.getString("selected_fingerprint")
-                    if (s.has("selected_turn_subnet")) mutable[SELECTED_TURN_SUBNET] = s.getString("selected_turn_subnet")
-                    if (s.has("turn_subnet_ip_limit")) mutable[TURN_SUBNET_IP_LIMIT] = s.getString("turn_subnet_ip_limit")
+                    // an unknown mode (a newer or edited export) leaves the stored one: the UI could show it only as «Авто»
+                    s.optString("battery_saver_mode").takeIf { mode -> BatterySaver.MODES.any { it.first == mode } }
+                        ?.let { mutable[BATTERY_SAVER_MODE] = it }
+                    if (s.has("battery_saver_percent")) mutable[BATTERY_SAVER_PERCENT] = s.getInt("battery_saver_percent").coerceIn(5, 95)
+                    if (s.has("selected_fingerprint")) mutable[getProfileKey(SELECTED_FINGERPRINT, p)] = s.getString("selected_fingerprint")
+                    if (s.has("selected_turn_subnet")) mutable[getProfileKey(SELECTED_TURN_SUBNET, p)] = s.getString("selected_turn_subnet")
+                    if (s.has("turn_subnet_ip_limit")) mutable[getProfileKey(TURN_SUBNET_IP_LIMIT, p)] = s.getString("turn_subnet_ip_limit")
                     if (s.has("logging_enabled")) mutable[LOGGING_ENABLED] = s.getBoolean("logging_enabled")
                     if (s.has("detailed_logs")) mutable[DETAILED_LOGS] = s.getBoolean("detailed_logs")
                     val currentProfile = mutable[ACTIVE_PROFILE] ?: 0
@@ -1679,5 +1845,52 @@ class SettingsStore(context: Context) {
             }
             true
         }.getOrDefault(false)
+    }
+
+    // Start observers only after every settings Flow has been initialized.
+    init {
+        if (migrationsStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                migrateConnectionPasswordsToLocalStorage()
+                migrateSecretsToKeystore()
+                migrateLegacyWhitelistMode()
+            }
+        }
+        if (uiCacheStarted.compareAndSet(false, true)) {
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                launch {
+                    dataStore.edit { prefs ->
+                        for (p in MrttConstants.Profiles.MIN_INDEX..MrttConstants.Profiles.MAX_INDEX) {
+                            prefs[getProfileKey(EXTRA_WORKERS, p)] = false
+                        }
+                    }
+                }
+                launch { vkHashMode.collect { cachedVkHashMode = it } }
+                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
+                launch { obfsMode.collect { cachedObfsMode = it } }
+                launch { turnTransport.collect { cachedTurnTransport = it } }
+                launch { srtpMode.collect { cachedSrtpMode = it } }
+                launch { mrttLinkMode.collect { cachedMrttLinkMode = it } }
+                launch { workersPerHash.collect { cachedWorkersPerHash = it } }
+                launch { manualPortsEnabled.collect { cachedManualPortsEnabled = it } }
+                launch { serverPeerPort.collect { cachedServerPeerPort = it } }
+                cachedExtraWorkers = false
+                launch { customTurnIps.collect { cachedCustomTurnIps = it } }
+                launch { excludedApps.collect { cachedExcludedApps = it } }
+                launch { whitelistApps.collect { cachedWhitelistApps = it } }
+                launch { isWhitelist.collect { cachedIsWhitelist = it } }
+                launch { domainRoutingEnabled.collect { cachedDomainRoutingEnabled = it } }
+                launch { domainIsWhitelist.collect { cachedDomainIsWhitelist = it } }
+                launch { excludeRuZonesEnabled.collect { cachedExcludeRuZonesEnabled = it } }
+                launch { templateDomainsEnabled.collect { cachedTemplateDomainsEnabled = it } }
+                launch { directDomains.collect { cachedDirectDomains = it } }
+                launch { directDomainsBlack.collect { cachedDirectDomainsBlack = it } }
+                launch { directDomainsWhite.collect { cachedDirectDomainsWhite = it } }
+                launch { ipRoutingEnabled.collect { cachedIpRoutingEnabled = it } }
+                launch { ipIsWhitelist.collect { cachedIpIsWhitelist = it } }
+                launch { directIpsBlack.collect { cachedDirectIpsBlack = it } }
+                launch { directIpsWhite.collect { cachedDirectIpsWhite = it } }
+            }
+        }
     }
 }

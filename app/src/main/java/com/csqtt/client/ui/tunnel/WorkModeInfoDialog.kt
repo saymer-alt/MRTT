@@ -20,24 +20,24 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-import com.csqtt.client.CsqttConstants
-import com.csqtt.client.ui.design.CsqttShapes
-import com.csqtt.client.ui.design.CsqttSizes
+import com.csqtt.client.MrttConstants
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.design.MrttSizes
 
 @Composable
 internal fun WorkModeInfoDialog(mode: String? = null, onDismiss: () -> Unit) {
     val (title, text) = when (mode) {
-        CsqttConstants.VkAuth.MODE_CAPTCHA -> "Режим «Капча»" to """
+        MrttConstants.VkAuth.MODE_CAPTCHA -> "Режим «Капча»" to """
             • Старый метод получения credentials через эмуляцию браузерного клиента.
             • При таком способе VK может потребовать прохождение капчи.
             • Если решить её автоматически не получится, приложение запросит ручное подтверждение в WebView.
         """.trimIndent()
-        CsqttConstants.VkAuth.MODE_CALLS -> "Режим «Авто»" to """
+        MrttConstants.VkAuth.MODE_CALLS -> "Режим «Авто»" to """
             • Получение TURN-сессий напрямую через протокол и гостевую цепочку VK Calls.
             • Обычно позволяет работать без капчи.
             • Поддерживает масштабирование до 100 независимых воркеров.
         """.trimIndent()
-        CsqttConstants.VkAuth.MODE_AUTO_JS -> "Режим «Авто ВК»" to """
+        MrttConstants.VkAuth.MODE_AUTO_JS -> "Режим «Авто ВК»" to """
             • Один аккаунт создаёт и удерживает один звонок через метод vchat.startConversation.
             • Calls-сессии обслуживают группы потоков с общим максимумом 100 воркеров.
             • Получает credentials через официальный метод get_conversation_params под авторизованным аккаунтом VK.
@@ -59,7 +59,7 @@ internal fun WorkModeInfoDialog(mode: String? = null, onDismiss: () -> Unit) {
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            shape = CsqttShapes.Dialog,
+            shape = MrttShapes.Dialog,
             color = appSectionCardColor(),
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.dp, appSectionCardBorderColor()),
@@ -79,8 +79,8 @@ internal fun WorkModeInfoDialog(mode: String? = null, onDismiss: () -> Unit) {
                 )
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth().height(CsqttSizes.ControlHeight),
-                    shape = CsqttShapes.Pill,
+                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
                     colors = ButtonDefaults.buttonColors(contentColor = MaterialTheme.colorScheme.onPrimary),
                 ) {
                     Text("Понятно", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)

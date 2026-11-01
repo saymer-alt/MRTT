@@ -31,7 +31,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:name=".CsqttApplication"
+        android:name=".MrttApplication"
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -60,7 +60,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="csqtt" />
+                <data android:scheme="csqttr" />
             </intent-filter>
         </activity>
 
@@ -77,7 +77,7 @@
         <service
             android:name=".QuickToggleTileService"
             android:exported="true"
-            android:icon="@drawable/ic_c_logo"
+            android:icon="@drawable/ic_stat_c"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
@@ -124,7 +124,7 @@
 
         <receiver
             android:name=".VpnWidgetProvider"
-            android:label="CSQTT ВПН Виджет"
+            android:label="MRTT ВПН Виджет"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

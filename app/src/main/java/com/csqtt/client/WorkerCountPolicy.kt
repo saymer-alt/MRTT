@@ -1,23 +1,22 @@
+// SPDX-FileCopyrightText: 2026 amurcanov
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
 package com.csqtt.client
 
 internal object WorkerCountPolicy {
     fun normalize(
         requested: Int,
-        maximum: Int = CsqttConstants.Tunnel.MAX_WORKERS,
+        maximum: Int = MrttConstants.Tunnel.MAX_WORKERS,
     ): Int {
-        if (requested <= 5) {
-            return 5
-        }
-        val group = CsqttConstants.Tunnel.WORKERS_PER_GROUP
+        val group = MrttConstants.Tunnel.WORKERS_PER_GROUP
         val normalizedMaximum = (maximum.coerceAtLeast(group) / group) * group
-        val clamped = requested.coerceIn(5, normalizedMaximum)
-        val rounded = (clamped / group) * group
-        return rounded.coerceAtLeast(5)
+        return (requested.coerceIn(group, normalizedMaximum) / group) * group
     }
 
     fun maximumForHashes(hashCount: Int): Int {
-        val count = hashCount.coerceIn(1, CsqttConstants.Tunnel.MAX_VK_HASHES)
-        return (count * CsqttConstants.Tunnel.WORKERS_PER_GROUP).coerceIn(5, CsqttConstants.Tunnel.MAX_WORKERS)
+        val requested = hashCount.coerceIn(1, MrttConstants.Tunnel.MAX_VK_HASHES) *
+            MrttConstants.Tunnel.GROUPS_PER_VK_HASH * MrttConstants.Tunnel.WORKERS_PER_GROUP
+        return normalize(requested)
     }
 
     fun maximumForSources(
@@ -25,9 +24,14 @@ internal object WorkerCountPolicy {
         linkHashCount: Int,
         autoHashMode: Boolean,
         manualHashCount: Int,
-    ): Int = CsqttConstants.Tunnel.MAX_WORKERS
+    ): Int = when {
+        linkMode && linkHashCount > 0 -> maximumForHashes(linkHashCount)
+        autoHashMode -> MrttConstants.Tunnel.MAX_WORKERS
+        else -> maximumForHashes(manualHashCount)
+    }
 
-    fun defaultMaximum(extraWorkers: Boolean = false): Int = CsqttConstants.Tunnel.MAX_WORKERS
+    fun defaultMaximum(extraWorkers: Boolean): Int =
+        if (extraWorkers) MrttConstants.Tunnel.MAX_WORKERS else MrttConstants.Tunnel.DEFAULT_MAX_WORKERS
 
     fun normalizeForHashes(requested: Int, hashCount: Int): Int =
         normalize(requested, maximumForHashes(hashCount))
@@ -37,7 +41,14 @@ internal object WorkerCountPolicy {
         hashes: Iterable<String>,
         allowRedistribution: Boolean = false,
     ): Int {
-        return normalize(requested, CsqttConstants.Tunnel.MAX_WORKERS)
+        if (allowRedistribution) return normalize(requested)
+        val hashCount = hashes
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(MrttConstants.Tunnel.MAX_VK_HASHES)
+            .count()
+        return normalizeForHashes(requested, hashCount)
     }
 
 }

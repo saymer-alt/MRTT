@@ -10,7 +10,12 @@ mod dns;
 #[path = "../shared/dtls.rs"]
 pub mod dtls;
 mod events;
+// Seat bookkeeping helpers of the shared module serve the server only.
+#[allow(dead_code)]
+#[path = "../shared/jitsi_room.rs"]
+mod jitsi_room;
 mod logging;
+mod max_calls;
 mod namegen;
 mod obfs;
 mod packet;
@@ -91,6 +96,12 @@ struct Arguments {
     listen: String,
     #[arg(long, default_value = "", allow_hyphen_values = true)]
     vk: String,
+    // MAX group IDs may be negative; clap must accept -123 as a value.
+    #[arg(long, default_value = "", allow_hyphen_values = true)]
+    max: String,
+    /// Jitsi room `host/room` of the server: every worker is a guest there and talks to the server's seats.
+    #[arg(long, default_value = "")]
+    jitsi: String,
     #[arg(long, default_value = "manual")]
     vk_hash_mode: String,
     #[arg(long, default_value = "")]
@@ -144,6 +155,8 @@ struct Arguments {
 }
 
 fn main() {
+    // tokio-tungstenite (MAX signaling) uses plain rustls, which panics without a process-level provider.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     std::panic::set_hook(Box::new(|info| {
         let msg = format!("[PANIC] Rust client task failed: {info}\n");
         #[cfg(unix)]
@@ -218,13 +231,36 @@ fn runtime_worker_threads_with_limit(
 }
 
 async fn run(arguments: Arguments) -> Result<i32> {
+    if arguments.validate_vk_hashes && !arguments.max.is_empty() {
+        bail!("VK hash validator cannot be used with MAX transport");
+    }
     if arguments.validate_vk_hashes {
         run_vk_hash_validation(&arguments).await?;
         return Ok(EXIT_NORMAL);
     }
-    let js_hash_mode = arguments.vk_hash_mode == "auto_js";
+    let max_mode = !arguments.max.trim().is_empty();
+    if max_mode && (!arguments.vk.trim().is_empty() || arguments.vk_hash_mode == "auto_js") {
+        bail!("[MAX] Режимы MAX и VK взаимоисключающие в одном экземпляре клиента");
+    }
+    let jitsi_room = if arguments.jitsi.trim().is_empty() {
+        None
+    } else {
+        Some(Arc::new(
+            jitsi_room::RoomTarget::parse(&arguments.jitsi).context("[JITSI] Комната должна быть в виде host/room")?,
+        ))
+    };
+    let jitsi_mode = jitsi_room.is_some();
+    if jitsi_mode
+        && (max_mode || !arguments.vk.trim().is_empty() || arguments.vk_hash_mode == "auto_js")
+    {
+        bail!("[JITSI] Режим Jitsi нельзя совмещать с VK или MAX в одном экземпляре клиента");
+    }
+    let js_hash_mode = !jitsi_mode && (arguments.vk_hash_mode == "auto_js" || max_mode);
     let mut vk_auth_mode = arguments.vk_auth_mode.clone();
-    let js_auth_mode = if vk_auth_mode == "auto_js" && !js_hash_mode {
+    let js_auth_mode = if max_mode {
+        vk_auth_mode = "auto_js".to_owned();
+        true
+    } else if vk_auth_mode == "auto_js" && !js_hash_mode {
         crate::log_error!(
             "[КЛИЕНТ] Предупреждение: режим Auto JS неприменим без хешей Auto JS, переключаем на vkcalls"
         );
@@ -233,7 +269,7 @@ async fn run(arguments: Arguments) -> Result<i32> {
     } else {
         vk_auth_mode == "auto_js"
     };
-    if arguments.peer.is_empty() || (!js_hash_mode && arguments.vk.is_empty()) {
+    if arguments.peer.is_empty() || (!js_hash_mode && !jitsi_mode && arguments.vk.is_empty()) {
         bail!("[КЛИЕНТ] Нужны -peer и хеши VK");
     }
     let password = std::env::var("CSQTT_PASSWORD").unwrap_or_default();
@@ -250,7 +286,34 @@ async fn run(arguments: Arguments) -> Result<i32> {
     let session_profile = profiles::random_profile(&arguments.fingerprint);
     let mut js_calls = None;
     let mut js_credential_broker = None;
-    let hash_source = if js_hash_mode {
+    let hash_source = if jitsi_mode {
+        // One pseudo-hash keeps the group machinery: room workers need no credentials.
+        "jitsiroom".to_owned()
+    } else if max_mode {
+        let bootstrap = read_max_bootstrap(&mut stdin).await?;
+        let group_ids: Vec<String> = arguments
+            .max
+            .split(',')
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_owned)
+            .collect();
+        if group_ids.len() != 1
+            || group_ids[0].len() > 64
+            || !group_ids[0]
+                .trim_start_matches('-')
+                .chars()
+                .all(|c| c.is_ascii_digit())
+            || group_ids[0].trim_start_matches('-').is_empty()
+            || group_ids[0].matches('-').count() > 1
+        {
+            bail!("[MAX] Нужен один числовой ID группы (допускается знак минус)");
+        }
+        let started = max_calls::start(bootstrap, &group_ids, &session_profile).await?;
+        js_calls = Some(started.active);
+        js_credential_broker = Some(started.credential_broker);
+        started.hashes.join(",")
+    } else if js_hash_mode {
         let bootstrap = read_vk_js_bootstrap(&mut stdin).await?;
         let started = vk_js_calls::start(bootstrap, js_auth_mode, &session_profile).await?;
         let hashes = started.hashes.join(",");
@@ -283,13 +346,17 @@ async fn run(arguments: Arguments) -> Result<i32> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .collect();
-    let auth = Arc::new(VkAuth::new(
+    let mut auth = VkAuth::new(
         &vk_auth_mode,
         session_profile,
         &client_ids,
         captcha.clone(),
         js_credential_broker,
-    ));
+    );
+    if jitsi_mode {
+        auth = auth.with_jitsi_room();
+    }
+    let auth = Arc::new(auth);
     let stats = Arc::new(Stats::default());
     let paused = Arc::new(PauseGate::new());
     let finish_js_calls = Arc::new(AtomicBool::new(false));
@@ -378,6 +445,7 @@ async fn run(arguments: Arguments) -> Result<i32> {
         password: Arc::from(password.as_str()),
         workers: params_workers,
         configured_workers: workers,
+        jitsi_room,
     });
     print_configuration(
         &arguments,
@@ -409,7 +477,7 @@ async fn run(arguments: Arguments) -> Result<i32> {
         }
     });
     let (ready_credential_tx, ready_credential_rx) =
-        if should_leave_js_creator(js_hash_mode, js_auth_mode) {
+        if !max_mode && should_leave_js_creator(js_hash_mode, js_auth_mode) {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             (Some(tx), Some(rx))
         } else {
@@ -437,7 +505,10 @@ async fn run(arguments: Arguments) -> Result<i32> {
     });
     let required_ready_bots = required_js_ready_bots(groups);
     if js_auth_mode {
-        crate::log_error!("[VK JS] Создатель удерживает звонок");
+        crate::log_error!(
+            "[{}] Создатель удерживает звонок",
+            if max_mode { "MAX" } else { "VK JS" }
+        );
     }
     let creator_leave_task = match (js_calls.as_ref(), ready_credential_rx) {
         (Some(active), Some(receiver)) => Some(tokio::spawn(leave_js_creator_after_ready_workers(
@@ -566,6 +637,8 @@ fn normalize_cli_argument(argument: String) -> String {
         "port",
         "listen",
         "vk",
+        "max",
+        "jitsi",
         "vk-hash-mode",
         "peer",
         "client-ids",
@@ -661,6 +734,32 @@ fn spawn_stdin_reader() -> tokio::sync::mpsc::Receiver<StdinLine> {
         }
     });
     receiver
+}
+
+async fn read_max_bootstrap(
+    stdin: &mut tokio::sync::mpsc::Receiver<StdinLine>,
+) -> Result<vk_js_calls::Bootstrap> {
+    let line = tokio::time::timeout(Duration::from_secs(15), stdin.recv())
+        .await
+        .context("MAX bootstrap timeout")?
+        .context("MAX bootstrap stdin closed")?
+        .context("MAX bootstrap stdin read error")?;
+    let encoded = line
+        .trim()
+        .strip_prefix("MAX_BOOTSTRAP:")
+        .context("Ожидается MAX_BOOTSTRAP:<base64-json>")?;
+    if encoded.len() > 32 * 1024 {
+        bail!("MAX bootstrap too large");
+    }
+    let decoded = STANDARD
+        .decode(encoded)
+        .context("MAX bootstrap base64 invalid")?;
+    let bootstrap: vk_js_calls::Bootstrap =
+        serde_json::from_slice(&decoded).context("MAX bootstrap JSON invalid")?;
+    if bootstrap.token.trim().is_empty() {
+        bail!("MAX bootstrap token empty");
+    }
+    Ok(bootstrap)
 }
 
 async fn read_vk_js_bootstrap(

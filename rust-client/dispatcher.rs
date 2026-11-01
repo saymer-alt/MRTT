@@ -52,6 +52,12 @@ const FLOW_EVICT_EVERY: u32 = 1024;
 const FLOW_IDLE_TTL: Duration = Duration::from_secs(30);
 const SMALL_UDP_MAX_LEN: usize = 300;
 const SMALL_UDP_STICKY: Duration = Duration::from_secs(1);
+// SanityProtocol 2.5.1: the small-UDP pin holds a flow on ONE stream, and VK caps each allocation at about one
+// stream's rate: a pinned bulk flow (a QUIC upload, a nested tunnel) lost about half its speed. A flow keeps its pin
+// only while it fits in one stream (3/4 of the stream rate); above that it is bulk for BULK_HOLD and moves in bursts.
+const PIN_WINDOW: Duration = Duration::from_millis(250);
+const PIN_WINDOW_MAX_BYTES: usize = (TB_RATE_BYTES_PER_SEC as usize) * 3 / 4 / 4;
+const BULK_HOLD: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum FlowKey {
@@ -77,6 +83,42 @@ struct FlowState {
     last_seen: std::time::Instant,
     burst_left: usize,
     sticky_until: Option<std::time::Instant>,
+    window_start: std::time::Instant,
+    window_bytes: usize,
+    bulk_until: Option<std::time::Instant>,
+}
+
+impl FlowState {
+    fn new(idx: usize, now: std::time::Instant, len: usize, small_udp: bool) -> Self {
+        Self {
+            idx,
+            last_seen: now,
+            burst_left: FLOW_BURST_BYTES.saturating_sub(len),
+            sticky_until: small_udp.then(|| now + SMALL_UDP_STICKY),
+            window_start: now,
+            window_bytes: len,
+            bulk_until: None,
+        }
+    }
+
+    /// Counts the packet and says whether the flow may stay pinned: a small UDP packet renews the pin only while
+    /// the flow fits in one stream.
+    fn keeps_pin(&mut self, now: std::time::Instant, len: usize, small_udp: bool) -> bool {
+        if now.saturating_duration_since(self.window_start) >= PIN_WINDOW {
+            self.window_start = now;
+            self.window_bytes = 0;
+        }
+        self.window_bytes += len;
+        if self.window_bytes > PIN_WINDOW_MAX_BYTES {
+            self.bulk_until = Some(now + BULK_HOLD);
+            self.sticky_until = None;
+        }
+        let bulk = self.bulk_until.is_some_and(|until| now < until);
+        if small_udp && !bulk {
+            self.sticky_until = Some(now + SMALL_UDP_STICKY);
+        }
+        self.sticky_until.is_some_and(|until| now < until)
+    }
 }
 
 fn transport_ports(packet: &[u8], offset: usize, proto: u8) -> (u16, u16) {
@@ -278,7 +320,7 @@ impl UplinkState {
 
     fn evict_flows(&mut self, now: std::time::Instant) {
         self.flow_evict_counter = self.flow_evict_counter.wrapping_add(1);
-        if self.flow_evict_counter % FLOW_EVICT_EVERY != 0 && self.flows.len() < FLOW_TABLE_MAX {
+        if !self.flow_evict_counter.is_multiple_of(FLOW_EVICT_EVERY) && self.flows.len() < FLOW_TABLE_MAX {
             return;
         }
         self.flows
@@ -353,10 +395,7 @@ impl UplinkState {
 
         if let Some(mut state) = self.flows.get(&key).copied() {
             state.last_seen = now;
-            if small_udp {
-                state.sticky_until = Some(now + SMALL_UDP_STICKY);
-            }
-            let sticky = state.sticky_until.is_some_and(|until| now < until);
+            let sticky = state.keeps_pin(now, total_len, small_udp);
             let assigned_ok =
                 state.idx < count && workers[state.idx].channels.allocation.is_sendable();
             if assigned_ok && (sticky || state.burst_left >= total_len) {
@@ -380,15 +419,8 @@ impl UplinkState {
         let Some(idx) = self.choose_stream(workers) else {
             return 0;
         };
-        self.flows.insert(
-            key,
-            FlowState {
-                idx,
-                last_seen: now,
-                burst_left: FLOW_BURST_BYTES.saturating_sub(total_len),
-                sticky_until: small_udp.then(|| now + SMALL_UDP_STICKY),
-            },
-        );
+        self.flows
+            .insert(key, FlowState::new(idx, now, total_len, small_udp));
         self.tokens[idx] = (self.tokens[idx] - len_f).max(MAX_DEFICIT);
         idx
     }
@@ -785,7 +817,6 @@ impl Dispatcher {
     }
 
     pub fn push_inbound(&self, packet: PacketBuf) {
-        let wake = self.inbound.len() <= 2;
         let mut packet = packet;
         if let Err(returned) = self.inbound.push(packet) {
             packet = returned;
@@ -800,9 +831,10 @@ impl Dispatcher {
                 );
             }
         }
-        if wake {
-            self.tun_wake.notify_one();
-        }
+        // After the push, every time: deciding from the length BEFORE it lost a wakeup — the writers could drain the
+        // queue and park between that check and the push, and the packet then waited for the next downlink packet.
+        // Notify coalesces into one stored permit, so this costs nothing when nobody waits.
+        self.tun_wake.notify_one();
     }
 
     pub fn return_packet(&self, mut packet: PacketBuf) {
@@ -1854,6 +1886,34 @@ mod tests {
     }
 
     #[test]
+    fn bulk_udp_with_small_packets_loses_the_pin() {
+        // A QUIC-like upload: 1300-byte packets at ~20 Mbit/s and a small one every 200 ms.
+        let start = std::time::Instant::now();
+        let mut state = FlowState::new(0, start, 100, true);
+        let mut pinned_late = 0;
+        for i in 1..4000u64 {
+            let now = start + Duration::from_micros(i * 520);
+            let small = i % 385 == 0;
+            if state.keeps_pin(now, if small { 100 } else { 1300 }, small) && i > 200 {
+                pinned_late += 1;
+            }
+        }
+        assert_eq!(pinned_late, 0, "a bulk flow must not stay pinned");
+    }
+
+    #[test]
+    fn game_flow_keeps_the_pin() {
+        // 64 packets/s, small and 1200-byte alternating: fits in one stream, stays pinned throughout.
+        let start = std::time::Instant::now();
+        let mut state = FlowState::new(0, start, 120, true);
+        for i in 1..320u64 {
+            let now = start + Duration::from_micros(i * 15_625);
+            let small = i % 2 == 0;
+            assert!(state.keeps_pin(now, if small { 120 } else { 1200 }, small), "packet {i}");
+        }
+    }
+
+    #[test]
     fn small_udp_detection_keeps_games_sticky() {
         let game = ipv4_packet(17, 27015, 27015, 180);
         let bulk = ipv4_packet(17, 27015, 27015, 400);
@@ -2140,6 +2200,46 @@ mod tests {
 
         let second = dispatcher.pop_inbound().unwrap();
         assert_eq!(second.as_slice()[19], 3);
+    }
+
+    #[tokio::test]
+    async fn test_push_inbound_wakes_the_writer_whatever_the_queue_length() {
+        let profile = QueueProfile::for_worker_count(1);
+        let pool = PacketPool::new(profile.inbound_capacity + 8);
+        let dispatcher = Dispatcher {
+            workers: ArcSwap::from_pointee(Vec::new()),
+            inbound: ArrayQueue::new(profile.inbound_capacity),
+            outbound_capacity: profile.outbound_capacity,
+            tun_wake: Arc::new(Notify::new()),
+            tun_io_lost: Arc::new(Notify::new()),
+            cancel: CancellationToken::new(),
+            tasks: tokio::sync::Mutex::new(Vec::new()),
+            domain_routing: Arc::new(ArcSwap::from_pointee(DomainRoutingConfig::default())),
+            direct_ips: Arc::new(ArcSwap::from_pointee(HashSet::new())),
+            dns_domain_map: Arc::new(crate::sni::DnsDomainMap::default()),
+            direct_relay: None,
+            uplink_state: Mutex::new(UplinkState::new()),
+            pool: pool.clone(),
+            reassembler: crate::wire_protocol::ShardedReassembler::new(),
+            next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            termination: Arc::new(OnceLock::new()),
+        };
+        let packet = || {
+            let mut p = pool.acquire();
+            p.set_read_len(60).unwrap();
+            p.as_mut_slice()[0] = 0x45;
+            p
+        };
+        // three already queued (more than the old "<= 2" threshold), the writer's permit consumed: it is parked
+        for _ in 0..3 {
+            dispatcher.push_inbound(packet());
+        }
+        let wait = std::time::Duration::from_millis(50);
+        assert!(tokio::time::timeout(wait, dispatcher.tun_wake.notified()).await.is_ok());
+        assert!(tokio::time::timeout(wait, dispatcher.tun_wake.notified()).await.is_err());
+        // the next packet must wake it — before the fix it waited for the next downlink packet
+        dispatcher.push_inbound(packet());
+        assert!(tokio::time::timeout(wait, dispatcher.tun_wake.notified()).await.is_ok());
     }
 
     #[tokio::test]

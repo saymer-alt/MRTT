@@ -41,7 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.csqtt.client.ui.design.CsqttShapes
+import com.csqtt.client.ui.design.MrttShapes
 
 data class ModeIndicator(
     val progress: Float,
@@ -129,7 +129,7 @@ internal fun CompactDropdownSetting(
                 onClick = { expanded = true },
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = CsqttShapes.Pill,
+                shape = MrttShapes.Pill,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color.Transparent,

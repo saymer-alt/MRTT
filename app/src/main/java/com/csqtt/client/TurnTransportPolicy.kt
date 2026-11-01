@@ -6,5 +6,5 @@ internal fun shouldConfirmTcpTransport(
     warningAcknowledged: Boolean,
 ): Boolean =
     !warningAcknowledged &&
-        currentTransport != CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS &&
-        requestedTransport == CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS
+        currentTransport != MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS &&
+        requestedTransport == MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS

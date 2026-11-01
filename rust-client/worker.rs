@@ -115,6 +115,7 @@ pub struct RuntimeParams {
     pub password: Arc<str>,
     pub workers: Arc<AtomicUsize>,
     pub configured_workers: usize,
+    pub jitsi_room: Option<Arc<crate::jitsi_room::RoomTarget>>,
 }
 
 pub struct GroupContext {
@@ -852,6 +853,7 @@ async fn worker_loop(
             repair: context.repair.clone(),
             turn_endpoint_cursor,
             configured_workers: context.params.configured_workers,
+            jitsi_room: context.params.jitsi_room.clone(),
         };
         let (ready_tx, mut ready_rx) = oneshot::channel();
         let (allocation_started_tx, mut allocation_started_rx) = oneshot::channel();

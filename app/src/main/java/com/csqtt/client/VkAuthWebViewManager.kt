@@ -246,7 +246,7 @@ internal class VkAuthSession(
             phase = VkAuthPhase.LOGIN
             onPhaseChange(phase)
             if (view.url.isNullOrBlank() || view.url == "about:blank") {
-                view.loadUrl(CsqttConstants.VkAutoHash.VK_LOGIN_URL)
+                view.loadUrl(MrttConstants.VkAutoHash.VK_LOGIN_URL)
             }
         }
         scheduleMonitor()
@@ -285,7 +285,7 @@ internal class VkAuthSession(
     private fun scheduleMonitor() {
         mainHandler.removeCallbacks(monitorTick)
         if (!finished && !paused) {
-            mainHandler.postDelayed(monitorTick, CsqttConstants.VkAutoHash.AUTH_MONITOR_INTERVAL_MS)
+            mainHandler.postDelayed(monitorTick, MrttConstants.VkAutoHash.AUTH_MONITOR_INTERVAL_MS)
         }
     }
 
@@ -363,7 +363,7 @@ internal class VkAuthSession(
                 stop()
                 return
             }
-            if (System.currentTimeMillis() - startedAt > CsqttConstants.VkAutoHash.AUTH_TIMEOUT_MS) {
+            if (System.currentTimeMillis() - startedAt > MrttConstants.VkAutoHash.AUTH_TIMEOUT_MS) {
                 finishWithError("Тайм-аут ожидания access_token")
                 return
             }
@@ -448,7 +448,7 @@ internal class VkAuthSession(
         silentRetried = true
         mainHandler.postDelayed({
             if (!finished) repeatAuthorization()
-        }, CsqttConstants.VkAutoHash.AUTH_SILENT_RETRY_DELAY_MS)
+        }, MrttConstants.VkAutoHash.AUTH_SILENT_RETRY_DELAY_MS)
     }
 
     private fun handleOAuthError(fragment: String) {
@@ -464,7 +464,7 @@ internal class VkAuthSession(
         }
         val view = webView ?: return
         lastUrl = null
-        view.loadUrl(CsqttConstants.VkAutoHash.VK_OAUTH_AUTH_URL)
+        view.loadUrl(MrttConstants.VkAutoHash.VK_OAUTH_AUTH_URL)
     }
 
     private fun finishWithError(message: String) {

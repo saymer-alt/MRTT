@@ -66,14 +66,19 @@ val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
 
 android {
     namespace = "com.csqtt.client"
-    compileSdk = 37
+    // Android API 37 is published with a minor version (37.0).
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 0
+        }
+    }
 
     defaultConfig {
         applicationId = "csqtt.quic.amurcanov"
         minSdk = 26
         targetSdk = 37
-        versionCode = 230
-        versionName = "2.5.0"
+        versionCode = 240
+        versionName = "1.0-beta1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -107,8 +112,8 @@ android {
 
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".forktest"
-            versionNameSuffix = "-fork-test.3"
+            // Debug APK uses its own package ID, but the visible app label remains MRTT.
+            applicationIdSuffix = ".maxdebug"
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -120,6 +125,12 @@ android {
             if (releaseSigningReady) {
                 signingConfig = signingConfigs.getByName("release")
             }
+        }
+        create("maxTest") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".maxdebug"
+            signingConfig = signingConfigs.getByName("release")
+            matchingFallbacks += "release"
         }
     }
 
@@ -164,7 +175,7 @@ android {
 tasks.configureEach {
     val taskName = name.lowercase()
     val preparesReleaseBuild = taskName == "prereleasebuild"
-    val producesReleaseArtifact = taskName.contains("release") &&
+    val producesReleaseArtifact = (taskName.contains("release") || taskName.contains("maxtest")) &&
         (taskName.startsWith("assemble") ||
             taskName.startsWith("bundle") ||
             taskName.startsWith("package") ||

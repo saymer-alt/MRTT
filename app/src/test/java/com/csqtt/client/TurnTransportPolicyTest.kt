@@ -9,24 +9,24 @@ class TurnTransportPolicyTest {
         assertEquals(
             true,
             shouldConfirmTcpTransport(
-                currentTransport = CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
-                requestedTransport = CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
+                currentTransport = MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
+                requestedTransport = MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
                 warningAcknowledged = false,
             ),
         )
         assertEquals(
             false,
             shouldConfirmTcpTransport(
-                currentTransport = CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
-                requestedTransport = CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
+                currentTransport = MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
+                requestedTransport = MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
                 warningAcknowledged = false,
             ),
         )
         assertEquals(
             false,
             shouldConfirmTcpTransport(
-                currentTransport = CsqttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
-                requestedTransport = CsqttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
+                currentTransport = MrttConstants.Tunnel.DEFAULT_TURN_TRANSPORT,
+                requestedTransport = MrttConstants.Tunnel.TURN_TRANSPORT_TCP_TLS,
                 warningAcknowledged = true,
             ),
         )

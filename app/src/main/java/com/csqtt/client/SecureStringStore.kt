@@ -14,11 +14,11 @@ class SecureStringStore(context: Context) {
     private val appContext = context.applicationContext
 
     companion object {
-        private const val KEY_ALIAS = CsqttConstants.SecureStore.KEY_ALIAS
-        private const val ANDROID_KEYSTORE = CsqttConstants.SecureStore.ANDROID_KEYSTORE
-        private const val TRANSFORMATION = CsqttConstants.SecureStore.TRANSFORMATION
-        private const val GCM_TAG_BITS = CsqttConstants.SecureStore.GCM_TAG_BITS
-        private const val VERSION_PREFIX = CsqttConstants.SecureStore.VERSION_PREFIX
+        private const val KEY_ALIAS = MrttConstants.SecureStore.KEY_ALIAS
+        private const val ANDROID_KEYSTORE = MrttConstants.SecureStore.ANDROID_KEYSTORE
+        private const val TRANSFORMATION = MrttConstants.SecureStore.TRANSFORMATION
+        private const val GCM_TAG_BITS = MrttConstants.SecureStore.GCM_TAG_BITS
+        private const val VERSION_PREFIX = MrttConstants.SecureStore.VERSION_PREFIX
     }
 
     private val keyStore: KeyStore by lazy {

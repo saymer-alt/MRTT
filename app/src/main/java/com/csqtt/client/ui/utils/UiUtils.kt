@@ -5,12 +5,15 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-data class CsqttLink(
+data class MrttLink(
     val host: String,
     val port: Int,
     val password: String = "",
     val hashes: List<String> = emptyList(),
     val vkAccessToken: String = "",
+    val maxGroupId: String = "",
+    /** Комната Jitsi сервера `host/room`: через неё работает транспорт Jitsi. */
+    val jitsiRoom: String = "",
 )
 
 private const val CSQTT_CIPHER_KEY_SEED = "csqtt-chiper-key"
@@ -36,7 +39,7 @@ fun decodeBase64Safe(input: String): ByteArray? {
     }.getOrNull()
 }
 
-fun decryptCsqttPayload(rawPayload: String): String? {
+fun decryptMrttPayload(rawPayload: String): String? {
     val bytes = decodeBase64Safe(rawPayload) ?: return null
     if (bytes.size >= 28) {
         val decrypted = runCatching {
@@ -53,7 +56,7 @@ fun decryptCsqttPayload(rawPayload: String): String? {
     return null
 }
 
-fun encryptCsqttPayload(plaintext: String): String {
+fun encryptMrttPayload(plaintext: String): String {
     val iv = runCatching {
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
         mac.init(cipherKey)
@@ -83,33 +86,35 @@ fun encryptCsqttPayload(plaintext: String): String {
     }.getOrElse { "" }
 }
 
-fun parseCsqttLink(raw: String): CsqttLink? {
+fun parseMrttLink(raw: String): MrttLink? {
     val trimmed = raw.trim()
-    if (!trimmed.startsWith("csqtt://", ignoreCase = true)) return null
-    val payload = trimmed.substring(8).trim()
-    val decoded = decryptCsqttPayload(payload) ?: return null
+    if (!trimmed.startsWith("csqttr://", ignoreCase = true)) return null
+    val schemeLen = "csqttr://".length
+    val payload = trimmed.substring(schemeLen).trim()
+    val decoded = decryptMrttPayload(payload) ?: return null
+    if (decoded.startsWith("csqtt://", ignoreCase = true)) return null
     if (decoded.contains("host=") || decoded.contains("connect?")) {
         val candidate = when {
-            decoded.startsWith("csqtt://connect?", ignoreCase = true) -> decoded
-            decoded.startsWith("connect?", ignoreCase = true) -> "csqtt://$decoded"
-            decoded.startsWith("csqtt://", ignoreCase = true) -> "csqtt://connect?" + decoded.substring(8)
-            else -> "csqtt://connect?$decoded"
+            decoded.startsWith("csqttr://connect?", ignoreCase = true) -> decoded
+            decoded.startsWith("connect?", ignoreCase = true) -> "csqttr://$decoded"
+            decoded.startsWith("csqttr://", ignoreCase = true) -> "csqttr://connect?" + decoded.substring(9)
+            else -> "csqttr://connect?$decoded"
         }
         val decodedUri = runCatching { java.net.URI(candidate) }.getOrNull()
         if (decodedUri != null) {
-            val parsed = parseCsqttV2(decodedUri)
+            val parsed = parseMrttV2(decodedUri)
             if (parsed != null) return parsed
         }
     }
     return null
 }
 
-fun CsqttLink.peerAddress(): String {
+fun MrttLink.peerAddress(): String {
     val formattedHost = if (host.contains(':') && !host.startsWith('[')) "[$host]" else host
     return "$formattedHost:$port"
 }
 
-private fun parseCsqttV2(uri: java.net.URI): CsqttLink? {
+private fun parseMrttV2(uri: java.net.URI): MrttLink? {
     if (uri.rawUserInfo != null || uri.port != -1 || uri.rawPath.orEmpty().isNotEmpty()) return null
     val parameters = parseRawQuery(uri.rawQuery ?: return null) ?: return null
     if (parameters["v"]?.let(::decodeQueryComponent) != "2") return null
@@ -123,8 +128,27 @@ private fun parseCsqttV2(uri: java.net.URI): CsqttLink? {
     val vkAccessToken = parameters["token"]?.let(::parseLinkVkAccessToken).orEmpty()
     if (parameters.containsKey("token") && vkAccessToken.isEmpty()) return null
     if (hashes.isNotEmpty() && vkAccessToken.isNotEmpty()) return null
-    return CsqttLink(host, port, password, hashes, vkAccessToken)
+    val maxGroupId = parameters["max"]?.let(::decodeQueryComponent)?.trim().orEmpty()
+    if (parameters.containsKey("max") && !isValidMaxGroupId(maxGroupId)) return null
+    if (maxGroupId.isNotEmpty() && (hashes.isNotEmpty() || vkAccessToken.isNotEmpty())) return null
+    val jitsiRoom = parameters["jitsi"]?.let(::decodeQueryComponent)?.trim()?.lowercase().orEmpty()
+    if (parameters.containsKey("jitsi") && !isValidJitsiRoom(jitsiRoom)) return null
+    return MrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom)
 }
+
+private val JITSI_ROOM_REGEX = Regex("^[a-z0-9.:-]+/[a-z0-9]{1,64}$")
+
+fun isValidJitsiRoom(value: String): Boolean = value.matches(JITSI_ROOM_REGEX)
+
+/** Ссылка на конференцию Jitsi (`https://meet.example.org/Room`) в виде `host/room`; null, если это не она. */
+fun parseJitsiRoomInput(raw: String): String? {
+    val value = raw.trim().removePrefix("https://").removePrefix("http://")
+        .substringBefore('?').substringBefore('#').trimEnd('/').lowercase()
+    return value.takeIf(::isValidJitsiRoom)
+}
+
+fun isValidMaxGroupId(value: String): Boolean =
+    value.length in 1..64 && value.matches(Regex("^-?[0-9]+$"))
 
 private fun parseRawQuery(rawQuery: String): Map<String, String>? {
     if (rawQuery.isEmpty()) return null
@@ -147,7 +171,7 @@ private fun parseRawQuery(rawQuery: String): Map<String, String>? {
         }
     }
 
-    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|workers)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|workers)=|$)", RegexOption.IGNORE_CASE)
+    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|max|jitsi|workers)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|max|jitsi|workers)=|$)", RegexOption.IGNORE_CASE)
     val matches = pattern.findAll(sanitized).toList()
     if (matches.isNotEmpty()) {
         val extracted = linkedMapOf<String, String>()
@@ -216,6 +240,17 @@ fun stripVkUrlStatic(input: String): String {
     return s.trimEnd('/')
 }
 
+// The server takes the password out of "GETCONF:port|password|…" (split on '|', each field trimmed) and accepts 1..128
+// bytes; the rest of the way it is only bytes (HKDF, the TURN digest), so any other character is fine, Cyrillic too.
+const val TUNNEL_PASSWORD_MAX_BYTES = 128
+
+fun isValidTunnelPassword(password: String): Boolean =
+    password.isNotEmpty() &&
+        password.toByteArray(Charsets.UTF_8).size <= TUNNEL_PASSWORD_MAX_BYTES &&
+        password.none { it == '|' || it.isWhitespace() || it.isISOControl() }
+
+const val TUNNEL_PASSWORD_RULE = "Без пробелов и «|», не длиннее 128 байт (64 буквы кириллицей)"
+
 fun generate16CharPassword(): String {
     val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     val random = java.security.SecureRandom()
@@ -226,19 +261,28 @@ fun generate16CharPassword(): String {
     return sb.toString()
 }
 
-fun formatCsqttLink(
+fun formatMrttLink(
     host: String,
     peer: Int,
     password: String,
     hashes: List<String> = emptyList(),
     token: String = "",
+    maxGroupId: String = "",
+    jitsiRoom: String = "",
 ): String {
-    val queryParts = mutableListOf("v=2", "host=$host", "peer=$peer", "password=$password")
-    if (hashes.isNotEmpty()) {
+    val queryParts = mutableListOf("v=2", "host=$host", "peer=$peer", "password=" + java.net.URLEncoder.encode(password, Charsets.UTF_8.name()))
+    if (maxGroupId.isNotEmpty()) {
+        require(isValidMaxGroupId(maxGroupId)) { "Некорректный ID группы MAX" }
+        queryParts.add("max=$maxGroupId")
+    } else if (hashes.isNotEmpty()) {
         queryParts.add("hashes=" + hashes.joinToString("+"))
     } else if (token.isNotEmpty()) {
         queryParts.add("token=$token")
     }
+    if (jitsiRoom.isNotEmpty()) {
+        require(isValidJitsiRoom(jitsiRoom)) { "Некорректная комната Jitsi" }
+        queryParts.add("jitsi=" + java.net.URLEncoder.encode(jitsiRoom, Charsets.UTF_8.name()))
+    }
     val plain = "connect?" + queryParts.joinToString("&")
-    return "csqtt://" + encryptCsqttPayload(plain)
+    return "csqttr://" + encryptMrttPayload(plain)
 }

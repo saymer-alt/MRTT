@@ -1,5 +1,17 @@
+# Zig cc supplies the target musl runtime and CRT/startup objects.
+# If Rust also supplies its bundled startup objects (link-self-contained=yes),
+# Zig 0.13 produces duplicate _start, _init, _fini and _start_c symbols.
+# Keep link-self-contained=no for every musl target built by build_linux.sh.
+# snmalloc must remain disabled for these targets (see Cargo.toml/main.rs),
+# otherwise older builds fail on missing static libatomic and libgcc_s.
 [build]
 target = "x86_64-unknown-linux-musl"
 
 [target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "link-self-contained=no"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "link-self-contained=no"]
+
+[target.armv7-unknown-linux-musleabihf]
 rustflags = ["-C", "link-self-contained=no"]

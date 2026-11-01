@@ -1,41 +1,10 @@
-<!-- SPDX-FileCopyrightText: 2026 amurcanov -->
-<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 -->
-
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
     <path
-        android:pathData="M 54,14 A 40,40 0 1,1 53.999,14 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="54"
-                android:centerY="54"
-                android:gradientRadius="40">
-                <item android:color="#250474FB" android:offset="0.0" />
-                <item android:color="#0A025ECB" android:offset="0.6" />
-                <item android:color="#00000000" android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <path
-        android:pathData="M 78.6,36.8 A 30,30 0 1,0 78.6,71.2 L 69.6,64.9 A 19,19 0 1,1 69.6,43.1 Z"
-        android:fillType="nonZero">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="linear"
-                android:startX="28"
-                android:startY="36"
-                android:endX="78"
-                android:endY="72">
-                <item android:color="#4FA3FF" android:offset="0.0" />
-                <item android:color="#0474fb" android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M33.93,33.50 L59.32,33.50 L61.81,33.73 L66.14,35.18 L68.34,36.62 L69.79,38.07 L70.89,39.51 L71.64,40.96 L72.10,42.41 L72.39,43.85 L72.45,45.30 L72.33,46.74 L72.04,48.19 L71.52,49.63 L70.65,51.08 L69.50,52.53 L67.71,53.97 L64.87,55.42 L61.92,56.17 L59.32,56.40 L74.07,74.50 L61.52,74.50 L44.40,55.76 L44.34,74.50 L33.93,74.50 L33.93,47.78 L59.32,47.78 C61.17,47.78 62.27,46.51 62.27,45.01 C62.27,43.56 61.17,42.29 59.32,42.29 L33.93,42.29 Z" />
 </vector>

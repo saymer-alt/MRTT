@@ -8,7 +8,7 @@ use primp::{
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, future::Future, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use url::{Url, form_urlencoded};
 use uuid::Uuid;
@@ -32,12 +32,14 @@ pub struct ActiveCalls {
     access_token: String,
     session_key: String,
     conversation_ids: Vec<String>,
+    backend: CallBackend,
 }
 
 pub struct CredentialBroker {
     client: Client,
     access_token: String,
     conversation_id: String,
+    backend: CallBackend,
     issued_credentials: Arc<Mutex<HashSet<[u8; 32]>>>,
 }
 
@@ -48,15 +50,18 @@ pub struct StartedCalls {
 }
 
 #[derive(Clone)]
-struct ApiSession {
-    api_url: String,
-    session_key: String,
+pub(crate) struct ApiSession {
+    pub(crate) api_url: String,
+    pub(crate) session_key: String,
 }
 
-enum RequestSite {
+pub(crate) enum RequestSite {
     Vk,
     Ok,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CallBackend { Vk, Max }
 
 pub async fn start(
     bootstrap: Bootstrap,
@@ -147,11 +152,13 @@ pub async fn start(
         access_token: access_token.clone(),
         session_key,
         conversation_ids: vec![conversation_id.clone()],
+        backend: CallBackend::Vk,
     };
     let credential_broker = Arc::new(CredentialBroker {
         client: active.client.clone(),
         access_token,
         conversation_id,
+        backend: CallBackend::Vk,
         issued_credentials: Arc::new(Mutex::new(HashSet::new())),
     });
     match hash {
@@ -172,23 +179,32 @@ pub async fn start(
 }
 
 impl CredentialBroker {
+    pub(crate) fn from_parts(client: Client, access_token: String, conversation_id: String, backend: CallBackend) -> Self {
+        Self { client, access_token, conversation_id, backend, issued_credentials: Arc::new(Mutex::new(HashSet::new())) }
+    }
+    pub(crate) fn backend(&self) -> CallBackend { self.backend }
     pub async fn get_credentials(&self, credential_id: usize) -> Result<TurnCredentials> {
         if !(1..=MAX_ACCOUNT_CREDENTIALS).contains(&credential_id) {
             bail!("Auto JS credential id вне диапазона: {credential_id}");
         }
         let device_id = Uuid::new_v4().to_string();
-        let session = open_account_session(&self.client, &self.access_token, &device_id)
-            .await
+        let session = match self.backend {
+            CallBackend::Vk => open_account_session(&self.client, &self.access_token, &device_id).await,
+            CallBackend::Max => crate::max_calls::open_max_session(&self.client, &self.access_token, &device_id).await,
+        }
+            
             .with_context(|| format!("Auto JS session #{credential_id}"))?;
         let params = retry(3, || async {
-            let value = post_form(
+            let value = post_form_with_origin(
                 &self.client,
                 &session.api_url,
                 &conversation_params_fields(
                     self.conversation_id.as_str(),
                     session.session_key.as_str(),
+                    self.backend,
                 ),
                 RequestSite::Ok,
+                match self.backend { CallBackend::Vk => "https://vk.ru", CallBackend::Max => "https://web.max.ru" },
             )
             .await?;
             check_api_error(&value)?;
@@ -204,8 +220,9 @@ impl CredentialBroker {
                 bail!("Auto JS вернул повторный TURN-набор для сессии #{credential_id}");
             }
         }
+        let source = match self.backend { CallBackend::Vk => "VK JS", CallBackend::Max => "MAX" };
         crate::log_error!(
-            "[VK JS] Креды аккаунта {credential_id}/{MAX_ACCOUNT_CREDENTIALS} готовы · независимая сессия"
+            "[{source}] TURN-сессия {credential_id}/{MAX_ACCOUNT_CREDENTIALS} готова"
         );
         Ok(credentials)
     }
@@ -290,18 +307,23 @@ fn credential_fingerprint(credentials: &TurnCredentials) -> [u8; 32] {
 fn conversation_params_fields<'a>(
     conversation_id: &'a str,
     session_key: &'a str,
+    backend: CallBackend,
 ) -> [(&'static str, &'a str); 5] {
     [
         ("conversationId", conversation_id),
         ("method", "vchat.getConversationParams"),
         ("format", "JSON"),
-        ("application_key", OK_APPLICATION_KEY),
+        ("application_key", match backend { CallBackend::Vk => OK_APPLICATION_KEY, CallBackend::Max => crate::max_calls::MAX_API_KEY }),
         ("session_key", session_key),
     ]
 }
 
 impl ActiveCalls {
+    pub(crate) fn from_parts(client: Client, api_url: String, access_token: String, session_key: String, conversation_ids: Vec<String>, backend: CallBackend) -> Self {
+        Self { client, api_url, access_token, session_key, conversation_ids, backend }
+    }
     pub async fn leave_creator(self) {
+        let backend = self.backend;
         let total = self.conversation_ids.len();
         let mut finished = 0usize;
         let mut tasks = tokio::task::JoinSet::new();
@@ -311,7 +333,7 @@ impl ActiveCalls {
             let session_key = self.session_key.clone();
             tasks.spawn(async move {
                 retry(3, || async {
-                    let value = post_form(
+                    let value = post_form_with_origin(
                         &client,
                         &api_url,
                         &[
@@ -319,10 +341,11 @@ impl ActiveCalls {
                             ("reason", "HUNGUP"),
                             ("method", "vchat.hangupConversation"),
                             ("format", "JSON"),
-                            ("application_key", OK_APPLICATION_KEY),
+                            ("application_key", match backend { CallBackend::Vk => OK_APPLICATION_KEY, CallBackend::Max => crate::max_calls::MAX_API_KEY }),
                             ("session_key", session_key.as_str()),
                         ],
                         RequestSite::Ok,
+                        match backend { CallBackend::Vk => "https://vk.ru", CallBackend::Max => "https://web.max.ru" },
                     )
                     .await?;
                     check_api_error(&value)?;
@@ -337,10 +360,14 @@ impl ActiveCalls {
                 finished += 1;
             }
         }
-        crate::log_error!("[VK JS] Создатель вышел из звонков {finished}/{total}");
+        crate::log_error!("[CALLS] Создатель вышел из звонков {finished}/{total}");
     }
 
     pub async fn finish(self) {
+        if self.backend == CallBackend::Max {
+            self.leave_creator().await;
+            return;
+        }
         let total = self.conversation_ids.len();
         let client = self.client;
         let access_token = self.access_token;
@@ -385,7 +412,7 @@ impl ActiveCalls {
     }
 }
 
-async fn retry<F, Fut>(attempts: usize, mut request: F) -> Result<Value>
+pub(crate) async fn retry<F, Fut>(attempts: usize, mut request: F) -> Result<Value>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<Value>>,
@@ -409,10 +436,20 @@ async fn post_form(
     fields: &[(&str, &str)],
     site: RequestSite,
 ) -> Result<Value> {
+    post_form_with_origin(client, endpoint, fields, site, "https://vk.ru").await
+}
+
+pub(crate) async fn post_form_with_origin(
+    client: &Client,
+    endpoint: &str,
+    fields: &[(&str, &str)],
+    site: RequestSite,
+    origin: &str,
+) -> Result<Value> {
     let body = form(fields);
     let response = client
         .post(endpoint)
-        .headers(headers(site)?)
+        .headers(headers(site, origin)?)
         .body(body)
         .send()
         .await
@@ -433,7 +470,7 @@ async fn post_form(
     serde_json::from_slice(&bytes).context("некорректный JSON-ответ")
 }
 
-fn headers(site: RequestSite) -> Result<HeaderMap> {
+fn headers(site: RequestSite, origin: &str) -> Result<HeaderMap> {
     let mut headers = HeaderMap::with_capacity(10);
     headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
     headers.insert(
@@ -448,8 +485,8 @@ fn headers(site: RequestSite) -> Result<HeaderMap> {
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/x-www-form-urlencoded"),
     );
-    headers.insert(header::ORIGIN, HeaderValue::from_static("https://vk.ru"));
-    headers.insert(header::REFERER, HeaderValue::from_static("https://vk.ru/"));
+    headers.insert(header::ORIGIN, HeaderValue::from_str(origin).context("Origin header")?);
+    headers.insert(header::REFERER, HeaderValue::from_str(&format!("{origin}/")).context("Referer header")?);
     headers.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
     headers.insert("sec-fetch-dest", HeaderValue::from_static("empty"));
     headers.insert("priority", HeaderValue::from_static("u=1, i"));
@@ -469,7 +506,7 @@ fn form(fields: &[(&str, &str)]) -> String {
     serializer.finish()
 }
 
-fn check_api_error(value: &Value) -> Result<()> {
+pub(crate) fn check_api_error(value: &Value) -> Result<()> {
     if let Some(error) = value.get("error")
         && !error.is_null()
         && error != false
@@ -498,7 +535,7 @@ fn check_api_error(value: &Value) -> Result<()> {
     Ok(())
 }
 
-fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+pub(crate) fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value
         .get(key)
         .and_then(Value::as_str)
@@ -593,7 +630,7 @@ mod tests {
 
     #[test]
     fn account_credentials_payload_matches_sdk_request() {
-        let fields = conversation_params_fields("call-id", "session-key");
+        let fields = conversation_params_fields("call-id", "session-key", CallBackend::Vk);
         assert_eq!(
             form(&fields),
             "conversationId=call-id&method=vchat.getConversationParams&format=JSON&application_key=CGMMEJLGDIHBABABA&session_key=session-key"
