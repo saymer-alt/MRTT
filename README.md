@@ -28,7 +28,7 @@ Android-клиент и сервер для туннеля через звонк
 
 ## CSQTT 2.5.0 и 2.1.9
 
-В [Releases](https://github.com/ttrroyy/mrtt/releases) сохранены сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy: клиент, сервер и деплой работают так же, как в оригинале. Профили CSQTT обеих версий поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS.
+В [Releases](https://github.com/ttrroyy/mrtt/releases) сохранены сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy: клиент, сервер и деплой работают так же, как в оригинале.
 
 ## Лицензия
 
@@ -37,7 +37,20 @@ Android-клиент и сервер для туннеля через звонк
 ## Благодарности
 
 - [CSQTT](https://github.com/amurcanov/csqtt) от amurcanov: клиент и сервер, на которых построен MRTT
+- [olcRTC](https://github.com/openlibrecommunity/olcrtc): передача трафика через видеомост Jitsi
+- [webrtc-rs](https://github.com/webrtc-rs/webrtc), [primp](https://github.com/deedy5/primp), [netstack-smoltcp](https://github.com/cavivie/netstack-smoltcp)
 
-## Обсуждение
+## Обсуждение и поддержка
 
 [Группа в Telegram](https://t.me/raw_comm)
+
+Понравилось - ставь ⭐ репозиторию: это помогает другим найти проект.
+
+Поддержать разработку монеткой:
+
+| Сеть | Адрес |
+|---|---|
+| <img src="https://img.shields.io/badge/USDT-TRC--20-26A17B?style=flat-square&logo=tether&logoColor=white" alt="USDT TRC-20"> | `TL22P1n3JmVkhYU8RyMXfRUURx4PN6h4WZ` |
+| <img src="https://img.shields.io/badge/USDT%20%2F%20BNB-BEP--20-F0B90B?style=flat-square&logo=bnbchain&logoColor=white" alt="USDT / BNB BEP-20"> | `0x0B7e9f024e92f7333AB9146c0351732B959D4e9A` |
+| <img src="https://img.shields.io/badge/BTC-Bitcoin-F7931A?style=flat-square&logo=bitcoin&logoColor=white" alt="Bitcoin"> | `bc1qw5larutup50tdk4vuskdzep5r9ydyzt4g0c6dm` |
+| <img src="https://img.shields.io/badge/TON-Toncoin-0098EA?style=flat-square&logo=ton&logoColor=white" alt="Toncoin"> | `UQBFy4FDUovKADmWYNumVFsfgKNvI3uuzPy34fHd3sEI1R86` |
