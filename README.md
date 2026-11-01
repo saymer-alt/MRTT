@@ -1,41 +1,52 @@
 <div align="center">
 
-# Soon... multi-transport via VK/MAX/Jitsi
+<img src="docs/icon.svg" width="128" alt="MRTT">
 
-<br>
+# MRTT
 
-<img src="https://img.shields.io/badge/Android-SDK_28--37-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android SDK" />
-<img src="https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust Core" />
-<img src="https://img.shields.io/badge/Kotlin-Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
-<a href="https://github.com/amurcanov/csqtt/stargazers">
-  <img src="https://img.shields.io/github/stars/amurcanov/csqtt?style=for-the-badge&logo=github&color=ffca28&labelColor=24292e" alt="Stars" />
-</a>
+**Туннель через TURN-серверы звонков VK**
 
-[CSQTT Telegram Community](https://t.me/wdttcommunity)
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
+
+[![Downloads](https://img.shields.io/github/downloads/ttrroyy/mrtt/total?label=downloads-total&color=brightgreen)](https://github.com/ttrroyy/mrtt/releases)
 
 </div>
 
-<br>
+Android-клиент и сервер на основе [CSQTT](https://github.com/amurcanov/csqtt). Клиент поднимает VPN на устройстве и передаёт трафик через TURN-серверы звонков VK, сервер принимает его на VPS. Сейчас в релизах лежат сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy. В разработке поддержка MAX и Jitsi.
 
-**CSQTT** — Android-приложение и высокопроизводительный сервер для создания защищённого туннеля поверх TURN/RTP. Клиент поднимает локальный интерфейс на устройстве, маскируя транспорт под зашифрованный медиатрафик звонка.
+## Скачать
 
-**Кросс., проекты с поддержкой CSQTT**: 
-- Windows & Linux порт - [luminescq/focsq](https://github.com/luminescq/focsq)
-- ios совместимый клиент - [anton48/vk-turn-proxy-ios](https://github.com/anton48/vk-turn-proxy-ios)
+| Релиз | Что внутри |
+|---|---|
+| [v2.5.0-legacy](https://github.com/ttrroyy/mrtt/releases/tag/v2.5.0-legacy) | Основная версия |
+| [v2.1.9-legacy](https://github.com/ttrroyy/mrtt/releases/tag/v2.1.9-legacy) | Для серверов на 2.1.9 |
 
-**Прекрасный аналог csqtt / wdtt**: [hackdiaz-dev/turn-proxy-android](https://github.com/hackdiaz-dev/turn-proxy-android)
+В каждом релизе есть APK для arm64-v8a, armeabi-v7a, x86_64 и универсальный, а также серверы `csqtt-linux-amd64`, `csqtt-linux-arm64` и `csqtt-linux-armv7`. Нужен Android 8.0 или новее.
 
-> [!WARNING]
-> **Некоммерческий статус и запрет коммерческого использования**
-> Проект является строго некоммерческим исследовательским инструментом и не преследует извлечения выгоды.
-> 
-> Я (**amurcanov**) прямо запрещаю любое использование исходного кода данного репозитория ([github.com/amurcanov/csqtt](https://github.com/amurcanov/csqtt)) в коммерческих целях в соответствии с условиями лицензии **PolyForm Noncommercial License 1.0.0**. Любая продажа, перепродажа, интеграция в платные сервисы или извлечение прибыли на базе данного кода запрещены.
+## Деплой сервера
 
-> [!NOTE]
-> Подробная техническая информация и документация по архитектуре **CSQTT** будут опубликованы позже в отдельном окне заметок.
+Сервер разворачивается на VPS по SSH прямо из приложения. Серверы для amd64, arm64 и armv7 и установочный скрипт лежат внутри APK, поэтому приложение ничего не скачивает с GitHub. После установки оно выдаёт ссылку на подключение.
 
----
+Сервер можно поставить и вручную: файл под нужную архитектуру есть в релизе, а в `csqtt.server-provenance.json` записаны его SHA-256 и параметры сборки.
+
+## Другие клиенты
+
+Профили CSQTT поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS. В обоих можно выбрать версию 2.5.0 или 2.1.9 и развернуть сервер 2.5.0.
 
 ## Лицензия
 
-Этот проект распространяется под лицензией **PolyForm Noncommercial License 1.0.0 (PolyForm-Noncommercial-1.0.0)**.
+[PolyForm Noncommercial 1.0.0](LICENSE). Код можно использовать, изменять и распространять только в некоммерческих целях. Любая продажа, платные сервисы и другое коммерческое использование без письменного разрешения автора CSQTT запрещены.
+
+Required Notice: Copyright 2026 amurcanov.
+Required Notice: Commercial use of CSQTT requires a separate written license from the licensor.
+Required Notice: Redistributions and derivative works must retain attribution to the original CSQTT project and these notices.
+
+## Благодарности
+
+- [amurcanov/csqtt](https://github.com/amurcanov/csqtt): автор CSQTT, клиента и сервера, на которых построен MRTT
+
+## Обсуждение
+
+[Группа в Telegram](https://t.me/raw_comm)
