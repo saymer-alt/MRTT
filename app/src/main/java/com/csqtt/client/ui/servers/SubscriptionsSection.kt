@@ -383,9 +383,42 @@ private fun ClientEditDialog(
         FormField(workers, { workers = it }, "Потоки (0 — как в приложении, 3–100)", numeric = true)
         FormField(maxDevices, { maxDevices = it }, "Устройств (0 — без лимита)", numeric = true)
         if (client != null) {
-            MrttSettingRow(title = "VK-токен сервера вместо хешей", checked = vkToken, onCheckedChange = { vkToken = it })
-            if (!vkToken) {
-                FormField(vkHashes, { vkHashes = it.filterNot(Char::isWhitespace) }, "VK-хеши через запятую")
+            var hashSource by remember {
+                mutableStateOf(
+                    when {
+                        vkToken -> "server"
+                        vkHashes.isNotBlank() -> "manual"
+                        else -> "client"
+                    },
+                )
+            }
+            CompactDropdownSetting(
+                title = "Хеши VK",
+                selectedKey = hashSource,
+                options = listOf(
+                    "client" to "Аккаунт клиента",
+                    "server" to "Аккаунт сервера",
+                    "manual" to "Свои хеши",
+                ),
+                enabled = true,
+                onSelected = { source ->
+                    hashSource = source
+                    vkToken = source == "server"
+                    if (source != "manual") vkHashes = ""
+                },
+            )
+            when (hashSource) {
+                "manual" -> FormField(vkHashes, { vkHashes = it.filterNot(Char::isWhitespace) }, "VK-хеши через запятую")
+                "server" -> Text(
+                    "Хеши создаются автоматически с VK-аккаунта, привязанного в настройках сервера.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                else -> Text(
+                    "Приложение само создаёт хеши с VK-аккаунта, привязанного у клиента во вкладке «Транспорт».",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text("Устройства", fontWeight = FontWeight.SemiBold)
             if (client.devices.isEmpty()) {

@@ -647,7 +647,6 @@ private fun ProxyNavigationBar(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clip(MrttShapes.Control)
                                 .selectable(
                                     selected = item.id == selectedTab,
                                     role = Role.Tab,
@@ -683,7 +682,8 @@ private fun ProxyNavigationBar(
                                 softWrap = false,
                                 // Шрифт уменьшается, пока подпись не влезет целиком при любом масштабе текста.
                                 autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 10.sp, stepSize = 0.5.sp),
-                                modifier = Modifier.padding(horizontal = 2.dp),
+                                // Отступ от скруглённых краёв индикатора: подпись ужимается, а не обрезается.
+                                modifier = Modifier.padding(horizontal = 5.dp),
                             )
                         }
                     }

@@ -88,6 +88,15 @@ internal class ProfileRepository(context: Context) {
 
     suspend fun activate(profile: ConnectionProfile) {
         store.activateConnectionProfile(profile.id, profile.link)
+        // Профиль не навязывает транспорт: по умолчанию VK, остальное пользователь выберет в «Транспорт».
+        store.saveTransportMode(com.csqtt.client.MrttConstants.Transport.MODE_VK)
+    }
+
+    /** Меняет ссылку профиля (свои хеши и т. п.); активный профиль сразу получает новую ссылку. */
+    suspend fun updateLink(id: String, link: String) {
+        val updated = current().map { if (it.id == id) it.copy(link = link) else it }
+        save(updated)
+        if (activeId.first() == id) updated.firstOrNull { it.id == id }?.let { store.activateConnectionProfile(it.id, it.link) }
     }
 
     /** Один раз переносит ссылки старых слотов (в том числе настройки «владельца»). */

@@ -133,6 +133,7 @@ internal fun ServerSettingsSection(control: ServerControl) {
     var form by remember(loaded) { mutableStateOf(loaded ?: ServerSettings()) }
     var confirmReboot by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
+    var bindingVk by remember { mutableStateOf(false) }
     fun refresh() { reload++ }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
@@ -186,9 +187,25 @@ internal fun ServerSettingsSection(control: ServerControl) {
             )
         }
         AppSectionCard {
-            Text("VK для конфигов", fontWeight = FontWeight.SemiBold)
-            FormField(form.vkToken, { form = form.copy(vkToken = it.trim()) }, "VK-токен сервера", secret = true)
-            FormField(form.vkHashes, { form = form.copy(vkHashes = it.filterNot(Char::isWhitespace)) }, "VK-хеши через запятую")
+            Text("VK-аккаунт сервера", fontWeight = FontWeight.SemiBold)
+            Text(
+                if (form.vkToken.isBlank()) {
+                    "Не привязан. Привяжите аккаунт, и конфиги с режимом «Аккаунт сервера» будут получать хеши автоматически."
+                } else {
+                    "Привязан. Конфиги с режимом «Аккаунт сервера» получают хеши с этого аккаунта автоматически."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { bindingVk = true }, shape = MrttShapes.Pill) {
+                    Text(if (form.vkToken.isBlank()) "Привязать VK" else "Перепривязать")
+                }
+                if (form.vkToken.isNotBlank()) {
+                    TextButton(onClick = { form = form.copy(vkToken = "") }) { Text("Отвязать") }
+                }
+            }
+            FormField(form.vkHashes, { form = form.copy(vkHashes = it.filterNot(Char::isWhitespace)) }, "Общие VK-хеши (необязательно)")
             TextButton(onClick = {
                 runner.run("VK применён ко всем конфигам", ::refresh) { control.applyVkToAllClients(form.vkToken, form.vkHashes) }
             }) { Text("Применить ко всем конфигам") }
@@ -231,6 +248,17 @@ internal fun ServerSettingsSection(control: ServerControl) {
         }
     }
 
+    if (bindingVk) {
+        com.csqtt.client.ui.dialogs.VkAuthDialog(
+            onToken = { payload ->
+                bindingVk = false
+                // Сразу сохраняем на сервер: токен в приложении не хранится и не показывается.
+                form = form.copy(vkToken = payload.token)
+                runner.run("VK-аккаунт привязан к серверу", ::refresh) { control.saveSettings(form) }
+            },
+            onDismiss = { bindingVk = false },
+        )
+    }
     if (confirmReboot) {
         ConfirmDialog(
             title = "Перезапуск сервера",

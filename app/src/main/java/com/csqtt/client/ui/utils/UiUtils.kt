@@ -276,6 +276,7 @@ fun formatMrttLink(
     token: String = "",
     maxGroupId: String = "",
     jitsiRoom: String = "",
+    jitsiSeats: Int = 0,
 ): String {
     val queryParts = mutableListOf("v=2", "host=$host", "peer=$peer", "password=" + java.net.URLEncoder.encode(password, Charsets.UTF_8.name()))
     if (maxGroupId.isNotEmpty()) {
@@ -289,6 +290,7 @@ fun formatMrttLink(
     if (jitsiRoom.isNotEmpty()) {
         require(isValidJitsiRoom(jitsiRoom)) { "Некорректная комната Jitsi" }
         queryParts.add("jitsi=" + java.net.URLEncoder.encode(jitsiRoom, Charsets.UTF_8.name()))
+        if (jitsiSeats > 0) queryParts.add("seats=$jitsiSeats")
     }
     val plain = "connect?" + queryParts.joinToString("&")
     return MRTT_LINK_SCHEME + encryptMrttPayload(plain)

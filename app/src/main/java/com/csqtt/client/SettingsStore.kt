@@ -144,6 +144,8 @@ class SettingsStore(context: Context) {
         private val TRANSPORT_MODE = stringPreferencesKey("transport_mode")
         private val JITSI_ROOM_OVERRIDE = stringPreferencesKey("jitsi_room_override")
         private val JITSI_WORKERS = intPreferencesKey("jitsi_workers")
+        private val PING_URL = stringPreferencesKey("ping_url")
+        const val DEFAULT_PING_URL = "https://www.google.com/generate_204"
         private val MAX_ACCESS_TOKEN = stringPreferencesKey("max_access_token")
         private val MAX_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("max_access_token_encrypted")
 
@@ -565,6 +567,13 @@ class SettingsStore(context: Context) {
     val jitsiWorkers: Flow<Int> = dataStore.data.map { prefs ->
         clampJitsiWorkers(prefs[JITSI_WORKERS] ?: MrttConstants.Tunnel.DEFAULT_JITSI_WORKERS)
     }.onIo()
+
+    /** Адрес проверки задержки в «Профилях», как URL-тест в клиентах. */
+    val pingUrl: Flow<String> = dataStore.data.map { prefs -> prefs[PING_URL]?.takeIf { it.isNotBlank() } ?: DEFAULT_PING_URL }.onIo()
+
+    suspend fun savePingUrl(url: String) {
+        dataStore.edit { prefs -> prefs[PING_URL] = url.trim() }
+    }
 
     suspend fun saveJitsiWorkers(workers: Int) {
         dataStore.edit { prefs -> prefs[JITSI_WORKERS] = clampJitsiWorkers(workers) }
