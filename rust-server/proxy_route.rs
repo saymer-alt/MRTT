@@ -331,7 +331,7 @@ async fn verify_socks5_udp_associate(config: &LocalProxyProfile) -> Result<()> {
         .await
         .context("SOCKS5 UDP ASSOCIATE preflight failed")?;
     if !matches!(relay_addr, SocketAddr::V4(_)) {
-        bail!("SOCKS5 UDP ASSOCIATE returned an IPv6 relay address; CSQTT TPROXY is IPv4-only");
+        bail!("SOCKS5 UDP ASSOCIATE returned an IPv6 relay address; MRTT TPROXY is IPv4-only");
     }
     Ok(())
 }

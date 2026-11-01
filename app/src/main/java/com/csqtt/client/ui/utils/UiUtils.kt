@@ -14,6 +14,8 @@ data class MrttLink(
     val maxGroupId: String = "",
     /** Комната Jitsi сервера `host/room`: через неё работает транспорт Jitsi. */
     val jitsiRoom: String = "",
+    /** Сколько мест держит сервер в комнате Jitsi; 0, если ссылка этого не сообщает. */
+    val jitsiSeats: Int = 0,
 )
 
 private const val CSQTT_CIPHER_KEY_SEED = "csqtt-chiper-key"
@@ -136,7 +138,9 @@ private fun parseMrttV2(uri: java.net.URI): MrttLink? {
     if (maxGroupId.isNotEmpty() && (hashes.isNotEmpty() || vkAccessToken.isNotEmpty())) return null
     val jitsiRoom = parameters["jitsi"]?.let(::decodeQueryComponent)?.trim()?.lowercase().orEmpty()
     if (parameters.containsKey("jitsi") && !isValidJitsiRoom(jitsiRoom)) return null
-    return MrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom)
+    val jitsiSeats = parameters["seats"]?.let(::decodeQueryComponent)?.toIntOrNull()
+        ?.coerceIn(1, com.csqtt.client.MrttConstants.Tunnel.MAX_JITSI_WORKERS) ?: 0
+    return MrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom, jitsiSeats)
 }
 
 private val JITSI_ROOM_REGEX = Regex("^[a-z0-9.:-]+/[a-z0-9]{1,64}$")
@@ -174,7 +178,7 @@ private fun parseRawQuery(rawQuery: String): Map<String, String>? {
         }
     }
 
-    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|max|jitsi|workers)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|max|jitsi|workers)=|$)", RegexOption.IGNORE_CASE)
+    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|max|jitsi|seats|workers)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|max|jitsi|seats|workers)=|$)", RegexOption.IGNORE_CASE)
     val matches = pattern.findAll(sanitized).toList()
     if (matches.isNotEmpty()) {
         val extracted = linkedMapOf<String, String>()

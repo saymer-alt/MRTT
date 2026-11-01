@@ -723,6 +723,9 @@ internal fun SettingsTabContent(
                 if (transportMode == MrttConstants.Transport.MODE_JITSI) {
                     JitsiWorkersControl(
                         value = jitsiWorkers,
+                        // Места сервера из ссылки, если комната своя не задана: больше воркеров они не примут.
+                        maximum = parsedMrttLink?.jitsiSeats?.takeIf { it > 0 && jitsiRoomOverride.isBlank() }
+                            ?: MrttConstants.Tunnel.MAX_JITSI_WORKERS,
                         enabled = !tunnelRunning,
                         onValueChange = { scope.launch { settingsStore.saveJitsiWorkers(it) } },
                     )
@@ -1278,8 +1281,10 @@ private fun JitsiRoomButton(overrideRoom: String, linkRoom: String, onClick: () 
 
 /** Воркеры Jitsi: каждый заходит в комнату отдельным участником, больше мест сервера (16) смысла нет. */
 @Composable
-private fun JitsiWorkersControl(value: Int, enabled: Boolean, onValueChange: (Int) -> Unit) {
-    var local by remember(value) { mutableStateOf(value.toFloat()) }
+private fun JitsiWorkersControl(value: Int, maximum: Int, enabled: Boolean, onValueChange: (Int) -> Unit) {
+    val minimum = MrttConstants.Tunnel.MIN_JITSI_WORKERS
+    val top = maximum.coerceAtLeast(minimum)
+    var local by remember(value, top) { mutableStateOf(value.coerceIn(minimum, top).toFloat()) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1289,17 +1294,23 @@ private fun JitsiWorkersControl(value: Int, enabled: Boolean, onValueChange: (In
             Text("Участники в комнате", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(local.toInt().toString(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
         }
-        CompactSteppedSlider(
-            value = local,
-            onValueChange = { local = it },
-            onValueChangeFinished = { onValueChange(local.toInt()) },
-            valueRange = MrttConstants.Tunnel.MIN_JITSI_WORKERS.toFloat()..MrttConstants.Tunnel.MAX_JITSI_WORKERS.toFloat(),
-            stepSize = 1f,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (top > minimum) {
+            Slider(
+                value = local,
+                onValueChange = { local = kotlin.math.round(it) },
+                onValueChangeFinished = { onValueChange(local.toInt()) },
+                valueRange = minimum.toFloat()..top.toFloat(),
+                steps = (top - minimum - 1).coerceAtLeast(0),
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Text(
-            "Каждый воркер заходит в комнату Jitsi отдельным участником, примерно 4 Мбит/с на каждого. Лучше не больше, чем «Участников в комнате» в настройках сервера.",
+            if (maximum < MrttConstants.Tunnel.MAX_JITSI_WORKERS) {
+                "Каждый воркер заходит в комнату Jitsi отдельным участником, примерно 4 Мбит/с на каждого. У сервера $maximum мест, поэтому воркеров не больше $maximum."
+            } else {
+                "Каждый воркер заходит в комнату Jitsi отдельным участником, примерно 4 Мбит/с на каждого. При подключении воркеров будет не больше, чем мест у сервера."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

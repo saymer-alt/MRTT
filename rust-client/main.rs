@@ -157,6 +157,9 @@ struct Arguments {
 fn main() {
     // tokio-tungstenite (MAX signaling) uses plain rustls, which panics without a process-level provider.
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    jitsi_room::set_fallback_resolver(|host| {
+        Box::pin(async move { crate::dns::global().lookup(&host).await.unwrap_or_default() })
+    });
     std::panic::set_hook(Box::new(|info| {
         let msg = format!("[PANIC] Rust client task failed: {info}\n");
         #[cfg(unix)]

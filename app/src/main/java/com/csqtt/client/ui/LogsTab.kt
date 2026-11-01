@@ -1,5 +1,7 @@
 package com.csqtt.client.ui
 
+import androidx.compose.material.icons.outlined.Share
+import android.content.Intent
 import com.csqtt.client.showRaisedToast
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -159,6 +161,18 @@ private fun LogsTerminal() {
             }
 
             IconButton(
+                onClick = { shareFullLog(context) },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Share,
+                    contentDescription = "Поделиться полным логом",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            IconButton(
                 onClick = TunnelManager::clearLogs,
                 modifier = Modifier.size(40.dp)
             ) {
@@ -173,3 +187,22 @@ private fun LogsTerminal() {
     }
 }
 
+/** Полный журнал с данными устройства: пароли и токены уже затёрты, его можно отправить кому угодно. */
+private fun shareFullLog(context: Context) {
+    val text = buildString {
+        appendLine("MRTT: полный лог")
+        appendLine(buildSupportReport())
+        appendLine()
+        append(com.csqtt.client.FullLog.text().takeLast(400_000).ifBlank { "Лог пуст: подключитесь и повторите." })
+    }
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "MRTT лог")
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    try {
+        context.startActivity(Intent.createChooser(send, "Поделиться логом").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: Exception) {
+        context.showRaisedToast("Не удалось открыть отправку", Toast.LENGTH_SHORT)
+    }
+}

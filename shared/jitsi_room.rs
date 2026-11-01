@@ -16,6 +16,39 @@ use webrtc::peer_connection::{
     RTCPeerConnectionState, RTCSessionDescription,
 };
 
+/// Resolver used when the system one finds nothing: the Android client runs as a bare executable and has its own DNS.
+pub type FallbackResolver = fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Vec<std::net::IpAddr>> + Send>>;
+static FALLBACK_RESOLVER: std::sync::OnceLock<FallbackResolver> = std::sync::OnceLock::new();
+
+pub fn set_fallback_resolver(resolver: FallbackResolver) {
+    let _ = FALLBACK_RESOLVER.set(resolver);
+}
+
+/// TCP to the Jitsi host on 443, trying the system resolver first and the fallback one after it.
+async fn connect_tcp(host: &str) -> Result<tokio::net::TcpStream> {
+    let mut addresses: Vec<std::net::IpAddr> = tokio::net::lookup_host((host, 443))
+        .await
+        .map(|found| found.map(|address| address.ip()).collect())
+        .unwrap_or_default();
+    if addresses.is_empty()
+        && let Some(resolve) = FALLBACK_RESOLVER.get()
+    {
+        addresses = resolve(host.to_owned()).await;
+    }
+    if addresses.is_empty() {
+        bail!("DNS: адрес {host} не найден");
+    }
+    let mut last_error = None;
+    for address in addresses {
+        match tokio::time::timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((address, 443))).await {
+            Ok(Ok(stream)) => return Ok(stream),
+            Ok(Err(error)) => last_error = Some(anyhow!("{address}: {error}")),
+            Err(_) => last_error = Some(anyhow!("{address}: таймаут TCP")),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| anyhow!("нет адресов")).context(format!("подключение к {host}")))
+}
+
 /// Display name prefix of the MRTT server's participants; clients address their packets to these endpoints.
 pub const SERVER_DISPLAY: &str = "mrtt-s";
 const STEP_TIMEOUT: Duration = Duration::from_secs(20);
@@ -326,7 +359,8 @@ impl Xmpp {
         let mut request = format!("wss://{host}/xmpp-websocket?room={}", target.room).into_client_request()?;
         request.headers_mut().insert("Sec-WebSocket-Protocol", "xmpp".parse()?);
         request.headers_mut().insert("Origin", format!("https://{host}").parse()?);
-        let (ws, _) = tokio_tungstenite::connect_async(request).await.with_context(|| format!("XMPP {host}"))?;
+        let tcp = connect_tcp(host).await?;
+        let (ws, _) = tokio_tungstenite::client_async_tls(request, tcp).await.with_context(|| format!("XMPP {host}"))?;
         let (mut sink, mut stream) = ws.split();
         let (out, mut out_rx) = mpsc::unbounded_channel::<String>();
         let (in_tx, inbox) = mpsc::unbounded_channel::<String>();

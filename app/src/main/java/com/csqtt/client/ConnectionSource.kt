@@ -14,6 +14,8 @@ data class ConnectionSource(
     val maxGroupId: String = "",
     /** Комната Jitsi из ссылки, когда выбран транспорт Jitsi. */
     val jitsiRoom: String = "",
+    /** Места сервера в комнате из ссылки; 0, если неизвестно (например, своя комната). */
+    val jitsiSeats: Int = 0,
 )
 
 
@@ -41,6 +43,11 @@ suspend fun resolveConnectionSource(store: SettingsStore): ConnectionSource? {
             tokenFromLink = tokenFromLink,
             maxGroupId = if (maxTransportSelected) link.maxGroupId.ifBlank { store.maxGroupId.first() } else "",
             jitsiRoom = if (jitsiSelected) store.jitsiRoomOverride.first().ifBlank { link.jitsiRoom } else "",
+            jitsiSeats = if (jitsiSelected && store.jitsiRoomOverride.first().ifBlank { link.jitsiRoom } == link.jitsiRoom) {
+                link.jitsiSeats
+            } else {
+                0
+            },
         )
     }
 

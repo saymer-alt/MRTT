@@ -169,6 +169,7 @@ internal fun ConnectionTab(
             putExtra("vk_token_from_link", source.tokenFromLink)
             putExtra("max_group_id", source.maxGroupId)
             putExtra("jitsi_room", source.jitsiRoom)
+            putExtra("jitsi_seats", source.jitsiSeats)
             putExtra("workers_per_hash", workersPerHash)
             putExtra("port", 0)
             putExtra("sni", sni)

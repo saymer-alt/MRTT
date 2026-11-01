@@ -542,6 +542,7 @@ fn make_client_link(
     if let Some(room) = crate::jitsi_relay::current_room() {
         payload.push_str("&jitsi=");
         payload.push_str(&url_encode(&room));
+        payload.push_str(&format!("&seats={}", crate::jitsi_relay::current_seats()));
     }
     encrypt_csqtt_link(&payload)
 }

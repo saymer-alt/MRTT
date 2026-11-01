@@ -63,6 +63,11 @@ pub fn configure(config: Config) {
     }
 }
 
+/// How many seats the server holds; links carry it so clients start no more workers than that.
+pub fn current_seats() -> usize {
+    CONFIG.get().map_or(0, |config| config.borrow().seats)
+}
+
 /// The room links should carry, if the server sits in one.
 pub fn current_room() -> Option<String> {
     CONFIG.get()?.borrow().room.as_ref().map(ToString::to_string)

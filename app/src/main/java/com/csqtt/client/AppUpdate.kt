@@ -121,7 +121,7 @@ private fun fetchHttpText(
         if (isGitHubApi) {
             conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         }
-        conn.setRequestProperty("User-Agent", "CSQTTAndroid/${BuildConfig.VERSION_NAME}")
+        conn.setRequestProperty("User-Agent", "MRTTAndroid/${BuildConfig.VERSION_NAME}")
         conn.connectTimeout = 8_000
         conn.readTimeout = 8_000
 

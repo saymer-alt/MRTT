@@ -885,6 +885,7 @@ object TunnelManager {
         level: LogLevel?,
     ) {
         if (identity != null && !isCurrent(identity)) return
+        FullLog.add(if (isError) "ошибка" else "приложение", message)
         if (!isLoggingEnabled && !TunnelLogPolicy.isAllowedWhenInactiveLogging(key, isError, level)) return
         val cleanMessage = withoutLogStickers(message).take(MAX_LOG_MESSAGE_LENGTH)
         if (cleanMessage.isEmpty()) return
@@ -1092,7 +1093,9 @@ object TunnelManager {
 
         // MAX has no VK hashes, so the hash-count cap would pin it at one group.
         val totalWorkers = if (jitsiMode) {
-            clampJitsiWorkers(params.jitsiWorkers)
+            // A worker is a room participant: more workers than server seats would only share seats.
+            val seats = params.jitsiSeats.takeIf { it > 0 } ?: MrttConstants.Tunnel.MAX_JITSI_WORKERS
+            clampJitsiWorkers(minOf(params.jitsiWorkers, seats))
         } else {
             WorkerCountPolicy.normalizeForHashValues(
                 params.workersPerHash,
@@ -1101,6 +1104,11 @@ object TunnelManager {
             )
         }
         targetWorkers.value = totalWorkers
+        FullLog.add(
+            "запуск",
+            "транспорт=${when { jitsiMode -> "Jitsi ${params.jitsiRoom}, мест у сервера ${params.jitsiSeats.takeIf { it > 0 } ?: "?"}"; maxMode -> "MAX"; else -> "VK ${params.vkAuthMode}" }}, " +
+                "воркеров=$totalWorkers, сервер=${params.peer.substringBeforeLast(':')}:***, MTU=${params.mtu}",
+        )
         val cmd = mutableListOf(
             binaryPath,
             "-peer", params.peer,
@@ -1310,6 +1318,7 @@ object TunnelManager {
             try {
                 reader.forEachLine { line ->
                     if (!isCurrent(identity)) return@forEachLine
+                    FullLog.add("клиент", line)
 
                     val stripped =
                         if (line.length > 19 && line[0].isDigit() && line[4] == '/') {
@@ -1349,6 +1358,7 @@ object TunnelManager {
                         lineTrim.startsWith("[СЕТЬ]") ||
                         lineTrim.startsWith("[ПОТОКИ]") ||
                         lineTrim.startsWith("[VK JS]") ||
+                        lineTrim.startsWith("[JITSI]") ||
                         lineTrim.contains("DENIED:", true) ||
                         lineTrim.contains("Ошибка", true) ||
                         lineTrim.contains("error", true) ||
@@ -1520,6 +1530,12 @@ object TunnelManager {
                         }
                         lineTrim.contains("[WRAP]") -> {
                             updateProcessLog(identity, "wrap_status", "[WRAP] Ключ вычислен ✓", 10, false, LogLevel.OK)
+                        }
+                        lineTrim.startsWith("[JITSI]") -> {
+                            // Room problems are the only clue when Jitsi workers stay at zero: show each distinct one.
+                            val failed = lineTrim.contains(":") && !lineTrim.contains("Вход в комнату")
+                            val key = if (failed) "jitsi_${lineTrim.substringAfter(':').take(48).hashCode()}" else "jitsi_join"
+                            updateProcessLog(identity, key, lineTrim.take(240), if (failed) 62 else 20, failed, if (failed) LogLevel.ERR else LogLevel.LOG)
                         }
                         lineTrim.startsWith("[ПОТОКИ]") -> {
                             val text = lineTrim.substringAfter("[ПОТОКИ]").trim()
@@ -2111,6 +2127,7 @@ object TunnelManager {
     }
 
     fun clearLogs() {
+        FullLog.clear()
         synchronized(pendingLogLock) {
             pendingLogs.clear()
         }
@@ -2165,6 +2182,7 @@ data class TunnelParams(
     val maxAccessToken: String = "",
     val jitsiRoom: String = "",
     val jitsiWorkers: Int = MrttConstants.Tunnel.DEFAULT_JITSI_WORKERS,
+    val jitsiSeats: Int = 0,
     val customTurnIps: String = "",
     val domainRoutingEnabled: Boolean = false,
     val domainIsWhitelist: Boolean = false,

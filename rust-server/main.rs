@@ -69,7 +69,7 @@ use tokio::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "csqtt", version, about = "Сервер и консоль управления CSQTT")]
+#[command(name = "csqtt", version, about = "Сервер и консоль управления MRTT")]
 struct Args {
     #[arg(long, hide = true)]
     protocol_revision: bool,
@@ -91,7 +91,7 @@ struct Args {
         long,
         env = "CSQTT_MAIN_PASSWORD",
         default_value = "",
-        help = "Основной пароль CSQTT"
+        help = "Основной пароль MRTT"
     )]
     password: String,
 
@@ -110,13 +110,13 @@ struct Args {
     )]
     dns: Option<String>,
 
-    #[arg(long, help = "Запустить службу CSQTT")]
+    #[arg(long, help = "Запустить службу MRTT")]
     start: bool,
 
-    #[arg(long, help = "Остановить службу CSQTT")]
+    #[arg(long, help = "Остановить службу MRTT")]
     stop: bool,
 
-    #[arg(long, help = "Перезапустить службу CSQTT")]
+    #[arg(long, help = "Перезапустить службу MRTT")]
     restart: bool,
 
     #[arg(long, short = 'd', help = "Открыть DPI-монитор")]
@@ -761,7 +761,7 @@ fn acquire_instance_lock(config_dir: &std::path::Path) -> Result<std::fs::File> 
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            bail!("another CSQTT server instance owns {}", path.display());
+            bail!("another MRTT server instance owns {}", path.display());
         }
     }
     Ok(file)
@@ -797,7 +797,7 @@ async fn run_dpi_client(samples: usize) -> Result<()> {
         "\x1b[1;36m════════════════════════════════════════════════════════════════════════════════════\x1b[0m"
     );
     println!(
-        "\x1b[1;33m               CSQTT DEEP PACKET INSPECTION (DPI) LIVE TRAFFIC SNIFFER               \x1b[0m"
+        "\x1b[1;33m                MRTT DEEP PACKET INSPECTION (DPI) LIVE TRAFFIC SNIFFER               \x1b[0m"
     );
     println!(
         "\x1b[1;36m════════════════════════════════════════════════════════════════════════════════════\x1b[0m"
@@ -807,7 +807,7 @@ async fn run_dpi_client(samples: usize) -> Result<()> {
         Ok(s) => s,
         Err(e) => {
             bail!(
-                "Could not connect to running CSQTT server DPI socket (127.0.0.1:46003): {e}. Ensure csqtt is active!"
+                "Could not connect to running MRTT server DPI socket (127.0.0.1:46003): {e}. Ensure csqtt is active!"
             );
         }
     };
@@ -1115,14 +1115,14 @@ async fn async_main() -> Result<()> {
         });
     }
 
-    log_event(&app, "INFO", "SYSTEM", " CSQTT Server 2.5.0");
+    log_event(&app, "INFO", "SYSTEM", " MRTT Server");
     log_event(
         &app,
         "INFO",
         "SYSTEM",
         &format!(" RTP AEAD: {}", app.listen),
     );
-    log_event(&app, "INFO", "SYSTEM", " Tunnel: Userspace TUN (CSQTT)");
+    log_event(&app, "INFO", "SYSTEM", " Tunnel: Userspace TUN (MRTT)");
     log_event(
         &app,
         "INFO",

@@ -107,11 +107,7 @@ internal fun ServerManageScreen(
         when {
             deployingHere -> return@MrttScreen
             reachError == null -> ServerStatusTile(title = "Подключаемся к серверу...", busy = true)
-            reachError != "" -> ServerStatusTile(
-                title = "MRTT на сервере не отвечает",
-                text = "${reachError}\n\nЕсли MRTT ещё не установлен, установите его. Если установлен, проверьте адрес и SSH-доступ.",
-            ) {
-                Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.fillMaxWidth()) { Text("Установить MRTT") }
+            reachError != "" -> ServerStatusTile(title = "Сервер не отвечает", text = reachError.orEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
                     OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }

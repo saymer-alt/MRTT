@@ -2,8 +2,11 @@ package com.csqtt.client.servers
 
 import android.content.Context
 import com.csqtt.client.ui.createSSHClient
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import net.schmizz.sshj.SSHClient
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,15 +28,24 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
     suspend fun put(path: String, body: JSONObject): String = request("PUT", path, body.toString())
     suspend fun delete(path: String): String = request("DELETE", path)
 
-    suspend fun request(method: String, path: String, body: String? = null): String = withContext(Dispatchers.IO) {
-        try {
-            exchange(connection(), method, path, body)
-        } catch (error: ServerApiException) {
-            throw error
-        } catch (error: IOException) {
-            // Закэшированное SSH-соединение могло умереть: один повтор на свежем.
+    suspend fun request(method: String, path: String, body: String? = null): String {
+        // Блокирующее чтение SSH не отменяется само: ждём не дольше таймаута и рвём соединение,
+        // иначе экран сервера висит на «Загрузка...», пока не перезайти во вкладку.
+        val call = DETACHED.async {
+            try {
+                exchange(connection(), method, path, body)
+            } catch (error: ServerApiException) {
+                throw error
+            } catch (error: IOException) {
+                // Закэшированное SSH-соединение могло умереть: один повтор на свежем.
+                drop()
+                exchange(connection(), method, path, body)
+            }
+        }
+        return withTimeoutOrNull(REQUEST_TIMEOUT_MS) { call.await() } ?: run {
+            call.cancel()
             drop()
-            exchange(connection(), method, path, body)
+            throw ServerApiException("Сервер не ответил за ${REQUEST_TIMEOUT_MS / 1000} с")
         }
     }
 
@@ -78,6 +90,8 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
     }
 
     companion object {
+        private const val REQUEST_TIMEOUT_MS = 20_000L
+        private val DETACHED = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val clients = ConcurrentHashMap<String, SSHClient>()
 
         fun forget(serverId: String) {

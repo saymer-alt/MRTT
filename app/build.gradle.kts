@@ -77,8 +77,8 @@ android {
         applicationId = "csqtt.quic.amurcanov"
         minSdk = 26
         targetSdk = 37
-        versionCode = 241
-        versionName = "1.0-beta2"
+        versionCode = 242
+        versionName = "1.0-beta3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

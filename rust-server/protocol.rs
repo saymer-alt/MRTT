@@ -2395,7 +2395,7 @@ impl ProtocolEngine {
             .map(|session| session.peer.to_string())
             .unwrap_or_default();
         eprintln!(
-            "[CSQTT] dropped uplink IPv4 packet from {peer}: source address is not the session tunnel IP (total {})",
+            "[MRTT] dropped uplink IPv4 packet from {peer}: source address is not the session tunnel IP (total {})",
             self.uplink_source_drops
         );
     }
@@ -2412,7 +2412,7 @@ impl ProtocolEngine {
         self.unauthenticated_setup_logged = true;
         self.last_unauthenticated_setup_log_ms = self.monotonic_ms;
         eprintln!(
-            "[CSQTT] UDP setup from {peer} rejected ({wire_len} bytes): no active credential could decrypt or accept GETCONF"
+            "[MRTT] UDP setup from {peer} rejected ({wire_len} bytes): no active credential could decrypt or accept GETCONF"
         );
     }
 
@@ -2457,7 +2457,7 @@ impl ProtocolEngine {
 
                 Err(error) => {
                     eprintln!(
-                        "[CSQTT] DTLS: рукопожатие с {peer} отклонено ({error}), сбрасываем состояние"
+                        "[MRTT] DTLS: рукопожатие с {peer} отклонено ({error}), сбрасываем состояние"
                     );
                     self.dtls_handshakes.remove(&key);
                     return;
@@ -2473,7 +2473,7 @@ impl ProtocolEngine {
 
             if let Some(flight) = flight.as_ref() {
                 eprintln!(
-                    "[CSQTT] DTLS: полёт → {peer} ({} байт, {}), состояние {}",
+                    "[MRTT] DTLS: полёт → {peer} ({} байт, {}), состояние {}",
                     flight.len(),
                     if is_channel { "ChannelData" } else { "UDP" },
                     dtls_state_label(handshake.state())
@@ -2517,7 +2517,7 @@ impl ProtocolEngine {
                         if self.credentials.contains_password(password) =>
                     {
                         eprintln!(
-                            "[CSQTT] DTLS: рукопожатие с {peer} завершено, SRTP-ключи согласованы, GETCONF {} байт внутри DTLS",
+                            "[MRTT] DTLS: рукопожатие с {peer} завершено, SRTP-ключи согласованы, GETCONF {} байт внутри DTLS",
                             app_data.len()
                         );
                         let slot = self.create_legacy_session(
@@ -2538,14 +2538,14 @@ impl ProtocolEngine {
                     }
                     _ => {
                         eprintln!(
-                            "[CSQTT] DTLS: рукопожатие с {peer} завершено, но GETCONF не распознан"
+                            "[MRTT] DTLS: рукопожатие с {peer} завершено, но GETCONF не распознан"
                         );
                         self.report_unauthenticated_setup(peer, packet.len());
                     }
                 }
             } else if ready {
                 eprintln!(
-                    "[CSQTT] DTLS: рукопожатие с {peer} завершено, SRTP-ключи согласованы, ожидаем GETCONF по SRTP"
+                    "[MRTT] DTLS: рукопожатие с {peer} завершено, SRTP-ключи согласованы, ожидаем GETCONF по SRTP"
                 );
             }
             return;
@@ -2569,7 +2569,7 @@ impl ProtocolEngine {
 
         if self.sessions.len() >= MAX_ACTIVE_SESSIONS || self.setup_budget == 0 {
             eprintln!(
-                "[CSQTT] DTLS: ClientHello от {peer} отброшен (сессий {}, бюджет настройки {})",
+                "[MRTT] DTLS: ClientHello от {peer} отброшен (сессий {}, бюджет настройки {})",
                 self.sessions.len(),
                 self.setup_budget
             );
@@ -2578,7 +2578,7 @@ impl ProtocolEngine {
         self.setup_budget -= 1;
 
         let Ok(mut handshake) = crate::dtls::DtlsServerHandshake::new() else {
-            eprintln!("[CSQTT] DTLS: не удалось создать сертификат для {peer}");
+            eprintln!("[MRTT] DTLS: не удалось создать сертификат для {peer}");
             return;
         };
         match handshake.handle_datagram(payload) {
@@ -2590,8 +2590,8 @@ impl ProtocolEngine {
                     (handshake, flight, self.monotonic_ms),
                 );
             }
-            Ok(None) => eprintln!("[CSQTT] DTLS: ClientHello от {peer} без ответа"),
-            Err(error) => eprintln!("[CSQTT] DTLS: ClientHello от {peer} отвергнут ({error})"),
+            Ok(None) => eprintln!("[MRTT] DTLS: ClientHello от {peer} без ответа"),
+            Err(error) => eprintln!("[MRTT] DTLS: ClientHello от {peer} отвергнут ({error})"),
         }
     }
 

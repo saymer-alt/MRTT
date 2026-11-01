@@ -1032,13 +1032,16 @@ async fn run_room_session(
     }
     let allocation = tokio::select! {
         biased;
-        result = TurnAllocation::room(&room, config.id, runtime.pool.clone()) => result.map_err(TurnAllocateError)?,
+        result = TurnAllocation::room(&room, config.id, runtime.pool.clone()) => result.map_err(|error| {
+            crate::log_error!("[JITSI] Воркер #{}: {error:#}", config.id);
+            TurnAllocateError(error)
+        })?,
         _ = cancel.cancelled() => return Ok(false),
     };
     if let Some(ready) = runtime.allocation_ready.take() {
         let _ = ready.send(());
     }
-    crate::log_error!("[СЕССИЯ #{}] Комната Jitsi: место сервера найдено", config.id);
+    crate::log_error!("[JITSI] Воркер #{} сел в комнату, место сервера найдено", config.id);
     let session = tokio::spawn(run_allocated_session(config, runtime, allocation.clone(), Arc::from(JITSI_ROOM_ADDRESS)));
     let result = await_session_task(&cancel, session).await;
     let _ = tokio::time::timeout(DEALLOCATE_TIMEOUT, allocation.deallocate()).await;

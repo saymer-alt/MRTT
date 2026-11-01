@@ -22,6 +22,7 @@ internal suspend fun buildQuickStartIntent(context: Context): Intent? {
         putExtra("vk_access_token", source.vkAccessToken)
         putExtra("max_group_id", source.maxGroupId)
         putExtra("jitsi_room", source.jitsiRoom)
+        putExtra("jitsi_seats", source.jitsiSeats)
         putExtra("vk_token_from_link", source.tokenFromLink)
         putExtra("secondary_vk_hash", store.secondaryVkHash.first())
         putExtra("workers_per_hash", store.workersPerHash.first())

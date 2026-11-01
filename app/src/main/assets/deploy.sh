@@ -5,7 +5,7 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export TERM="${TERM:-xterm}"
 
-readonly SCRIPT_VERSION="1.0-beta2"
+readonly SCRIPT_VERSION="1.0-beta3"
 readonly LOG_FILE="/var/log/csqtt-install.log"
 readonly PEER_PORT="${CSQTT_PEER_PORT:-46000}"
 readonly SSH_PORT="${CSQTT_SSH_PORT:-22}"
