@@ -18,7 +18,7 @@ Android-клиент и сервер для туннеля через звонк
 
 ## Скачать
 
-Свежий APK - в [Releases](https://github.com/ttrroyy/mrtt/releases/latest). Нужен Android 8.0 или новее; сборки есть для arm64-v8a, armeabi-v7a, x86_64 и универсальная. Там же лежит сервер для Linux на amd64, arm64 и armv7.
+Свежий APK - в [Releases](https://github.com/ttrroyy/mrtt/releases/latest). Нужен Android 8.0 или новее; сборки есть для arm64-v8a, armeabi-v7a, x86_64 и универсальная. Сервер для Linux на amd64, arm64 и armv7 лежит внутри APK, в папке `assets`: APK открывается как обычный zip-архив.
 
 ## Особенности
 
