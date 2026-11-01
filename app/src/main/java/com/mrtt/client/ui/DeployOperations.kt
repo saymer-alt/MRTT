@@ -67,6 +67,10 @@ internal fun deployFailureMessage(exitStatus: Int, output: String): String {
 internal fun friendlyDeployError(message: String?): String {
     val text = message.orEmpty()
     return when {
+        text.contains("during identification", ignoreCase = true) ->
+            "VPS закрыл соединение до начала SSH: сервер временно не пускает ваш IP. " +
+                "Так работает защита OpenSSH 9.8+ (PerSourcePenalties) после неудачных или оборванных входов, " +
+                "или fail2ban. Подождите 10-15 минут или подключитесь через другую сеть (Wi-Fi вместо мобильной)"
         text.contains("Auth fail (public key)", ignoreCase = true) ||
             text.contains("Auth fail (key parse)", ignoreCase = true) ->
             "SSH: Auth fail — ключ не принят сервером. Проверьте: 1) приватный ключ вставлен целиком (-----BEGIN...-----END), 2) публичный ключ добавлен в authorized_keys на VPS, 3) логин верный"

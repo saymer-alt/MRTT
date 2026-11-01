@@ -167,16 +167,12 @@ internal fun DeployProgressCard() {
     val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
     val progress by DeployManager.deployProgress.collectAsStateWithLifecycle()
     val step by DeployManager.currentStep.collectAsStateWithLifecycle()
-    val lastResult by DeployManager.lastResult.collectAsStateWithLifecycle()
+    // Только ход установки: ошибка показывается один раз, на экране самого сервера.
     if (isDeploying) {
         AppSectionCard {
             Text(step.ifBlank { "Установка..." }, style = MaterialTheme.typography.bodyMedium)
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             Text("Подробности во вкладке «Логи»", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    } else if (lastResult.isNotBlank() && lastResult != "success") {
-        AppSectionCard {
-            Text(lastResult, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
     }
 }

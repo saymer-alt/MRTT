@@ -71,8 +71,13 @@ internal fun ServerManageScreen(
     // Каждая установка начинает новое поколение: разделы пересоздаются и грузят данные заново.
     var generation by remember(server.id) { mutableIntStateOf(0) }
     var wasDeploying by remember(server.id) { mutableStateOf(deployingHere) }
+    // Ошибка последней установки на этом сервере; после правки доступа сбрасывается.
+    var deployError by remember(server) { mutableStateOf("") }
     LaunchedEffect(deployingHere) {
-        if (wasDeploying && !deployingHere) generation++
+        if (wasDeploying && !deployingHere) {
+            deployError = DeployManager.lastResult.value.takeIf { it != "success" }.orEmpty()
+            generation++
+        }
         wasDeploying = deployingHere
     }
     var retry by remember(server.id) { mutableIntStateOf(0) }
@@ -89,7 +94,7 @@ internal fun ServerManageScreen(
             onSuccess = { "" },
             onFailure = { if (it is ServerApiException) it.message.orEmpty() else friendlyDeployError(it.message) },
         )
-        if (reachError == "" && target == server.id) DeployManager.lastResult.value = ""
+        if (reachError == "") deployError = ""
     }
 
     MrttScreen {
@@ -109,17 +114,26 @@ internal fun ServerManageScreen(
                 }
             }
         }
-        if (target == server.id) DeployProgressCard()
+        if (deployingHere) {
+            DeployProgressCard()
+            return@MrttScreen
+        }
         when {
-            deployingHere -> return@MrttScreen
             reachError == null -> ServerStatusTile(title = "Подключаемся к серверу...", busy = true)
+            reachError == "" -> Unit
+            deployError.isNotBlank() -> ServerStatusTile(title = "Установка не удалась", text = deployError) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Ещё раз", maxLines = 1) }
+                    OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
+                }
+            }
             notInstalled -> ServerStatusTile(title = "MRTT не запущен на сервере", text = reachError.orEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Установить", maxLines = 1) }
                     OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }
                 }
             }
-            reachError != "" -> ServerStatusTile(title = "Не удалось подключиться", text = reachError.orEmpty()) {
+            else -> ServerStatusTile(title = "Нет связи с сервером", text = reachError.orEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
                     OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }
