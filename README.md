@@ -4,7 +4,7 @@
 
 # MRTT
 
-**Туннель через TURN-серверы звонков VK**
+**Туннель через TURN-серверы звонков VK, MAX и Jitsi**
 
 ![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
@@ -14,7 +14,7 @@
 
 </div>
 
-Android-клиент и сервер на основе [CSQTT](https://github.com/amurcanov/csqtt). Клиент поднимает VPN на устройстве и передаёт трафик через TURN-серверы звонков VK, сервер принимает его на VPS. Сейчас в релизах лежат сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy. В разработке поддержка MAX и Jitsi.
+Android-клиент и сервер на основе [CSQTT](https://github.com/amurcanov/csqtt). Клиент поднимает VPN на устройстве и передаёт трафик через TURN-серверы звонков VK, MAX или Jitsi, сервер принимает его на VPS. Сейчас в релизах лежат сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy, они работают через VK. Сборки с MAX и Jitsi готовятся.
 
 ## Скачать
 
