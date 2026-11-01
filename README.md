@@ -14,26 +14,21 @@
 
 </div>
 
-Android-клиент и сервер на основе [CSQTT](https://github.com/amurcanov/csqtt). Клиент поднимает VPN на устройстве и передаёт трафик через TURN-серверы звонков VK, MAX или Jitsi, сервер принимает его на VPS. Сейчас в релизах лежат сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy, они работают через VK. Сборки с MAX и Jitsi готовятся.
+Android-клиент и сервер для туннеля через звонки. Клиент поднимает VPN на устройстве и передаёт трафик через TURN-серверы звонков VK, MAX или Jitsi, а сервер на VPS принимает его и выпускает в интернет. Для провайдера соединение выглядит как обычный звонок.
 
 ## Скачать
 
-| Релиз | Что внутри |
-|---|---|
-| [v2.5.0-legacy](https://github.com/ttrroyy/mrtt/releases/tag/v2.5.0-legacy) | Основная версия |
-| [v2.1.9-legacy](https://github.com/ttrroyy/mrtt/releases/tag/v2.1.9-legacy) | Для серверов на 2.1.9 |
+Свежий APK - в [Releases](https://github.com/ttrroyy/mrtt/releases/latest). Нужен Android 8.0 или новее; сборки есть для arm64-v8a, armeabi-v7a, x86_64 и универсальная. Там же лежит сервер для Linux на amd64, arm64 и armv7.
 
-В каждом релизе есть APK для arm64-v8a, armeabi-v7a, x86_64 и универсальный, а также серверы `csqtt-linux-amd64`, `csqtt-linux-arm64` и `csqtt-linux-armv7`. Нужен Android 8.0 или новее.
+## Особенности
 
-## Деплой сервера
+**Три вида звонков.** Трафик может идти через TURN-серверы VK, MAX или Jitsi.
 
-Сервер разворачивается на VPS по SSH прямо из приложения. Серверы для amd64, arm64 и armv7 и установочный скрипт лежат внутри APK, поэтому приложение ничего не скачивает с GitHub. После установки оно выдаёт ссылку на подключение.
-
-Сервер можно поставить и вручную: файл под нужную архитектуру есть в релизе, а в `csqtt.server-provenance.json` записаны его SHA-256 и параметры сборки.
+**Деплой сервера.** Сервер разворачивается на VPS по SSH прямо из приложения, после установки приложение выдаёт ссылку на подключение. Сервер под все архитектуры уже лежит внутри APK, отдельно ничего скачивать не нужно.
 
 ## Другие клиенты
 
-Профили CSQTT поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS. В обоих можно выбрать версию 2.5.0 или 2.1.9 и развернуть сервер 2.5.0.
+Профили CSQTT поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS, с деплоем сервера в обоих.
 
 ## Лицензия
 
