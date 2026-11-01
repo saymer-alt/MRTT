@@ -425,7 +425,7 @@ pub fn encrypt_csqtt_link(payload: &str) -> String {
         Ok(k) => k,
         Err(_) => {
             let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
-            return format!("csqttr://{b64}");
+            return format!("mrtt://{b64}");
         }
     };
     let key = LessSafeKey::new(unbound);
@@ -444,7 +444,7 @@ pub fn encrypt_csqtt_link(payload: &str) -> String {
         Ok(n) => n,
         Err(_) => {
             let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
-            return format!("csqttr://{b64}");
+            return format!("mrtt://{b64}");
         }
     };
 
@@ -454,7 +454,7 @@ pub fn encrypt_csqtt_link(payload: &str) -> String {
         .is_err()
     {
         let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
-        return format!("csqttr://{b64}");
+        return format!("mrtt://{b64}");
     }
 
     let mut combined = Vec::with_capacity(12 + in_out.len());
@@ -462,7 +462,7 @@ pub fn encrypt_csqtt_link(payload: &str) -> String {
     combined.extend_from_slice(&in_out);
 
     let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&combined);
-    format!("csqttr://{b64}")
+    format!("mrtt://{b64}")
 }
 
 #[allow(dead_code)]
@@ -472,7 +472,10 @@ pub fn decrypt_csqtt_link(raw_link: &str) -> Option<String> {
     use sha2::{Digest, Sha256};
 
     let payload = raw_link.trim();
-    let payload = payload.strip_prefix("csqttr://")?.trim();
+    let payload = payload
+        .strip_prefix("mrtt://")
+        .or_else(|| payload.strip_prefix("csqttr://"))?
+        .trim();
     let clean = payload.replace(['\n', '\r'], "");
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(&clean)
@@ -3675,14 +3678,20 @@ mod tests {
         let payload = "connect?v=2&host=1.2.3.4&peer=46000&password=testpass";
         let encrypted1 = encrypt_csqtt_link(payload);
         let encrypted2 = encrypt_csqtt_link(payload);
-        assert!(encrypted1.starts_with("csqttr://"));
+        assert!(encrypted1.starts_with("mrtt://"));
         assert_eq!(
             encrypted1, encrypted2,
             "link encryption must be deterministic for identical payload"
         );
         let decrypted = decrypt_csqtt_link(&encrypted1).expect("decryption should succeed");
         assert_eq!(decrypted, payload);
-        let old_scheme = encrypted1.replacen("csqttr://", "csqtt://", 1);
+        let previous_scheme = encrypted1.replacen("mrtt://", "csqttr://", 1);
+        assert_eq!(
+            decrypt_csqtt_link(&previous_scheme).as_deref(),
+            Some(payload),
+            "csqttr:// links from earlier servers must still decrypt"
+        );
+        let old_scheme = encrypted1.replacen("mrtt://", "csqtt://", 1);
         assert!(
             decrypt_csqtt_link(&old_scheme).is_none(),
             "old csqtt:// scheme must not be accepted"
@@ -3702,7 +3711,7 @@ mod tests {
     #[test]
     fn make_client_link_contains_password_and_aes_roundtrip() {
         let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "");
-        assert!(link.starts_with("csqttr://"));
+        assert!(link.starts_with("mrtt://"));
         let decrypted = decrypt_csqtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=abc1234567890123"));
         assert!(!decrypted.contains("client="));

@@ -4,12 +4,10 @@ import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -39,10 +37,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.csqtt.client.TunnelManager
 import com.csqtt.client.profiles.ConnectionProfile
 import com.csqtt.client.profiles.ProfileRepository
-import com.csqtt.client.profiles.Subscription
-import com.csqtt.client.profiles.encodeSubscription
-import com.csqtt.client.servers.ServerControl
-import com.csqtt.client.servers.ServerRepository
 import com.csqtt.client.showRaisedToast
 import com.csqtt.client.ui.AppSectionCard
 import com.csqtt.client.ui.common.ConfirmDialog
@@ -51,7 +45,6 @@ import com.csqtt.client.ui.common.FormField
 import com.csqtt.client.ui.common.LinkShareDialog
 import com.csqtt.client.ui.common.rememberActionRunner
 import com.csqtt.client.ui.design.MrttShapes
-import com.csqtt.client.ui.servers.CheckRow
 import com.csqtt.client.ui.utils.parseMrttLink
 
 /** Вкладка «Профили»: список профилей и сабок; нажатие на профиль открывает его в «Транспорт». */
@@ -77,7 +70,7 @@ private suspend fun pingHost(host: String): Int? = kotlinx.coroutines.withContex
     }.getOrNull()
 }
 
-/** Раздел «Профили»: добавленные ссылки и сабки, свои и чужие. Выбранный профиль — то, к чему подключаемся. */
+/** Раздел «Профили»: добавленные конфиги и подписки, свои и чужие. Выбранный профиль — то, к чему подключаемся. */
 @Composable
 internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     val context = LocalContext.current.applicationContext
@@ -87,7 +80,6 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     val tunnelRunning by TunnelManager.running.collectAsStateWithLifecycle()
     val runner = rememberActionRunner()
     var adding by remember { mutableStateOf(false) }
-    var building by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf<Pair<String, String>?>(null) }
     var renaming by remember { mutableStateOf<ConnectionProfile?>(null) }
     var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
@@ -120,7 +112,7 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
         }
         if (profiles.isEmpty()) {
             Text(
-                "Добавьте ссылку csqttr:// или сабку: вставьте её, отсканируйте QR или добавьте подписку со своего сервера в разделе «Серверы».",
+                "Добавьте конфиг mrtt:// или подписку mrttsub://: вставьте ссылку или отсканируйте QR. Конфиги и подписки своего сервера создаются в разделе «Серверы».",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -147,20 +139,11 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
                 )
             }
         }
-        // Одна высота у обеих кнопок, даже если подпись одной из них переносится.
-        Row(
-            modifier = Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val buttonModifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = 48.dp)
-            val padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-            OutlinedButton(onClick = { adding = true }, modifier = buttonModifier, shape = MrttShapes.Pill, contentPadding = padding) {
-                Text("Добавить", maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            }
-            OutlinedButton(onClick = { building = true }, modifier = buttonModifier, shape = MrttShapes.Pill, contentPadding = padding) {
-                Text("Создать сабку", maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            }
-        }
+        OutlinedButton(
+            onClick = { adding = true },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            shape = MrttShapes.Pill,
+        ) { Text("Добавить конфиг или подписку", maxLines = 1) }
     }
 
     if (adding) {
@@ -173,30 +156,20 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
             onConfirm = {
                 runner.run {
                     when (val added = repository.import(text)) {
-                        null -> context.showRaisedToast("Это не ссылка MRTT и не сабка")
+                        null -> context.showRaisedToast("Это не конфиг MRTT и не подписка")
                         0 -> { adding = false; context.showRaisedToast("Эти ссылки уже добавлены") }
                         else -> { adding = false; context.showRaisedToast("Добавлено профилей: $added") }
                     }
                 }
             },
         ) {
-            FormField(text, { text = it.trim() }, "Ссылка csqttr:// или сабка mrttsub://", singleLine = false, minLines = 2)
+            FormField(text, { text = it.trim() }, "Конфиг mrtt:// или подписка mrttsub://", singleLine = false, minLines = 2)
             Text(
                 "QR-код можно отсканировать кнопкой в шапке приложения.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-    if (building) {
-        SubscriptionBuilderDialog(
-            profiles = profiles,
-            onDismiss = { building = false },
-            onBuilt = { subscription ->
-                building = false
-                sharing = subscription.name to encodeSubscription(subscription)
-            },
-        )
     }
     sharing?.let { (title, link) -> LinkShareDialog(title = title, link = link, onDismiss = { sharing = null }) }
     renaming?.let { profile ->
@@ -211,7 +184,7 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     deleting?.let { profile ->
         ConfirmDialog(
             title = "Удалить профиль",
-            text = "Удалить «${profile.name}» из приложения? На сервере подписка останется.",
+            text = "Удалить «${profile.name}» из приложения? На сервере конфиг останется.",
             confirmText = "Удалить",
             onConfirm = { deleting = null; runner.run { repository.delete(profile.id) } },
             onDismiss = { deleting = null },
@@ -277,65 +250,6 @@ private fun ProfileRow(
                 DropdownMenuItem(text = { Text("Переименовать") }, onClick = { menu = false; onRename() })
                 DropdownMenuItem(text = { Text("Удалить") }, onClick = { menu = false; onDelete() })
             }
-        }
-    }
-}
-
-/** Сабка собирается из любых ссылок: своих профилей и подписок с ваших серверов. */
-@Composable
-private fun SubscriptionBuilderDialog(
-    profiles: List<ConnectionProfile>,
-    onDismiss: () -> Unit,
-    onBuilt: (Subscription) -> Unit,
-) {
-    val context = LocalContext.current.applicationContext
-    val servers by remember { ServerRepository(context).servers }.collectAsStateWithLifecycle(initialValue = emptyList())
-    var name by remember { mutableStateOf("") }
-    // ключ — ссылка, значение — имя внутри сабки
-    var chosen by remember { mutableStateOf(linkedMapOf<String, String>()) }
-    val serverLinks = remember { mutableStateOf<Map<String, List<Pair<String, String>>>>(emptyMap()) }
-    val serverErrors = remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-
-    LaunchedEffect(servers) {
-        servers.forEach { server ->
-            if (server.id in serverLinks.value || server.id in serverErrors.value) return@forEach
-            runCatching { ServerControl(context, server).links() }
-                .onSuccess { links -> serverLinks.value = serverLinks.value + (server.id to links.map { (n, l) -> "$n · ${server.title}" to l }) }
-                .onFailure { serverErrors.value = serverErrors.value + (server.id to (it.message ?: "недоступен")) }
-        }
-    }
-
-    fun toggle(label: String, link: String) {
-        chosen = LinkedHashMap(chosen).apply { if (containsKey(link)) remove(link) else put(link, label) }
-    }
-
-    MrttFormDialog(
-        title = "Новая сабка",
-        onDismiss = onDismiss,
-        confirmText = "Создать",
-        confirmEnabled = name.isNotBlank() && chosen.isNotEmpty(),
-        onConfirm = { onBuilt(Subscription(name.trim(), chosen.map { (link, label) -> label to link })) },
-    ) {
-        FormField(name, { name = it.take(64) }, "Название сабки")
-        Text(
-            "Сабка — одна ссылка и QR-код, внутри которых выбранные подключения. Тот, кто её добавит, получит их все в разделе «Профили».",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (profiles.isNotEmpty()) {
-            Text("Мои профили", fontWeight = FontWeight.SemiBold)
-            profiles.forEach { profile -> CheckRow(profile.name, profile.link in chosen) { toggle(profile.name, profile.link) } }
-        }
-        servers.forEach { server ->
-            Text(server.title, fontWeight = FontWeight.SemiBold)
-            serverErrors.value[server.id]?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-            val links = serverLinks.value[server.id]
-            if (links == null && server.id !in serverErrors.value) {
-                Text("Загрузка...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            links?.forEach { (label, link) -> CheckRow(label, link in chosen) { toggle(label, link) } }
         }
     }
 }

@@ -86,11 +86,14 @@ fun encryptMrttPayload(plaintext: String): String {
     }.getOrElse { "" }
 }
 
+const val MRTT_LINK_SCHEME = "mrtt://"
+private val MRTT_LINK_SCHEMES = listOf(MRTT_LINK_SCHEME, "csqttr://")
+
 fun parseMrttLink(raw: String): MrttLink? {
     val trimmed = raw.trim()
-    if (!trimmed.startsWith("csqttr://", ignoreCase = true)) return null
-    val schemeLen = "csqttr://".length
-    val payload = trimmed.substring(schemeLen).trim()
+    // mrtt:// is current; csqttr:// links from earlier builds and servers are still imported.
+    val scheme = MRTT_LINK_SCHEMES.firstOrNull { trimmed.startsWith(it, ignoreCase = true) } ?: return null
+    val payload = trimmed.substring(scheme.length).trim()
     val decoded = decryptMrttPayload(payload) ?: return null
     if (decoded.startsWith("csqtt://", ignoreCase = true)) return null
     if (decoded.contains("host=") || decoded.contains("connect?")) {
@@ -284,5 +287,5 @@ fun formatMrttLink(
         queryParts.add("jitsi=" + java.net.URLEncoder.encode(jitsiRoom, Charsets.UTF_8.name()))
     }
     val plain = "connect?" + queryParts.joinToString("&")
-    return "csqttr://" + encryptMrttPayload(plain)
+    return MRTT_LINK_SCHEME + encryptMrttPayload(plain)
 }

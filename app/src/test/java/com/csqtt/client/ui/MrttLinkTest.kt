@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MrttLinkTest {
-    private fun enc(plain: String): String = "csqttr://" + encryptMrttPayload(plain)
+    private fun enc(plain: String): String = "mrtt://" + encryptMrttPayload(plain)
 
     @Test
     fun parsesV2WithoutHashes() {
@@ -87,7 +87,7 @@ class MrttLinkTest {
 
     @Test
     fun aLettersAndDigitsPasswordIsWrittenAsBefore() {
-        val plain = decryptMrttPayload(formatMrttLink("203.0.113.7", 46000, "SecretPass123456").removePrefix("csqttr://"))
+        val plain = decryptMrttPayload(formatMrttLink("203.0.113.7", 46000, "SecretPass123456").removePrefix("mrtt://"))
         assertEquals("connect?v=2&host=203.0.113.7&peer=46000&password=SecretPass123456", plain)
     }
 
@@ -240,7 +240,7 @@ class MrttLinkTest {
         val encrypted = com.csqtt.client.ui.utils.formatMrttLink(
             host = "example.org", peer = 46000, password = "secret", maxGroupId = "-12345678",
         )
-        org.junit.Assert.assertTrue(encrypted.startsWith("csqttr://"))
+        org.junit.Assert.assertTrue(encrypted.startsWith("mrtt://"))
         val parsed = parseMrttLink(encrypted)
         org.junit.Assert.assertNotNull(parsed)
         org.junit.Assert.assertEquals("-12345678", parsed!!.maxGroupId)

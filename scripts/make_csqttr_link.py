@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate AES-GCM encrypted csqttr:// links compatible with CSQTT 2.5.
+"""Generate AES-GCM encrypted mrtt:// links compatible with CSQTT 2.5.
 
 Requires: pip install cryptography
 Does NOT accept/store MAX access tokens. Such tokens belong only in Android Settings.
@@ -24,19 +24,20 @@ def encrypt_link(payload: str) -> str:
     raw = payload.encode('utf-8')
     nonce = hmac.new(KEY, raw, hashlib.sha256).digest()[:12]
     encrypted = nonce + AESGCM(KEY).encrypt(nonce, raw, b'')
-    return 'csqttr://' + base64.urlsafe_b64encode(encrypted).decode('ascii').rstrip('=')
+    return 'mrtt://' + base64.urlsafe_b64encode(encrypted).decode('ascii').rstrip('=')
 
 
 def decrypt_link(link: str) -> str:
-    if not link.startswith('csqttr://'):
-        raise ValueError('Supported scheme: csqttr:// only')
-    value = link.removeprefix('csqttr://')
+    scheme = next((s for s in ('mrtt://', 'csqttr://') if link.startswith(s)), None)
+    if scheme is None:
+        raise ValueError('Supported schemes: mrtt:// and csqttr://')
+    value = link.removeprefix(scheme)
     raw = base64.urlsafe_b64decode(value + '=' * (-len(value) % 4))
     return AESGCM(KEY).decrypt(raw[:12], raw[12:], b'').decode('utf-8')
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Create MAX or VK encrypted csqttr:// link')
+    parser = argparse.ArgumentParser(description='Create MAX or VK encrypted mrtt:// link')
     parser.add_argument('--host', required=True)
     parser.add_argument('--peer', required=True, type=int)
     parser.add_argument('--password', required=True)

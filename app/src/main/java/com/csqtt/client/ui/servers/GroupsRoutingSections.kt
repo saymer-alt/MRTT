@@ -111,7 +111,7 @@ internal fun GroupsSection(control: ServerControl) {
         MrttFormDialog(
             title = group.name,
             onDismiss = { editing = null },
-            confirmEnabled = name.isNotBlank(),
+            confirmEnabled = name.isNotBlank() && (name.trim() != group.name || ruleId != group.routingRuleId),
             onConfirm = {
                 editing = null
                 runner.run("Сохранено", ::refresh) { control.updateGroup(group.id, name.trim(), ruleId) }
@@ -133,7 +133,7 @@ internal fun GroupsSection(control: ServerControl) {
     deleting?.let { group ->
         ConfirmDialog(
             title = "Удалить группу",
-            text = "Удалить «${group.name}» вместе со всеми её подписками (${group.memberCount})? Их ссылки перестанут работать.",
+            text = "Удалить «${group.name}» вместе со всеми её конфигами (${group.memberCount})? Их ссылки перестанут работать.",
             confirmText = "Удалить",
             onConfirm = { deleting = null; runner.run("Группа удалена", ::refresh) { control.deleteGroup(group.id) } },
             onDismiss = { deleting = null },
@@ -260,7 +260,7 @@ private fun RoutingRuleDialog(
                 }
             }
         }
-        Text("Применить к подпискам", fontWeight = FontWeight.SemiBold)
+        Text("Применить к конфигам", fontWeight = FontWeight.SemiBold)
         clients.forEach { client ->
             CheckRow(client.name, client.password in assignedClients) {
                 assignedClients = if (client.password in assignedClients) assignedClients - client.password else assignedClients + client.password

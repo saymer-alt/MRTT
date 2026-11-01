@@ -55,6 +55,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/** Сервер, для которого идёт установка или удаление: прогресс и ошибки показываются только у него. */
+internal val deployTarget = MutableStateFlow("")
 
 @Composable
 internal fun ServersTab() {
@@ -95,10 +99,26 @@ internal fun ServersTab() {
             ) {
                 Text("Серверы", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "VPS, на которые вы ставите MRTT. Управление подписками, группами и настройками идёт через SSH: никаких веб-страниц и открытых портов, кроме порта подключения.",
+                    "VPS, на которые вы ставите MRTT. Управление конфигами, группами и настройками идёт через SSH: никаких веб-страниц и открытых портов, кроме порта подключения.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                DeployProgressCard()
+                if (servers.isEmpty()) {
+                    AppSectionCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Filled.Dns, contentDescription = null, modifier = Modifier.size(24.dp))
+                            Text("Серверов пока нет", fontWeight = FontWeight.SemiBold)
+                        }
+                        Text(
+                            "1. Добавьте VPS: адрес, SSH-логин и пароль или ключ.\n" +
+                                "2. Откройте сервер и установите MRTT.\n" +
+                                "3. Создайте конфиги и подписки и раздайте их ссылкой или QR-кодом.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 servers.forEach { server ->
                     AppSectionCard(modifier = Modifier.clickable { openedId = server.id }) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -171,6 +191,7 @@ private fun startDeploy(context: Context, server: VpsServer) {
         return
     }
     ServerApi.forget(server.id)
+    deployTarget.value = server.id
     runDeployJob(context, "Установка") {
         performDeploy(
             context = context,
@@ -192,6 +213,7 @@ private fun startDeploy(context: Context, server: VpsServer) {
 private fun startUninstall(context: Context, server: VpsServer) {
     if (DeployManager.isDeploying.value) return
     ServerApi.forget(server.id)
+    deployTarget.value = server.id
     runDeployJob(context, "Удаление") {
         performUninstall(
             context = context,

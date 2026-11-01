@@ -1275,7 +1275,7 @@ private fun JitsiRoomDialog(current: String, onSave: (String) -> Unit, onDismiss
         title = "Комната Jitsi",
         onDismiss = onDismiss,
         confirmText = "Сохранить",
-        confirmEnabled = text.isBlank() || parsed != null,
+        confirmEnabled = (text.isBlank() || parsed != null) && parsed.orEmpty() != current,
         onConfirm = { onSave(parsed.orEmpty()) },
     ) {
         com.csqtt.client.ui.common.JitsiRoomField(text, { text = it })

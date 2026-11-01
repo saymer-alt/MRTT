@@ -334,12 +334,13 @@ impl Xmpp {
             let mut keepalive = tokio::time::interval(KEEPALIVE);
             keepalive.tick().await;
             loop {
-                let text = tokio::select! {
-                    message = out_rx.recv() => match message { Some(text) => text, None => break },
-                    // Whitespace keepalive keeps Prosody and proxies from dropping an idle stream.
-                    _ = keepalive.tick() => " ".to_owned(),
+                let frame = tokio::select! {
+                    message = out_rx.recv() => match message { Some(text) => Message::Text(text.into()), None => break },
+                    // WebSocket ping keeps Prosody and proxies from dropping an idle stream; a whitespace
+                    // text frame is rejected by Prosody (RFC 7395 3.3.3) and closes the socket.
+                    _ = keepalive.tick() => Message::Ping(Vec::new().into()),
                 };
-                if sink.send(Message::Text(text.into())).await.is_err() {
+                if sink.send(frame).await.is_err() {
                     break;
                 }
             }

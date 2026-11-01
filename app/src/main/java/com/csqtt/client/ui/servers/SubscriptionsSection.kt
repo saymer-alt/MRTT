@@ -33,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.csqtt.client.profiles.ProfileRepository
+import com.csqtt.client.profiles.Subscription
+import com.csqtt.client.profiles.encodeSubscription
 import com.csqtt.client.servers.ServerClient
 import com.csqtt.client.servers.ServerControl
 import com.csqtt.client.servers.ServerGroup
@@ -68,6 +70,8 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
     var editing by remember { mutableStateOf<ServerClient?>(null) }
     var creating by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf<ServerClient?>(null) }
+    var bundling by remember { mutableStateOf(false) }
+    var bundleShare by remember { mutableStateOf<Pair<String, String>?>(null) }
     var batchGroup by remember { mutableStateOf(false) }
     var batchDelete by remember { mutableStateOf(false) }
 
@@ -108,11 +112,19 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             Text("Загрузка...", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (clients != null) {
-            Button(
-                onClick = { creating = true },
-                modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
-                shape = MrttShapes.Pill,
-            ) { Text("Создать подписку") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { creating = true },
+                    modifier = Modifier.weight(1f).height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
+                ) { Text("Создать конфиг", maxLines = 1) }
+                OutlinedButton(
+                    onClick = { bundling = true },
+                    enabled = clients.orEmpty().isNotEmpty(),
+                    modifier = Modifier.weight(1f).height(MrttSizes.ControlHeight),
+                    shape = MrttShapes.Pill,
+                ) { Text("Создать подписку", maxLines = 1) }
+            }
             FormField(search, { search = it }, "Поиск по имени")
             androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -153,7 +165,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
                 )
             }
             if (visible.isEmpty()) {
-                Text("Подписок нет", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Конфигов нет", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -165,7 +177,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onDismiss = { creating = false },
             onSave = { form ->
                 creating = false
-                runner.run("Подписка создана", ::refresh) {
+                runner.run("Конфиг создан", ::refresh) {
                     control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices)
                 }
             },
@@ -192,7 +204,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onToggle = { editing = null; runner.run("Статус изменён", ::refresh) { control.toggleClient(client.password) } },
             onExtend = { editing = null; runner.run("Продлено на 30 дней", ::refresh) { control.extendClient(client.password) } },
             onResetTraffic = { editing = null; runner.run("Трафик сброшен", ::refresh) { control.resetTraffic(client.password) } },
-            onDelete = { editing = null; runner.run("Подписка удалена", ::refresh) { control.deleteClient(client.password) } },
+            onDelete = { editing = null; runner.run("Конфиг удалён", ::refresh) { control.deleteClient(client.password) } },
             onUnbind = { deviceId ->
                 runner.run("Устройство отвязано", ::refresh) { control.unbindDevice(client.password, deviceId) }
                 editing = client.copy(
@@ -204,6 +216,17 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
     sharing?.let { client ->
         LinkShareDialog(title = client.name, link = client.link, onDismiss = { sharing = null })
     }
+    if (bundling) {
+        SubscriptionBuilderDialog(
+            clients = clients.orEmpty(),
+            onDismiss = { bundling = false },
+            onBuilt = { subscription ->
+                bundling = false
+                bundleShare = subscription.name to encodeSubscription(subscription)
+            },
+        )
+    }
+    bundleShare?.let { (title, link) -> LinkShareDialog(title = title, link = link, onDismiss = { bundleShare = null }) }
     if (batchGroup) {
         var target by remember { mutableStateOf("") }
         MrttFormDialog(
@@ -227,8 +250,8 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
     }
     if (batchDelete) {
         ConfirmDialog(
-            title = "Удалить подписки",
-            text = "Удалить выбранные подписки (${selected.size})? Ссылки перестанут работать.",
+            title = "Удалить конфиги",
+            text = "Удалить выбранные конфиги (${selected.size})? Ссылки перестанут работать.",
             confirmText = "Удалить",
             onConfirm = {
                 batchDelete = false
@@ -324,11 +347,14 @@ private fun ClientEditDialog(
     val workersValue = workers.toIntOrNull() ?: 0
     val valid = (owner || name.isNotBlank()) && (days.toIntOrNull() ?: -1) in 0..3650 &&
         (workersValue == 0 || workersValue in 3..100) && (maxDevices.toIntOrNull() ?: -1) in 0..1000
+    val changed = client == null || name != client.name || groupId != client.groupId ||
+        days != remainingDays(client.expires).toString() || workers != client.workers.toString() ||
+        maxDevices != client.maxDevices.toString() || vkHashes != client.vkHashes || vkToken != client.vkToken
 
     MrttFormDialog(
-        title = if (client == null) "Новая подписка" else client.name,
+        title = if (client == null) "Новый конфиг" else client.name,
         onDismiss = onDismiss,
-        confirmEnabled = valid,
+        confirmEnabled = valid && changed,
         onConfirm = {
             onSave(
                 ClientForm(
@@ -407,11 +433,43 @@ private fun ClientEditDialog(
     }
     if (confirmDelete && client != null) {
         ConfirmDialog(
-            title = "Удалить подписку",
+            title = "Удалить конфиг",
             text = "Удалить «${client.name}»? Ссылка перестанет работать на всех устройствах.",
             confirmText = "Удалить",
             onConfirm = { confirmDelete = false; onDelete() },
             onDismiss = { confirmDelete = false },
         )
+    }
+}
+
+/** Подписка: одна ссылка и QR-код, внутри которых выбранные конфиги этого сервера. */
+@Composable
+private fun SubscriptionBuilderDialog(
+    clients: List<ServerClient>,
+    onDismiss: () -> Unit,
+    onBuilt: (Subscription) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    val chosen = remember { mutableStateListOf<String>() }
+    MrttFormDialog(
+        title = "Новая подписка",
+        onDismiss = onDismiss,
+        confirmText = "Создать",
+        confirmEnabled = name.isNotBlank() && chosen.isNotEmpty(),
+        onConfirm = {
+            onBuilt(Subscription(name.trim(), clients.filter { it.password in chosen }.map { it.name to it.link }))
+        },
+    ) {
+        FormField(name, { name = it.take(64) }, "Название подписки")
+        Text(
+            "Подписка: одна ссылка и QR-код, внутри которых выбранные конфиги. Тот, кто её добавит, получит их все в разделе «Профили».",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        clients.forEach { client ->
+            CheckRow(client.name, client.password in chosen) {
+                if (client.password in chosen) chosen.remove(client.password) else chosen.add(client.password)
+            }
+        }
     }
 }

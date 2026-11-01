@@ -20,7 +20,7 @@ internal data class ConnectionProfile(
     val group: String = "",
 )
 
-/** Сабка: одна ссылка, внутри которой несколько csqttr-ссылок (можно с разных серверов). */
+/** Сабка: одна ссылка, внутри которой несколько mrtt-ссылок (можно с разных серверов). */
 internal data class Subscription(val name: String, val links: List<Pair<String, String>>)
 
 internal const val SUBSCRIPTION_SCHEME = "mrttsub://"
@@ -42,12 +42,12 @@ internal fun decodeSubscription(raw: String): Subscription? {
     val links = (0 until array.length()).mapNotNull { index ->
         val item = array.optJSONObject(index) ?: return@mapNotNull null
         val link = item.optString("link").trim()
-        // В сабку пускаем только валидные csqttr-ссылки: это граница доверия для чужих сабок.
+        // В сабку пускаем только валидные mrtt-ссылки: это граница доверия для чужих сабок.
         if (parseMrttLink(link) == null) return@mapNotNull null
         item.optString("name").ifBlank { "Ссылка ${index + 1}" } to link
     }
     if (links.isEmpty()) return null
-    return Subscription(payload.optString("name").ifBlank { "Сабка" }, links)
+    return Subscription(payload.optString("name").ifBlank { "Подписка" }, links)
 }
 
 internal class ProfileRepository(context: Context) {

@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -222,7 +223,7 @@ class MainActivity : ComponentActivity() {
             showRaisedToast("Неверная ссылка MRTT", Toast.LENGTH_SHORT)
             return
         }
-        val message = subscription?.let { "Сабка «${it.name}»: подключений ${it.links.size}" }
+        val message = subscription?.let { "Подписка «${it.name}»: конфигов ${it.links.size}" }
             ?: "Хост: ${link?.host}\nPeer: ${link?.port}"
         android.app.AlertDialog.Builder(this)
             .setTitle("Добавить в профили")
@@ -604,7 +605,6 @@ private fun ProxyNavigationBar(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        // Шесть вкладок: поля уже и подпись мельче, чтобы «Транспорт» влезал целиком.
         val trackPadding = 4.dp
         val itemWidth = (maxWidth - trackPadding * 2) / navItems.size
         val indicatorOffset = trackPadding + itemWidth * dragVisualIndex
@@ -680,7 +680,10 @@ private fun ProxyNavigationBar(
                                 fontWeight = if (emphasis > 0.55f) FontWeight.SemiBold else FontWeight.Medium,
                                 color = iconColor,
                                 maxLines = 1,
-                                softWrap = false
+                                softWrap = false,
+                                // Шрифт уменьшается, пока подпись не влезет целиком при любом масштабе текста.
+                                autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 10.sp, stepSize = 0.5.sp),
+                                modifier = Modifier.padding(horizontal = 2.dp),
                             )
                         }
                     }

@@ -10,15 +10,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,12 +37,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.csqtt.client.DeployManager
 import com.csqtt.client.servers.ServerControl
 import com.csqtt.client.servers.VpsServer
+import com.csqtt.client.ui.AppSectionCard
 import com.csqtt.client.ui.common.ConfirmDialog
+import com.csqtt.client.ui.design.MrttShapes
+import com.csqtt.client.ui.friendlyDeployError
 import com.csqtt.client.ui.components.MrttScreen
 
-private val SECTIONS = listOf("Подписки", "Группы", "Маршруты", "Прокси", "Настройки", "Логи", "Статистика")
+private val SECTIONS = listOf("Конфиги", "Группы", "Маршруты", "Прокси", "Настройки", "Логи", "Статистика")
 
 @Composable
 internal fun ServerManageScreen(
@@ -53,6 +63,28 @@ internal fun ServerManageScreen(
     var section by rememberSaveable(server.id) { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<String?>(null) }
+    val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
+    val target by deployTarget.collectAsStateWithLifecycle()
+    val deployingHere = isDeploying && target == server.id
+    // Каждая установка начинает новое поколение: разделы пересоздаются и грузят данные заново.
+    var generation by remember(server.id) { mutableIntStateOf(0) }
+    var wasDeploying by remember(server.id) { mutableStateOf(deployingHere) }
+    LaunchedEffect(deployingHere) {
+        if (wasDeploying && !deployingHere) generation++
+        wasDeploying = deployingHere
+    }
+    var retry by remember(server.id) { mutableIntStateOf(0) }
+    // null: проверяем; "": сервер отвечает; иначе причина, по которой MRTT не отвечает.
+    var reachError by remember(server) { mutableStateOf<String?>(null) }
+    LaunchedEffect(control, generation, retry, deployingHere) {
+        if (deployingHere) return@LaunchedEffect
+        reachError = null
+        reachError = runCatching { control.settings() }.fold(
+            onSuccess = { "" },
+            onFailure = { friendlyDeployError(it.message) },
+        )
+        if (reachError == "" && target == server.id) DeployManager.lastResult.value = ""
+    }
 
     MrttScreen {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -71,7 +103,22 @@ internal fun ServerManageScreen(
                 }
             }
         }
-        DeployProgressCard()
+        if (target == server.id) DeployProgressCard()
+        when {
+            deployingHere -> return@MrttScreen
+            reachError == null -> ServerStatusTile(title = "Подключаемся к серверу...", busy = true)
+            reachError != "" -> ServerStatusTile(
+                title = "MRTT на сервере не отвечает",
+                text = "${reachError}\n\nЕсли MRTT ещё не установлен, установите его. Если установлен, проверьте адрес и SSH-доступ.",
+            ) {
+                Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.fillMaxWidth()) { Text("Установить MRTT") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
+                    OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }
+                }
+            }
+        }
+        if (reachError != "") return@MrttScreen
         ScrollableTabRow(
             selectedTabIndex = section,
             edgePadding = 0.dp,
@@ -83,7 +130,7 @@ internal fun ServerManageScreen(
             }
         }
         Box(modifier = Modifier.fillMaxSize().padding(bottom = 8.dp)) {
-            when (section) {
+            key(generation) { when (section) {
                 0 -> SubscriptionsSection(control, server)
                 1 -> GroupsSection(control)
                 2 -> RoutingSection(control)
@@ -91,7 +138,7 @@ internal fun ServerManageScreen(
                 4 -> ServerSettingsSection(control)
                 5 -> ServerLogsSection(control)
                 else -> ServerStatsSection(control)
-            }
+            } }
         }
     }
 
@@ -105,7 +152,7 @@ internal fun ServerManageScreen(
         )
         "uninstall" -> ConfirmDialog(
             title = "Удаление MRTT",
-            text = "Удалить MRTT с ${server.host}? Все подписки на этом сервере перестанут работать.",
+            text = "Удалить MRTT с ${server.host}? Все конфиги на этом сервере перестанут работать.",
             confirmText = "Удалить",
             onConfirm = { confirm = null; onUninstall() },
             onDismiss = { confirm = null },
@@ -117,5 +164,24 @@ internal fun ServerManageScreen(
             onConfirm = { confirm = null; onDelete() },
             onDismiss = { confirm = null },
         )
+    }
+}
+
+@Composable
+private fun ServerStatusTile(
+    title: String,
+    text: String = "",
+    busy: Boolean = false,
+    actions: @Composable () -> Unit = {},
+) {
+    AppSectionCard(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (busy) CircularProgressIndicator(modifier = Modifier.padding(2.dp), strokeWidth = 2.dp)
+            Text(title, fontWeight = FontWeight.SemiBold)
+        }
+        if (text.isNotBlank()) {
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        actions()
     }
 }

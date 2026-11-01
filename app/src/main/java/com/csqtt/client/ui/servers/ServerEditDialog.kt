@@ -43,11 +43,17 @@ internal fun ServerEditDialog(
     val authValid = if (keyMode) privateKey.isNotBlank() else sshPassword.isNotEmpty()
     val valid = host.isNotBlank() && !host.contains(':') && sshUser.isNotBlank() && authValid &&
         portsValid && com.csqtt.client.ui.utils.isValidTunnelPassword(mainPassword)
+    val changed = initial.host.isBlank() || name.trim() != initial.name || host.trim() != initial.host ||
+        sshPort != initial.sshPort.toString() || sshUser.trim() != initial.sshUser ||
+        keyMode != initial.sshPrivateKey.isNotBlank() || sshPassword != initial.sshPassword ||
+        privateKey.trim() != initial.sshPrivateKey || passphrase != initial.sshKeyPassphrase ||
+        peerPort != initial.peerPort.toString() || apiPort != initial.apiPort.toString() ||
+        docker != initial.docker || mainPassword != initial.mainPassword
 
     MrttFormDialog(
         title = if (initial.host.isBlank()) "Новый сервер" else "Сервер",
         onDismiss = onDismiss,
-        confirmEnabled = valid,
+        confirmEnabled = valid && changed,
         onConfirm = {
             onSave(
                 initial.copy(

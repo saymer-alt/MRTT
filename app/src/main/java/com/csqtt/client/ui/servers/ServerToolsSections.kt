@@ -100,7 +100,10 @@ internal fun ProxySection(control: ServerControl) {
         MrttFormDialog(
             title = if (profile.id.isEmpty()) "Новый SOCKS5" else profile.name,
             onDismiss = { editing = null },
-            confirmEnabled = (port.toIntOrNull() ?: 0) in 1..65535,
+            confirmEnabled = (port.toIntOrNull() ?: 0) in 1..65535 && (
+                profile.id.isEmpty() || name.trim() != profile.name || port != profile.port.toString() ||
+                    username != profile.username || password != profile.password
+                ),
             onConfirm = {
                 editing = null
                 runner.run("Сохранено", ::refresh) {
@@ -183,12 +186,12 @@ internal fun ServerSettingsSection(control: ServerControl) {
             )
         }
         AppSectionCard {
-            Text("VK для подписок", fontWeight = FontWeight.SemiBold)
+            Text("VK для конфигов", fontWeight = FontWeight.SemiBold)
             FormField(form.vkToken, { form = form.copy(vkToken = it.trim()) }, "VK-токен сервера", secret = true)
             FormField(form.vkHashes, { form = form.copy(vkHashes = it.filterNot(Char::isWhitespace)) }, "VK-хеши через запятую")
             TextButton(onClick = {
-                runner.run("VK применён ко всем подпискам", ::refresh) { control.applyVkToAllClients(form.vkToken, form.vkHashes) }
-            }) { Text("Применить ко всем подпискам") }
+                runner.run("VK применён ко всем конфигам", ::refresh) { control.applyVkToAllClients(form.vkToken, form.vkHashes) }
+            }) { Text("Применить ко всем конфигам") }
         }
         AppSectionCard {
             Text("Jitsi", fontWeight = FontWeight.SemiBold)
@@ -213,6 +216,7 @@ internal fun ServerSettingsSection(control: ServerControl) {
         }
         Button(
             onClick = { runner.run("Настройки сохранены", ::refresh) { control.saveSettings(form) } },
+            enabled = form != loaded,
             modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
             shape = MrttShapes.Pill,
         ) { Text("Сохранить настройки") }
@@ -239,7 +243,7 @@ internal fun ServerSettingsSection(control: ServerControl) {
     pendingImport?.let { json ->
         ConfirmDialog(
             title = "Импорт конфигурации",
-            text = "Добавить подписки, группы и правила из файла и применить его настройки? Существующие подписки сохранятся.",
+            text = "Добавить конфиги, группы и правила из файла и применить его настройки? Существующие подписки сохранятся.",
             confirmText = "Импортировать",
             onConfirm = {
                 pendingImport = null
