@@ -26,9 +26,9 @@ Android-клиент и сервер для туннеля через звонк
 
 **Деплой сервера.** Сервер разворачивается на VPS по SSH прямо из приложения, после установки приложение выдаёт ссылку на подключение. Сервер под все архитектуры уже лежит внутри APK, отдельно ничего скачивать не нужно.
 
-## Другие клиенты
+## CSQTT 2.5.0 и 2.1.9
 
-Профили CSQTT поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS, с деплоем сервера в обоих.
+В [Releases](https://github.com/ttrroyy/mrtt/releases) сохранены сборки CSQTT 2.5.0 Legacy и 2.1.9 Legacy: клиент, сервер и деплой работают так же, как в оригинале. Профили CSQTT обеих версий поддерживают [qThroneMobile](https://github.com/ttrroyy/qThroneMobile) для Android и [qThrone](https://github.com/ttrroyy/qThrone) для Windows, Linux и macOS.
 
 ## Лицензия
 
@@ -42,7 +42,7 @@ Required Notice: Redistributions and derivative works must retain attribution to
 
 ## Благодарности
 
-- [amurcanov/csqtt](https://github.com/amurcanov/csqtt): автор CSQTT, клиента и сервера, на которых построен MRTT
+- [CSQTT](https://github.com/amurcanov/csqtt) от amurcanov: клиент и сервер, на которых построен MRTT
 
 ## Обсуждение
 
