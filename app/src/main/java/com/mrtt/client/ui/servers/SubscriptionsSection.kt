@@ -112,19 +112,18 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             Text("Загрузка...", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (clients != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { creating = true },
-                    modifier = Modifier.weight(1f).height(MrttSizes.ControlHeight),
-                    shape = MrttShapes.Pill,
-                ) { Text("Создать конфиг", maxLines = 1) }
-                OutlinedButton(
-                    onClick = { bundling = true },
-                    enabled = clients.orEmpty().isNotEmpty(),
-                    modifier = Modifier.weight(1f).height(MrttSizes.ControlHeight),
-                    shape = MrttShapes.Pill,
-                ) { Text("Создать подписку", maxLines = 1) }
-            }
+            // Друг под другом: в ряд на узком экране «Создать подписку» обрезалась до «Создать».
+            Button(
+                onClick = { creating = true },
+                modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                shape = MrttShapes.Pill,
+            ) { Text("Создать конфиг", maxLines = 1) }
+            OutlinedButton(
+                onClick = { bundling = true },
+                enabled = clients.orEmpty().isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                shape = MrttShapes.Pill,
+            ) { Text("Создать подписку", maxLines = 1) }
             FormField(search, { search = it }, "Поиск по имени")
             androidx.compose.foundation.layout.FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
