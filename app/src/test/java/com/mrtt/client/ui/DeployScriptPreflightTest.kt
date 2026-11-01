@@ -59,7 +59,7 @@ class DeployScriptPreflightTest {
         assertTrue(installBranch.contains("run_timed \"preflight\" run_platform_preflight"))
         assertTrue(cleanup > uploadCheck)
         assertTrue(binary > cleanup)
-        assertTrue(installBranch.contains("local total_started=\$SECONDS\n            detect_os\n            run_timed \"зависимости\" install_prerequisites\n            require_runtime_tools"))
+        assertTrue(installBranch.contains("local total_started=\$SECONDS\n            detect_os\n            run_timed \"перенос старой установки\" migrate_legacy_install\n            run_timed \"зависимости\" install_prerequisites\n            require_runtime_tools"))
 
         val client = deployOperations()
         assertFalse(client.contains("bash /tmp/deploy.sh prepare"))
