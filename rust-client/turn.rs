@@ -451,6 +451,9 @@ impl TurnAllocation {
     }
 
     /// Seats this worker in `room` and addresses the server seat picked by `seat_hint`.
+    /// The core only keeps bookkeeping for a room seat; its create check refuses port 0, so a dummy one.
+    const ROOM_CORE_PLACEHOLDER: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 9);
+
     pub async fn room(
         room: &crate::jitsi_room::RoomTarget,
         seat_hint: usize,
@@ -477,12 +480,11 @@ impl TurnAllocation {
         .await
         .map_err(|_| anyhow!("сервер MRTT не найден в комнате {room}"))??;
         let seat = seats[seat_hint % seats.len()].clone();
-        let unspecified = SocketAddr::from(([0, 0, 0, 0], 0));
         let core = NativeCore::create_with_transport(
-            unspecified,
+            Self::ROOM_CORE_PLACEHOLDER,
             "room",
             "room",
-            unspecified,
+            Self::ROOM_CORE_PLACEHOLDER,
             TurnControlTransport::Datagram,
         )?;
         let (snapshot, _) = watch::channel(CoreSnapshot::default());
@@ -567,7 +569,7 @@ impl TurnAllocation {
             core,
             incoming: Mutex::new(Some(incoming_rx)),
             shared,
-            relay_address: Mutex::new(unspecified),
+            relay_address: Mutex::new(SocketAddr::from(([0, 0, 0, 0], 0))),
             prepare_lock: tokio::sync::Mutex::new(()),
             driver: Mutex::new(Some(driver)),
             outbound_queue: None,
@@ -1750,6 +1752,12 @@ mod tests {
         errors.clear();
         assert!(errors.tolerate(&refused));
         assert!(!errors.tolerate(&std::io::Error::from(std::io::ErrorKind::Other)));
+    }
+
+    #[test]
+    fn room_core_placeholder_passes_the_create_check() {
+        let placeholder = TurnAllocation::ROOM_CORE_PLACEHOLDER;
+        assert!(NativeCore::create_with_transport(placeholder, "room", "room", placeholder, TurnControlTransport::Datagram).is_ok());
     }
 
     #[test]
