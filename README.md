@@ -39,9 +39,11 @@ Android-клиент и сервер на основе [CSQTT](https://github.co
 
 [PolyForm Noncommercial 1.0.0](LICENSE). Код можно использовать, изменять и распространять только в некоммерческих целях. Любая продажа, платные сервисы и другое коммерческое использование без письменного разрешения автора CSQTT запрещены.
 
+```
 Required Notice: Copyright 2026 amurcanov.
 Required Notice: Commercial use of CSQTT requires a separate written license from the licensor.
 Required Notice: Redistributions and derivative works must retain attribution to the original CSQTT project and these notices.
+```
 
 ## Благодарности
 
