@@ -39,7 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mrtt.client.DeployManager
+import com.mrtt.client.servers.ServerApiException
 import com.mrtt.client.servers.ServerControl
+import com.mrtt.client.servers.ServerNotRunningException
 import com.mrtt.client.servers.VpsServer
 import com.mrtt.client.ui.AppSectionCard
 import com.mrtt.client.ui.common.ConfirmDialog
@@ -76,12 +78,16 @@ internal fun ServerManageScreen(
     var retry by remember(server.id) { mutableIntStateOf(0) }
     // null: проверяем; "": сервер отвечает; иначе причина, по которой MRTT не отвечает.
     var reachError by remember(server) { mutableStateOf<String?>(null) }
+    // SSH пускает, но MRTT на сервере нет: вместо «не отвечает» предлагаем установить.
+    var notInstalled by remember(server) { mutableStateOf(false) }
     LaunchedEffect(control, generation, retry, deployingHere) {
         if (deployingHere) return@LaunchedEffect
         reachError = null
-        reachError = runCatching { control.settings() }.fold(
+        val result = runCatching { control.settings() }
+        notInstalled = result.exceptionOrNull() is ServerNotRunningException
+        reachError = result.fold(
             onSuccess = { "" },
-            onFailure = { friendlyDeployError(it.message) },
+            onFailure = { if (it is ServerApiException) it.message.orEmpty() else friendlyDeployError(it.message) },
         )
         if (reachError == "" && target == server.id) DeployManager.lastResult.value = ""
     }
@@ -107,7 +113,13 @@ internal fun ServerManageScreen(
         when {
             deployingHere -> return@MrttScreen
             reachError == null -> ServerStatusTile(title = "Подключаемся к серверу...", busy = true)
-            reachError != "" -> ServerStatusTile(title = "Сервер не отвечает", text = reachError.orEmpty()) {
+            notInstalled -> ServerStatusTile(title = "MRTT не запущен на сервере", text = reachError.orEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Установить", maxLines = 1) }
+                    OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }
+                }
+            }
+            reachError != "" -> ServerStatusTile(title = "Не удалось подключиться", text = reachError.orEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
                     OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }

@@ -80,7 +80,12 @@ internal fun friendlyDeployError(message: String?): String {
             text.contains("HostKey", ignoreCase = true) ||
             text.contains("host key", ignoreCase = true) ->
             "SSH-ключ сервера изменился или не принят"
-        text.contains("timeout", ignoreCase = true) ->
+        text.contains("connect timed out", ignoreCase = true) ->
+            "VPS не ответил на подключение по SSH: проверьте IP, порт SSH и фаервол"
+        text.contains("settlement", ignoreCase = true) ->
+            "SSH: приложение и сервер не договорились о шифровании ($text)".take(240)
+        text.contains("timeout", ignoreCase = true) ||
+            text.contains("timed out", ignoreCase = true) ->
             "Истекло время ожидания SSH/SFTP"
         text.contains("UnknownHost", ignoreCase = true) ||
             text.contains("No route to host", ignoreCase = true) ->
@@ -564,9 +569,12 @@ internal suspend fun performDeploy(
         onProgress(0.02f, "Подключение...")
 
         TunnelManager.addDeployInfoLog("SSH/SFTP используют текущий системный маршрут")
-        TunnelManager.addDeployInfoLog("Подключение к VPS по SSH")
+        TunnelManager.addDeployInfoLog(
+            "Подключение к $host:$port по SSH, вход как $user по ${if (privateKey.isNotBlank()) "ключу" else "паролю"}",
+        )
         val initialSsh = createSSHClient(context, host, user, pass, port, privateKey, keyPassphrase)
         ssh = initialSsh
+        TunnelManager.addDeployInfoLog("Сервер SSH: ${initialSsh.transport.serverVersion}")
         DeployManager.activeSession = initialSsh
         val sshClient = DeploySSHClient(initialSsh, pass) { stage ->
             TunnelManager.addDeployInfoLog("Повторное SSH-подключение: $stage")
@@ -574,7 +582,7 @@ internal suspend fun performDeploy(
                 ssh = it
             }
         }
-        TunnelManager.addDeploySuccessLog("SSH-соединение установлено")
+        TunnelManager.addDeploySuccessLog("Вход на VPS выполнен")
 
         val architectureResult = sshClient.execResult("uname -m", timeout = 10000L)
         if (architectureResult.exitStatus != 0) {
@@ -669,6 +677,7 @@ internal suspend fun performDeploy(
                 e.stackTraceToString().take(1200)
         )
         TunnelManager.addDeployErrorLog(friendly)
+        if (friendly != e.message) TunnelManager.addDeployInfoLog("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
         DeployManager.stopDeploy(friendly)
         return@withContext false
     } finally {
@@ -730,6 +739,7 @@ internal suspend fun performUninstall(
         val friendly = friendlyDeployError(e.message)
         DeployManager.writeError("Uninstall error (${e.javaClass.simpleName}): ${e.message}")
         TunnelManager.addDeployErrorLog(friendly)
+        if (friendly != e.message) TunnelManager.addDeployInfoLog("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
         DeployManager.stopDeploy(friendly)
         return@withContext false
     } finally {

@@ -7,13 +7,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeoutOrNull
+import com.mrtt.client.ui.friendlyDeployError
 import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.connection.channel.OpenFailException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
-internal class ServerApiException(message: String) : IOException(message)
+internal open class ServerApiException(message: String) : IOException(message)
+
+/** SSH пустил, но на порту API никто не слушает: MRTT не установлен или служба лежит. */
+internal class ServerNotRunningException(message: String) : ServerApiException(message)
 
 /**
  * API управления сервером слушает только 127.0.0.1, поэтому запросы идут через SSH
@@ -31,27 +36,43 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
     suspend fun request(method: String, path: String, body: String? = null): String {
         // Блокирующее чтение SSH не отменяется само: ждём не дольше таймаута и рвём соединение,
         // иначе экран сервера висит на «Загрузка...», пока не перезайти во вкладку.
+        // Этап, на котором застряли: по нему понятно, виноват ли SSH или сам MRTT.
+        var stage = "подключение и вход по SSH (${server.host}:${server.sshPort})"
         val call = DETACHED.async {
-            try {
-                exchange(connection(), method, path, body)
+            fun attempt() = try {
+                exchange(connection { stage = it }, method, path, body) { stage = it }
             } catch (error: ServerApiException) {
                 throw error
+            } catch (error: IllegalArgumentException) {
+                throw ServerApiException(sshError(error.message))
+            }
+            val cached = clients[server.id]?.let { it.isConnected && it.isAuthenticated } == true
+            try {
+                attempt()
             } catch (error: IOException) {
+                if (error is ServerApiException) throw error
+                if (!cached) throw ServerApiException(sshError(error.message))
                 // Закэшированное SSH-соединение могло умереть: один повтор на свежем.
                 drop()
-                exchange(connection(), method, path, body)
+                try {
+                    attempt()
+                } catch (retryError: IOException) {
+                    if (retryError is ServerApiException) throw retryError
+                    throw ServerApiException(sshError(retryError.message))
+                }
             }
         }
         return withTimeoutOrNull(REQUEST_TIMEOUT_MS) { call.await() } ?: run {
             call.cancel()
             drop()
-            throw ServerApiException("Сервер не ответил за ${REQUEST_TIMEOUT_MS / 1000} с")
+            throw ServerApiException("Нет ответа за ${REQUEST_TIMEOUT_MS / 1000} с, этап: $stage")
         }
     }
 
-    private fun connection(): SSHClient = synchronized(clients) {
+    private fun connection(onStage: (String) -> Unit): SSHClient = synchronized(clients) {
         clients[server.id]?.takeIf { it.isConnected && it.isAuthenticated }?.let { return it }
         if (!server.hasSshAuth) throw ServerApiException("Укажите SSH-пароль или ключ сервера")
+        onStage("подключение и вход по SSH (${server.host}:${server.sshPort})")
         createSSHClient(
             context,
             server.host,
@@ -63,11 +84,14 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
         ).also { clients[server.id] = it }
     }
 
+    private fun sshError(message: String?): String =
+        friendlyDeployError(message).let { if ("SSH" in it || "VPS" in it) it else "Ошибка SSH: $it" }
+
     private fun drop() {
         clients.remove(server.id)?.let { runCatching { it.disconnect() } }
     }
 
-    private fun exchange(ssh: SSHClient, method: String, path: String, body: String?): String {
+    private fun exchange(ssh: SSHClient, method: String, path: String, body: String?, onStage: (String) -> Unit): String {
         val payload = body?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
         val head = buildString {
             append("$method $path HTTP/1.0\r\n")
@@ -78,7 +102,17 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
             if (body != null) append("Content-Type: application/json\r\n")
             append("Content-Length: ${payload.size}\r\n\r\n")
         }
-        val raw = ssh.newDirectConnection("127.0.0.1", server.apiPort).use { channel ->
+        onStage("вход выполнен, открываем API MRTT на порту ${server.apiPort}")
+        val channel = try {
+            ssh.newDirectConnection("127.0.0.1", server.apiPort)
+        } catch (error: OpenFailException) {
+            throw ServerNotRunningException(
+                "Вход по SSH выполнен, но MRTT на сервере не отвечает: порт API ${server.apiPort} закрыт. " +
+                    "Скорее всего MRTT не установлен или служба остановлена.",
+            )
+        }
+        onStage("ждём ответ API MRTT")
+        val raw = channel.use { channel ->
             channel.outputStream.apply {
                 write(head.toByteArray(Charsets.US_ASCII))
                 write(payload)
