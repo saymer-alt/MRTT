@@ -36,9 +36,11 @@ Android-клиент и сервер для туннеля через звонк
 
 ## Благодарности
 
-- [CSQTT](https://github.com/amurcanov/csqtt) от amurcanov: клиент и сервер, на которых построен MRTT
-- [olcRTC](https://github.com/openlibrecommunity/olcrtc): передача трафика через видеомост Jitsi
-- [webrtc-rs](https://github.com/webrtc-rs/webrtc), [primp](https://github.com/deedy5/primp), [netstack-smoltcp](https://github.com/cavivie/netstack-smoltcp)
+- [CSQTT](https://github.com/amurcanov/csqtt): туннель через TURN-серверы звонков VK
+- [olcRTC](https://github.com/openlibrecommunity/olcrtc): туннель через сервисы видеовстреч
+- [webrtc-rs](https://github.com/webrtc-rs/webrtc): WebRTC на Rust
+- [primp](https://github.com/deedy5/primp): HTTP-клиент, который выдаёт себя за браузер
+- [netstack-smoltcp](https://github.com/cavivie/netstack-smoltcp): сетевой стек на smoltcp
 
 ## Обсуждение и поддержка
 
