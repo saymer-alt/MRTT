@@ -12,11 +12,11 @@ use tokio::net::TcpStream;
 
 const LEGACY_POLICY_TABLE: &str = "1066";
 const LEGACY_POLICY_PRIORITY: &str = "1066";
-const NAT_COMMENT: &str = "CSQTT_LOCAL_SOCKS";
-const MARK_COMMENT: &str = "CSQTT_LOCAL_SOCKS_MARK";
+const NAT_COMMENT: &str = "MRTT_LOCAL_SOCKS";
+const MARK_COMMENT: &str = "MRTT_LOCAL_SOCKS_MARK";
 const POLICY_MARK: &str = "0x422";
-const LEGACY_NAT_COMMENT: &str = "CSQTT_SOCKS";
-const LEGACY_QUIC_COMMENT: &str = "CSQTT_CASCADE_NO_QUIC";
+const LEGACY_NAT_COMMENT: &str = "MRTT_SOCKS";
+const LEGACY_QUIC_COMMENT: &str = "MRTT_CASCADE_NO_QUIC";
 const TPROXY_TABLE: &str = "30001";
 const TPROXY_PRIORITY: &str = "30001";
 const TPROXY_RULE_MARK: &str = "0x7531/0x7531";
@@ -179,7 +179,7 @@ async fn start_tproxy_child_with_retry(
 
 fn spawn_tproxy_child(config: &LocalProxyProfile, port: u16, status_path: &Path) -> Result<Child> {
     let executable =
-        std::env::current_exe().context("resolve csqtt executable for TPROXY child")?;
+        std::env::current_exe().context("resolve mrtt executable for TPROXY child")?;
     let payload = serde_json::to_vec(config).context("serialize TPROXY child configuration")?;
     let mut child = Command::new(executable)
         .arg("--tproxy-child")
@@ -233,7 +233,7 @@ async fn wait_for_tproxy_child(child: &mut Child, status_path: &Path) -> Result<
 }
 
 fn tproxy_status_path(runtime_id: u64) -> PathBuf {
-    std::env::temp_dir().join(format!("csqtt-tproxy-{runtime_id}.sock"))
+    std::env::temp_dir().join(format!("mrtt-tproxy-{runtime_id}.sock"))
 }
 
 fn remove_tproxy_status_file(path: &Path) {
@@ -502,7 +502,7 @@ async fn activate_tproxy(runtime_id: u64, port: u16) -> Result<()> {
     let _ = command_output("sysctl", &["-w", "net.ipv4.ip_forward=1"]).await;
     let _ = command_output("sysctl", &["-w", "net.ipv4.conf.all.rp_filter=2"]).await;
     let _ = command_output("sysctl", &["-w", "net.ipv4.conf.default.rp_filter=2"]).await;
-    let _ = command_output("sysctl", &["-w", "net.ipv4.conf.csqtt1.rp_filter=2"]).await;
+    let _ = command_output("sysctl", &["-w", "net.ipv4.conf.mrtt1.rp_filter=2"]).await;
     add_tproxy_shared_rules().await?;
     add_tproxy_rules(port).await?;
     let _ = command_output("ip", &["route", "flush", "cache"]).await;
@@ -558,7 +558,7 @@ async fn add_tproxy_shared_rules() -> Result<()> {
 }
 
 fn tproxy_comment(port: u16) -> String {
-    format!("CSQTT_TPROXY:{port}")
+    format!("MRTT_TPROXY:{port}")
 }
 
 async fn tproxy_interception_present(port: u16) -> bool {
@@ -713,7 +713,7 @@ async fn cleanup_stale_tproxy_rules() -> Result<()> {
         let mut cleared = false;
         for _ in 0..8 {
             let rules = command_output("iptables", &["-t", table, "-S", chain]).await?;
-            let specs = marked_rule_specs(&rules, chain, &["CSQTT_TPROXY"]);
+            let specs = marked_rule_specs(&rules, chain, &["MRTT_TPROXY"]);
             if specs.is_empty() {
                 cleared = true;
                 break;
@@ -984,7 +984,7 @@ async fn verify_proxy_policy_clean() -> Result<()> {
         }
     }
     for marker in [
-        "CSQTT_TPROXY",
+        "MRTT_TPROXY",
         NAT_COMMENT,
         MARK_COMMENT,
         LEGACY_NAT_COMMENT,
@@ -1079,23 +1079,23 @@ mod tests {
     fn locates_quoted_tproxy_rules_by_chain_position() {
         let rules = concat!(
             "-P PREROUTING ACCEPT\n",
-            "-A PREROUTING -i csqtt1 -p udp -m comment --comment \"CSQTT_TPROXY:10669\" -j TPROXY\n",
+            "-A PREROUTING -i mrtt1 -p udp -m comment --comment \"MRTT_TPROXY:10669\" -j TPROXY\n",
             "-A PREROUTING -p tcp -j ACCEPT\n",
-            "-A PREROUTING -i csqtt1 -p tcp -m comment --comment \"CSQTT_TPROXY:10669\" -j TPROXY\n",
+            "-A PREROUTING -i mrtt1 -p tcp -m comment --comment \"MRTT_TPROXY:10669\" -j TPROXY\n",
         );
-        let specs = marked_rule_specs(rules, "PREROUTING", &["CSQTT_TPROXY"]);
+        let specs = marked_rule_specs(rules, "PREROUTING", &["MRTT_TPROXY"]);
         assert_eq!(specs.len(), 2);
         assert_eq!(
             specs[0],
             [
                 "-i",
-                "csqtt1",
+                "mrtt1",
                 "-p",
                 "udp",
                 "-m",
                 "comment",
                 "--comment",
-                "CSQTT_TPROXY:10669",
+                "MRTT_TPROXY:10669",
                 "-j",
                 "TPROXY"
             ]
@@ -1106,11 +1106,11 @@ mod tests {
     #[test]
     fn ignores_other_chains_and_empty_output() {
         let rules = concat!(
-            "-A INPUT -m comment --comment \"CSQTT_TPROXY:10669\" -j ACCEPT\n",
+            "-A INPUT -m comment --comment \"MRTT_TPROXY:10669\" -j ACCEPT\n",
             "-A PREROUTING -p tcp -j ACCEPT\n",
         );
-        assert!(marked_rule_specs(rules, "PREROUTING", &["CSQTT_TPROXY"]).is_empty());
-        assert!(marked_rule_specs("", "PREROUTING", &["CSQTT_TPROXY"]).is_empty());
+        assert!(marked_rule_specs(rules, "PREROUTING", &["MRTT_TPROXY"]).is_empty());
+        assert!(marked_rule_specs("", "PREROUTING", &["MRTT_TPROXY"]).is_empty());
     }
 
     #[test]
@@ -1119,7 +1119,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let status_path = std::env::temp_dir().join(format!("csqtt-tproxy-test-{unique}.sock"));
+        let status_path = std::env::temp_dir().join(format!("mrtt-tproxy-test-{unique}.sock"));
         let error_path = tproxy_error_path(&status_path);
 
         write_tproxy_child_error(

@@ -20,11 +20,11 @@ else {
 $manifestPath = Join-Path $projectRoot "app\src\main\libclient.provenance.json"
 $cargoTomlPath = Join-Path $projectRoot "rust-client\Cargo.toml"
 $cargoLockPath = Join-Path $projectRoot "rust-client\Cargo.lock"
-$marker = "CSQTT_RUST_NATIVE_PRODUCTION_V1"
-$schema = "csqtt.native-client-provenance.v3"
+$marker = "MRTT_RUST_NATIVE_PRODUCTION_V1"
+$schema = "mrtt.native-client-provenance.v3"
 $producer = "rust-client/build_so.bat"
 $transport = "rust-turn-sans-io-rfc8656-channeldata"
-$transportMarker = "CSQTT_RUST_TURN_SANS_IO_V1"
+$transportMarker = "MRTT_RUST_TURN_SANS_IO_V1"
 $nativeCoreAbi = 1
 
 $specs = @(

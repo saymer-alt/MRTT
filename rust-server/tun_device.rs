@@ -2,7 +2,7 @@ use crate::packet::extract_dst_ipv4;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 
-pub const TUN_IFACE: &str = "csqtt1";
+pub const TUN_IFACE: &str = "mrtt1";
 pub const TUN_SUBNET: &str = "10.66.67.0/24";
 const SUBNET_PREFIX: [u8; 3] = [10, 66, 67];
 

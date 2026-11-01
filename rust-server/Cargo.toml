@@ -1,12 +1,12 @@
 [package]
-name = "csqtt"
+name = "mrtt"
 version = "2.5.0"
 edition = "2024"
 rust-version = "1.97.1"
 license = "Unlicense"
 
 [[bin]]
-name = "csqtt"
+name = "mrtt"
 path = "main.rs"
 
 [features]

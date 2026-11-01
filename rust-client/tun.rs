@@ -255,7 +255,7 @@ mod tests {
     #[tokio::test]
     async fn persistent_receiver_accepts_a_replacement_fd() {
         let name = format!(
-            "csqtt-tun-test-{}-{}",
+            "mrtt-tun-test-{}-{}",
             std::process::id(),
             rand::random::<u64>()
         );

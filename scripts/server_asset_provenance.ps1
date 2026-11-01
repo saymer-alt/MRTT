@@ -4,8 +4,8 @@ param(
     [ValidateSet("Write", "Verify")]
     [string]$Mode,
     [string]$Root,
-    [ValidateSet("csqtt-linux-amd64", "csqtt-linux-arm64", "csqtt-linux-armv7")]
-    [string[]]$Assets = @("csqtt-linux-amd64", "csqtt-linux-arm64", "csqtt-linux-armv7")
+    [ValidateSet("mrtt-linux-amd64", "mrtt-linux-arm64", "mrtt-linux-armv7")]
+    [string[]]$Assets = @("mrtt-linux-amd64", "mrtt-linux-arm64", "mrtt-linux-armv7")
 )
 
 Set-StrictMode -Version Latest
@@ -19,17 +19,17 @@ else {
 }
 
 $assetDirectory = Join-Path $projectRoot "app\src\main\assets"
-$manifestPath = Join-Path $assetDirectory "csqtt.server-provenance.json"
+$manifestPath = Join-Path $assetDirectory "mrtt.server-provenance.json"
 $cargoTomlPath = Join-Path $projectRoot "rust-server\Cargo.toml"
 $cargoLockPath = Join-Path $projectRoot "rust-server\Cargo.lock"
 $wireProtocolPath = Join-Path $projectRoot "shared\wire_protocol.rs"
 $wireProtocolRevisionPath = Join-Path $projectRoot "rust-server\main.rs"
-$schema = "csqtt.server-asset-provenance.v2"
-$marker = "CSQTT_RUST_SERVER_PRODUCTION_V1"
+$schema = "mrtt.server-asset-provenance.v2"
+$marker = "MRTT_RUST_SERVER_PRODUCTION_V1"
 $assetSpecs = @(
-    [pscustomobject]@{ AssetName = "csqtt-linux-amd64"; Target = "x86_64-unknown-linux-musl"; ElfClass = 2; ElfMachine = 62 },
-    [pscustomobject]@{ AssetName = "csqtt-linux-arm64"; Target = "aarch64-unknown-linux-musl"; ElfClass = 2; ElfMachine = 183 },
-    [pscustomobject]@{ AssetName = "csqtt-linux-armv7"; Target = "armv7-unknown-linux-musleabihf"; ElfClass = 1; ElfMachine = 40 }
+    [pscustomobject]@{ AssetName = "mrtt-linux-amd64"; Target = "x86_64-unknown-linux-musl"; ElfClass = 2; ElfMachine = 62 },
+    [pscustomobject]@{ AssetName = "mrtt-linux-arm64"; Target = "aarch64-unknown-linux-musl"; ElfClass = 2; ElfMachine = 183 },
+    [pscustomobject]@{ AssetName = "mrtt-linux-armv7"; Target = "armv7-unknown-linux-musleabihf"; ElfClass = 1; ElfMachine = 40 }
 )
 $assetSpecs = @($assetSpecs | Where-Object { $_.AssetName -in $Assets })
 if ($assetSpecs.Count -eq 0) { throw "Select at least one server asset" }

@@ -5,12 +5,12 @@ on:
     inputs:
       test_class:
         description: Android WebView test class
-        default: com.csqtt.client.MaxAuthWebViewSmokeTest
+        default: com.mrtt.client.MaxAuthWebViewSmokeTest
         required: true
         type: choice
         options:
-          - com.csqtt.client.MaxAuthWebViewSmokeTest
-          - com.csqtt.client.MaxAuthLifecycleTest
+          - com.mrtt.client.MaxAuthWebViewSmokeTest
+          - com.mrtt.client.MaxAuthLifecycleTest
 
 permissions:
   contents: read
@@ -41,7 +41,7 @@ jobs:
           sudo chmod a+rw /dev/kvm
           chmod +x gradlew
       - name: Build test APKs before starting the emulator
-        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pcsqtt.abis=x86_64 '-Dorg.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED' --max-workers=2 --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pmrtt.abis=x86_64 '-Dorg.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED' --max-workers=2 --no-daemon --stacktrace
       - name: Exercise the real MAX login page in Android WebView
         uses: reactivecircus/android-emulator-runner@v2
         env:

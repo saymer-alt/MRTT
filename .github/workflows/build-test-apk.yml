@@ -60,8 +60,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            app/src/main/assets/csqtt-linux-*
-            app/src/main/assets/csqtt.server-provenance.json
+            app/src/main/assets/mrtt-linux-*
+            app/src/main/assets/mrtt.server-provenance.json
             rust-server/Cargo.lock
           key: server-v1-${{ runner.os }}-rust1.97.1-zig0.13-${{ hashFiles('rust-server/**', 'shared/**', 'scripts/server_asset_provenance.ps1') }}
       - uses: mlugg/setup-zig@v2
@@ -98,8 +98,8 @@ jobs:
         with:
           name: native-linux-server
           path: |
-            app/src/main/assets/csqtt-linux-*
-            app/src/main/assets/csqtt.server-provenance.json
+            app/src/main/assets/mrtt-linux-*
+            app/src/main/assets/mrtt.server-provenance.json
             rust-server/Cargo.lock
           if-no-files-found: error
           retention-days: 7
@@ -241,7 +241,7 @@ jobs:
               for abi in ('arm64-v8a', 'armeabi-v7a', 'x86_64'):
                   assert f'lib/{abi}/libclient.so' in files, f'{abi} Rust client missing'
               for arch in ('amd64', 'arm64', 'armv7'):
-                  assert f'assets/csqtt-linux-{arch}' in files, f'{arch} Linux server asset missing'
+                  assert f'assets/mrtt-linux-{arch}' in files, f'{arch} Linux server asset missing'
           print('All Rust client ABIs and Linux server assets found in APK')
           PY
       - name: Upload test APKs

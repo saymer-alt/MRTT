@@ -1469,7 +1469,7 @@ fn start_limited_relay_runtime_with_jitter(
     let runtime_stop = stop.clone();
     let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
     let task = std::thread::Builder::new()
-        .name("csqtt-e2e-relay".to_owned())
+        .name("mrtt-e2e-relay".to_owned())
         .spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -1534,12 +1534,12 @@ fn start_limited_relay_runtime_with_jitter(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn windows_client_reaches_wsl_server_through_a_real_turn_channel_and_dispatcher() {
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
     let relay = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
     let endpoint = format!(
         "turn:127.0.0.1:{}?transport=udp",
@@ -1708,12 +1708,12 @@ async fn windows_client_reaches_wsl_server_through_a_real_turn_channel_and_dispa
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn windows_client_reaches_wsl_server_over_dtls_srtp() {
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
 
     let index = 0;
     let relay = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
@@ -1889,12 +1889,12 @@ async fn windows_client_reaches_wsl_server_over_dtls_srtp() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn getconf_timeout_recovers_without_terminating_the_tunnel() {
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
     let cancel = CancellationToken::new();
     let pool = PacketPool::new(192);
     let password: Arc<str> = Arc::from("e2e-local-password-20260830");
@@ -2083,13 +2083,13 @@ async fn getconf_timeout_recovers_without_terminating_the_tunnel() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server, CSQTT_E2E_PEER, and CSQTT_E2E_WEB"]
+#[ignore = "requires a separately started MRTT WSL server, MRTT_E2E_PEER, and MRTT_E2E_WEB"]
 async fn running_client_receives_hot_dns_configuration_without_reconnect() {
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
-    let web_url = std::env::var("CSQTT_E2E_WEB").expect("CSQTT_E2E_WEB is required");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
+    let web_url = std::env::var("MRTT_E2E_WEB").expect("MRTT_E2E_WEB is required");
     let relay = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
     let endpoint = format!(
         "turn:127.0.0.1:{}?transport=udp",
@@ -2190,7 +2190,7 @@ async fn running_client_receives_hot_dns_configuration_without_reconnect() {
         "unexpected hot DNS configuration: {changed}"
     );
     assert_eq!(dispatcher.active_count(), 1);
-    println!("CSQTT_E2E_HOT_DNS received={changed}");
+    println!("MRTT_E2E_HOT_DNS received={changed}");
 
     cancel.cancel();
     assert!(
@@ -2221,10 +2221,10 @@ fn apply_e2e_dns(web_url: &str, provider: &str) {
             &format!("{web_url}/api/login"),
         ])
         .output()
-        .expect("could not invoke curl for CSQTT panel login");
+        .expect("could not invoke curl for MRTT panel login");
     assert!(
         login.status.success(),
-        "CSQTT panel login failed: {}",
+        "MRTT panel login failed: {}",
         String::from_utf8_lossy(&login.stderr)
     );
     let session_cookie = String::from_utf8_lossy(&login.stdout)
@@ -2234,8 +2234,8 @@ fn apply_e2e_dns(web_url: &str, provider: &str) {
             name.eq_ignore_ascii_case("set-cookie")
                 .then_some(value.trim().split(';').next()?.trim())
         })
-        .filter(|value| value.starts_with("csqtt_session="))
-        .expect("CSQTT panel login did not return csqtt_session")
+        .filter(|value| value.starts_with("mrtt_session="))
+        .expect("MRTT panel login did not return mrtt_session")
         .to_owned();
     let cookie_header = format!("cookie: {session_cookie}");
     let update = std::process::Command::new("curl")
@@ -2250,26 +2250,26 @@ fn apply_e2e_dns(web_url: &str, provider: &str) {
             &format!("{web_url}/api/settings"),
         ])
         .output()
-        .expect("could not invoke curl for CSQTT DNS update");
+        .expect("could not invoke curl for MRTT DNS update");
     assert!(
         update.status.success(),
-        "CSQTT hot DNS update failed: {}",
+        "MRTT hot DNS update failed: {}",
         String::from_utf8_lossy(&update.stderr)
     );
     assert!(
         String::from_utf8_lossy(&update.stdout).contains("\"restart_required\":false"),
-        "CSQTT hot DNS update unexpectedly requires restart"
+        "MRTT hot DNS update unexpectedly requires restart"
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn nine_windows_workers_register_with_a_wsl_server_without_missing_or_duplicate_streams() {
     const WORKERS: usize = 9;
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
     let cancel = CancellationToken::new();
     let pool = PacketPool::new(96 * WORKERS);
     let password: Arc<str> = Arc::from("e2e-local-password-20260830");
@@ -2582,7 +2582,7 @@ fn start_e2e_tun_runtime(
     burst_probe_interval: Duration,
 ) -> E2eTunRuntime {
     let task = std::thread::Builder::new()
-        .name("csqtt-e2e-tun".to_owned())
+        .name("mrtt-e2e-tun".to_owned())
         .spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -2605,7 +2605,7 @@ fn start_e2e_tun_runtime(
                     start,
                     collector_stop.clone(),
                 ));
-                let packet_bytes = e2e_env_u64("CSQTT_E2E_PACKET_BYTES", 1120);
+                let packet_bytes = e2e_env_u64("MRTT_E2E_PACKET_BYTES", 1120);
                 let cpu_start = e2e_thread_cpu_seconds();
                 let duration = Duration::from_secs(duration_seconds);
                 let deadline = start + duration;
@@ -2689,7 +2689,7 @@ fn start_e2e_tun_runtime(
 
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn linux_workers_hold_per_stream_rate_through_server_dataplane() {
     const DEFAULT_WORKERS: usize = 72;
     const DEFAULT_STREAM_RATE_BITS_PER_SECOND: u64 = 2_000_000;
@@ -2702,31 +2702,31 @@ async fn linux_workers_hold_per_stream_rate_through_server_dataplane() {
     const DEFAULT_MIN_BURST_PING_SAMPLES: usize = 8;
     const ECHO_PORT: u16 = 47_214;
 
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
-    let duration_seconds = e2e_env_u64("CSQTT_E2E_DURATION_SECONDS", DEFAULT_DURATION_SECONDS);
-    let workers = e2e_env_u64("CSQTT_E2E_WORKERS", DEFAULT_WORKERS as u64) as usize;
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
+    let duration_seconds = e2e_env_u64("MRTT_E2E_DURATION_SECONDS", DEFAULT_DURATION_SECONDS);
+    let workers = e2e_env_u64("MRTT_E2E_WORKERS", DEFAULT_WORKERS as u64) as usize;
     let stream_rate_bits_per_second = e2e_env_u64(
-        "CSQTT_E2E_STREAM_RATE_BITS_PER_SECOND",
+        "MRTT_E2E_STREAM_RATE_BITS_PER_SECOND",
         DEFAULT_STREAM_RATE_BITS_PER_SECOND,
     );
-    let target_mbit = e2e_env_u64("CSQTT_E2E_TARGET_MBIT", DEFAULT_TARGET_MBIT);
-    let min_mbit = e2e_env_u64("CSQTT_E2E_MIN_MBIT", DEFAULT_MIN_MBIT);
+    let target_mbit = e2e_env_u64("MRTT_E2E_TARGET_MBIT", DEFAULT_TARGET_MBIT);
+    let min_mbit = e2e_env_u64("MRTT_E2E_MIN_MBIT", DEFAULT_MIN_MBIT);
     let min_stream_mbit =
-        e2e_env_u64("CSQTT_E2E_MIN_STREAM_KBIT", DEFAULT_MIN_STREAM_KBIT) as f64 / 1_000.0;
-    let echo_port = e2e_env_u64("CSQTT_E2E_ECHO_PORT", u64::from(ECHO_PORT)) as u16;
+        e2e_env_u64("MRTT_E2E_MIN_STREAM_KBIT", DEFAULT_MIN_STREAM_KBIT) as f64 / 1_000.0;
+    let echo_port = e2e_env_u64("MRTT_E2E_ECHO_PORT", u64::from(ECHO_PORT)) as u16;
     let burst_ping_interval = Duration::from_millis(
         e2e_env_u64(
-            "CSQTT_E2E_BURST_PING_INTERVAL_MS",
+            "MRTT_E2E_BURST_PING_INTERVAL_MS",
             DEFAULT_BURST_PING_INTERVAL_MS,
         )
         .max(1),
     );
-    let max_burst_ping_ms = e2e_env_u64("CSQTT_E2E_MAX_BURST_PING_MS", DEFAULT_MAX_BURST_PING_MS);
+    let max_burst_ping_ms = e2e_env_u64("MRTT_E2E_MAX_BURST_PING_MS", DEFAULT_MAX_BURST_PING_MS);
     let min_burst_ping_samples = e2e_env_u64(
-        "CSQTT_E2E_MIN_BURST_PING_SAMPLES",
+        "MRTT_E2E_MIN_BURST_PING_SAMPLES",
         DEFAULT_MIN_BURST_PING_SAMPLES as u64,
     ) as usize;
     assert!((1..=100).contains(&workers));
@@ -2742,7 +2742,7 @@ async fn linux_workers_hold_per_stream_rate_through_server_dataplane() {
     let stats = Arc::new(Stats::default());
     let password: Arc<str> = Arc::from("e2e-local-password-20260830");
     let wrap_key = derive_wrap_key(&password).unwrap();
-    let obfs_mode = match std::env::var("CSQTT_E2E_OBFS_MODE").as_deref() {
+    let obfs_mode = match std::env::var("MRTT_E2E_OBFS_MODE").as_deref() {
         Ok("audio") => ObfsMode::Audio,
         Ok("video") => ObfsMode::Video,
         _ => ObfsMode::Unified,
@@ -2971,7 +2971,7 @@ async fn linux_workers_hold_per_stream_rate_through_server_dataplane() {
         .max()
         .unwrap_or(0);
     println!(
-        "CSQTT_E2E_{workers} sent_mbit={sent_mbit:.2} received_mbit={received_mbit:.2} packets={} min_stream_up={min_stream_up:.2} min_stream_down={min_stream_down:.2} max_stream_up_queue_packets={max_stream_up_queue_packets} max_stream_down_queue_packets={max_stream_down_queue_packets} max_stream_up_queue_delay_ms={max_stream_up_queue_delay_ms:.2} max_stream_down_queue_delay_ms={max_stream_down_queue_delay_ms:.2} burst_probe_count={} burst_ping_p50_ms={burst_ping_p50_ms:.2} burst_ping_p95_ms={burst_ping_p95_ms:.2} burst_ping_max_ms={burst_ping_max_ms:.2} client_path_cpu_percent={client_cpu_percent:.2} relay_cpu_percent={relay_cpu_percent:.2} tun_harness_cpu_percent={tun_harness_cpu_percent:.2} wire_audio={total_audio} wire_video_pframes={total_pframes} wire_video_mtu_slices={total_mtu_slices} wire_oversized={total_oversized} min_wire={min_wire} max_wire={max_wire}",
+        "MRTT_E2E_{workers} sent_mbit={sent_mbit:.2} received_mbit={received_mbit:.2} packets={} min_stream_up={min_stream_up:.2} min_stream_down={min_stream_down:.2} max_stream_up_queue_packets={max_stream_up_queue_packets} max_stream_down_queue_packets={max_stream_down_queue_packets} max_stream_up_queue_delay_ms={max_stream_up_queue_delay_ms:.2} max_stream_down_queue_delay_ms={max_stream_down_queue_delay_ms:.2} burst_probe_count={} burst_ping_p50_ms={burst_ping_p50_ms:.2} burst_ping_p95_ms={burst_ping_p95_ms:.2} burst_ping_max_ms={burst_ping_max_ms:.2} client_path_cpu_percent={client_cpu_percent:.2} relay_cpu_percent={relay_cpu_percent:.2} tun_harness_cpu_percent={tun_harness_cpu_percent:.2} wire_audio={total_audio} wire_video_pframes={total_pframes} wire_video_mtu_slices={total_mtu_slices} wire_oversized={total_oversized} min_wire={min_wire} max_wire={max_wire}",
         tun_result.received_packets,
         burst_probe_rtt_us.len(),
     );
@@ -2988,10 +2988,10 @@ async fn linux_workers_hold_per_stream_rate_through_server_dataplane() {
 }
 
 async fn assert_fatal_auth_case(wrap_pwd: &str, session_pwd: &str, expected_needle: &str) {
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
     let relay = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
     let endpoint = format!(
         "turn:127.0.0.1:{}?transport=udp",
@@ -3091,7 +3091,7 @@ async fn assert_fatal_auth_case(wrap_pwd: &str, session_pwd: &str, expected_need
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn wrong_password_returns_fatal_auth_without_crashing_server() {
     assert_fatal_auth_case(
         "e2e-local-password-20260830",
@@ -3102,7 +3102,7 @@ async fn wrong_password_returns_fatal_auth_without_crashing_server() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn expired_password_returns_fatal_auth_without_crashing_server() {
     tokio::time::sleep(Duration::from_secs(5)).await;
     assert_fatal_auth_case(
@@ -3114,7 +3114,7 @@ async fn expired_password_returns_fatal_auth_without_crashing_server() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn deactivated_password_returns_fatal_auth_without_crashing_server() {
     assert_fatal_auth_case(
         "e2e-deactivated-password-2026",
@@ -3125,13 +3125,13 @@ async fn deactivated_password_returns_fatal_auth_without_crashing_server() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "requires a separately started CSQTT WSL server and CSQTT_E2E_PEER"]
+#[ignore = "requires a separately started MRTT WSL server and MRTT_E2E_PEER"]
 async fn streams_partial_death_keeps_tunnel_and_dataplane_alive() {
     const WORKERS: usize = 4;
-    let peer: SocketAddr = std::env::var("CSQTT_E2E_PEER")
-        .expect("CSQTT_E2E_PEER is required")
+    let peer: SocketAddr = std::env::var("MRTT_E2E_PEER")
+        .expect("MRTT_E2E_PEER is required")
         .parse()
-        .expect("CSQTT_E2E_PEER must be an IP:port socket address");
+        .expect("MRTT_E2E_PEER must be an IP:port socket address");
     let cancel = CancellationToken::new();
     let pool = PacketPool::new(96 * WORKERS);
     let password: Arc<str> = Arc::from("e2e-local-password-20260830");
@@ -3620,7 +3620,7 @@ async fn test_artificial_turn_36_streams_coturn_limits_and_jitter() {
 // One rig spins up 50 TURN allocations against the artificial rate-limited
 // relay (2 Mbit/s per stream -> 100 Mbit/s aggregate) and a dispatcher wired to
 // all of them. The five `test_50_streams_*` tests drive different traffic
-// profiles through it and print `CSQTT_50STREAM_*` measurement lines.
+// profiles through it and print `MRTT_50STREAM_*` measurement lines.
 // ===========================================================================
 
 #[cfg(unix)]
@@ -3815,7 +3815,7 @@ fn collect_fifty_stream_report(
 #[cfg(unix)]
 fn print_fifty_stream_report(profile: &str, report: &FiftyStreamReport) {
     println!(
-        "CSQTT_50STREAM profile={profile} sent={} delivered={} delivered_mbit={:.2} \
+        "MRTT_50STREAM profile={profile} sent={} delivered={} delivered_mbit={:.2} \
          elapsed_ms={:.1} relay_drops={} client_outbound_drops={} client_ingress_drops={} \
          max_queue_packets={} max_queue_delay_ms={:.2} workers_used={}/{} \
          worker_packets_min={} worker_packets_max={}",

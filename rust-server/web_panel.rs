@@ -412,15 +412,15 @@ fn url_encode(input: &str) -> String {
     out
 }
 
-pub const CSQTT_CIPHER_KEY_SEED: &str = "csqtt-chiper-key";
+pub const MRTT_CIPHER_KEY_SEED: &str = "mrtt-chiper-key";
 
-pub fn encrypt_csqtt_link(payload: &str) -> String {
+pub fn encrypt_mrtt_link(payload: &str) -> String {
     use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
     use base64::Engine;
     use hmac::{Hmac, KeyInit, Mac};
     use sha2::{Digest, Sha256};
 
-    let key_hash = Sha256::digest(CSQTT_CIPHER_KEY_SEED.as_bytes());
+    let key_hash = Sha256::digest(MRTT_CIPHER_KEY_SEED.as_bytes());
     let unbound = match UnboundKey::new(&AES_256_GCM, &key_hash) {
         Ok(k) => k,
         Err(_) => {
@@ -466,16 +466,13 @@ pub fn encrypt_csqtt_link(payload: &str) -> String {
 }
 
 #[allow(dead_code)]
-pub fn decrypt_csqtt_link(raw_link: &str) -> Option<String> {
+pub fn decrypt_mrtt_link(raw_link: &str) -> Option<String> {
     use aws_lc_rs::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
     use base64::Engine;
     use sha2::{Digest, Sha256};
 
     let payload = raw_link.trim();
-    let payload = payload
-        .strip_prefix("mrtt://")
-        .or_else(|| payload.strip_prefix("csqttr://"))?
-        .trim();
+    let payload = payload.strip_prefix("mrtt://")?.trim();
     let clean = payload.replace(['\n', '\r'], "");
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(&clean)
@@ -485,7 +482,7 @@ pub fn decrypt_csqtt_link(raw_link: &str) -> Option<String> {
         .ok()?;
 
     if bytes.len() >= 28 {
-        let key_hash = Sha256::digest(CSQTT_CIPHER_KEY_SEED.as_bytes());
+        let key_hash = Sha256::digest(MRTT_CIPHER_KEY_SEED.as_bytes());
         if let Ok(unbound) = UnboundKey::new(&AES_256_GCM, &key_hash) {
             let key = LessSafeKey::new(unbound);
             let mut iv = [0u8; 12];
@@ -544,7 +541,7 @@ fn make_client_link(
         payload.push_str(&url_encode(&room));
         payload.push_str(&format!("&seats={}", crate::jitsi_relay::current_seats()));
     }
-    encrypt_csqtt_link(&payload)
+    encrypt_mrtt_link(&payload)
 }
 
 #[inline]
@@ -1075,7 +1072,7 @@ async fn settings_post(
     }
     if main_password_changed && let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
-        return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved").into_response();
+        return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved").into_response();
     }
     if let Some(dns) = applied_dns {
         *state.app.dns.write().await = dns;
@@ -1088,7 +1085,7 @@ async fn settings_post(
             ),
             Err(error) => {
                 let warning = format!("saved but DNS apply failed: {error:#}");
-                return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved")
+                return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved")
                     .into_response();
             }
         }
@@ -1664,7 +1661,7 @@ async fn client_update(
     }
     if let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
-        return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved").into_response();
+        return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved").into_response();
     }
     StatusCode::OK.into_response()
 }
@@ -1685,7 +1682,7 @@ async fn client_toggle(State(state): State<WebState>, Path(password): Path<Strin
     crate::protocol::drop_password_sessions(&state.app, &password);
     if let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
-        return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved").into_response();
+        return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved").into_response();
     }
 
     StatusCode::OK.into_response()
@@ -1718,7 +1715,7 @@ async fn client_delete(State(state): State<WebState>, Path(password): Path<Strin
     crate::protocol::drop_password_sessions(&state.app, &password);
     if let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
-        return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved").into_response();
+        return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved").into_response();
     }
 
     StatusCode::OK.into_response()
@@ -2569,7 +2566,7 @@ async fn groups_delete(State(state): State<WebState>, Path(id): Path<String>) ->
     }
     if let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
-        return (StatusCode::OK, [("x-csqtt-reload-error", warning)], "saved").into_response();
+        return (StatusCode::OK, [("x-mrtt-reload-error", warning)], "saved").into_response();
     }
     StatusCode::OK.into_response()
 }
@@ -3447,7 +3444,7 @@ async fn logs_download(State(state): State<WebState>) -> impl IntoResponse {
             ),
             (
                 axum::http::header::CONTENT_DISPOSITION,
-                "attachment; filename=\"csqtt.log\"",
+                "attachment; filename=\"mrtt.log\"",
             ),
         ];
         (headers, body).into_response()
@@ -3539,8 +3536,8 @@ pub async fn run(app: Arc<App>) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DNS_PROVIDERS, MAX_CLIENT_NAME_BYTES, count_active_sessions, decrypt_csqtt_link,
-        deploy_dns_profile_or_yandex, dns_provider_by_id, dns_provider_id, encrypt_csqtt_link,
+        DNS_PROVIDERS, MAX_CLIENT_NAME_BYTES, count_active_sessions, decrypt_mrtt_link,
+        deploy_dns_profile_or_yandex, dns_provider_by_id, dns_provider_id, encrypt_mrtt_link,
         make_client_link, manual_dns, normalize_client_vk_hashes, normalize_vk_access_token,
         process_memory, process_memory_rollup, provider_dns, validate_client_name,
         validate_proxy_profile_name, validate_workers,
@@ -3675,45 +3672,39 @@ mod tests {
     }
 
     #[test]
-    fn csqtt_link_encryption_and_decryption() {
+    fn mrtt_link_encryption_and_decryption() {
         let payload = "connect?v=2&host=1.2.3.4&peer=46000&password=testpass";
-        let encrypted1 = encrypt_csqtt_link(payload);
-        let encrypted2 = encrypt_csqtt_link(payload);
+        let encrypted1 = encrypt_mrtt_link(payload);
+        let encrypted2 = encrypt_mrtt_link(payload);
         assert!(encrypted1.starts_with("mrtt://"));
         assert_eq!(
             encrypted1, encrypted2,
             "link encryption must be deterministic for identical payload"
         );
-        let decrypted = decrypt_csqtt_link(&encrypted1).expect("decryption should succeed");
+        let decrypted = decrypt_mrtt_link(&encrypted1).expect("decryption should succeed");
         assert_eq!(decrypted, payload);
-        let previous_scheme = encrypted1.replacen("mrtt://", "csqttr://", 1);
-        assert_eq!(
-            decrypt_csqtt_link(&previous_scheme).as_deref(),
-            Some(payload),
-            "csqttr:// links from earlier servers must still decrypt"
-        );
-        let old_scheme = encrypted1.replacen("mrtt://", "csqtt://", 1);
+        let foreign_scheme = encrypted1.replacen("mrtt://", "other://", 1);
         assert!(
-            decrypt_csqtt_link(&old_scheme).is_none(),
-            "old csqtt:// scheme must not be accepted"
+            decrypt_mrtt_link(&foreign_scheme).is_none(),
+            "only mrtt:// links are accepted"
         );
     }
 
     #[test]
-    fn csqtt_link_legacy_plaintext_rejected() {
+    fn mrtt_link_legacy_plaintext_rejected() {
         use base64::Engine;
         let payload = "connect?v=2&host=1.2.3.4&peer=46000&password=legacy";
         let legacy_b64 =
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.as_bytes());
-        let legacy_link = format!("csqttr://{legacy_b64}");
-        assert!(decrypt_csqtt_link(&legacy_link).is_none());
+        let legacy_link = format!("mrtt://{legacy_b64}");
+        assert!(decrypt_mrtt_link(&legacy_link).is_none());
     }
 
     #[test]
     fn make_client_link_contains_password_and_aes_roundtrip() {
         let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "");
         assert!(link.starts_with("mrtt://"));
-        let decrypted = decrypt_csqtt_link(&link).expect("must decrypt");
+        let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=abc1234567890123"));
         assert!(!decrypted.contains("client="));
         assert!(!decrypted.contains("&workers="));
@@ -3722,7 +3713,7 @@ mod tests {
     #[test]
     fn owner_link_contains_owner_password_without_workers() {
         let link = make_client_link("1.2.3.4", 46000, "ownerpass1234567", "", false, "");
-        let decrypted = decrypt_csqtt_link(&link).expect("must decrypt");
+        let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=ownerpass1234567"));
         assert!(!decrypted.contains("client="));
         assert!(!decrypted.contains("&workers="));

@@ -43,12 +43,12 @@ HOST="$(rustc +1.97.1 -vV | sed -n 's/^host: //p')"
 if [[ "$HOST" == *windows* ]]; then
 cat > "$WRAP/zigcc.ps1" <<'PS1'
 $filtered = @($args | Where-Object { $_ -notlike "--target=*" })
-& zig cc -target $env:CSQTT_ZIG_TARGET @filtered
+& zig cc -target $env:MRTT_ZIG_TARGET @filtered
 exit $LASTEXITCODE
 PS1
 cat > "$WRAP/zigcxx.ps1" <<'PS1'
 $filtered = @($args | Where-Object { $_ -notlike "--target=*" })
-& zig c++ -target $env:CSQTT_ZIG_TARGET @filtered
+& zig c++ -target $env:MRTT_ZIG_TARGET @filtered
 exit $LASTEXITCODE
 PS1
 cat > "$WRAP/zigcc.cmd" <<'CMD'
@@ -73,7 +73,7 @@ args=()
 for arg in "$@"; do
   [[ "$arg" == --target=* ]] || args+=("$arg")
 done
-exec zig cc -target "$CSQTT_ZIG_TARGET" "${args[@]}"
+exec zig cc -target "$MRTT_ZIG_TARGET" "${args[@]}"
 SH
 cat > "$WRAP/zigcxx" <<'SH'
 #!/usr/bin/env bash
@@ -81,7 +81,7 @@ args=()
 for arg in "$@"; do
   [[ "$arg" == --target=* ]] || args+=("$arg")
 done
-exec zig c++ -target "$CSQTT_ZIG_TARGET" "${args[@]}"
+exec zig c++ -target "$MRTT_ZIG_TARGET" "${args[@]}"
 SH
 cat > "$WRAP/zigar" <<'SH'
 #!/usr/bin/env bash
@@ -104,7 +104,7 @@ export CC_armv7_unknown_linux_musleabihf="$CC_WRAPPER"
 export CXX_armv7_unknown_linux_musleabihf="$CXX_WRAPPER"
 export AR_armv7_unknown_linux_musleabihf="$AR_WRAPPER"
 export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER="$CC_WRAPPER"
-export CSQTT_ZIG_TARGET=x86_64-linux-musl
+export MRTT_ZIG_TARGET=x86_64-linux-musl
 if [[ "$RUN_CHECKS" == 1 ]]; then
   cargo +1.97.1 fmt --all -- --check
   cargo +1.97.1 zigbuild --all-targets --target x86_64-unknown-linux-musl "${FEATURE_ARGS[@]}"
@@ -119,20 +119,20 @@ if [[ "$RUN_CHECKS" == 1 ]]; then
 fi
 build_variant() {
   local target="$1" zig_target="$2" asset="$3"
-  CSQTT_ZIG_TARGET="$zig_target" \
+  MRTT_ZIG_TARGET="$zig_target" \
     ZIG_GLOBAL_CACHE_DIR="$ROOT/build/zig-cache/$asset/global" \
     ZIG_LOCAL_CACHE_DIR="$ROOT/build/zig-cache/$asset/local" \
     CARGO_TARGET_DIR="$ROOT/build/linux-musl" \
     cargo +1.97.1 zigbuild --release --target "$target" "${FEATURE_ARGS[@]}"
   mkdir -p "$ROOT/dist" "$ROOT/../app/src/main/assets"
-  cp "$ROOT/build/linux-musl/$target/release/csqtt" "$ROOT/dist/$asset"
-  cp "$ROOT/build/linux-musl/$target/release/csqtt" "$ROOT/../app/src/main/assets/$asset"
+  cp "$ROOT/build/linux-musl/$target/release/mrtt" "$ROOT/dist/$asset"
+  cp "$ROOT/build/linux-musl/$target/release/mrtt" "$ROOT/../app/src/main/assets/$asset"
   ls -lh "$ROOT/dist/$asset"
 }
-build_variant x86_64-unknown-linux-musl x86_64-linux-musl csqtt-linux-amd64
-build_variant aarch64-unknown-linux-musl aarch64-linux-musl csqtt-linux-arm64
-build_variant armv7-unknown-linux-musleabihf arm-linux-musleabihf csqtt-linux-armv7
-rm -f "$ROOT/../app/src/main/assets/csqtt"
+build_variant x86_64-unknown-linux-musl x86_64-linux-musl mrtt-linux-amd64
+build_variant aarch64-unknown-linux-musl aarch64-linux-musl mrtt-linux-arm64
+build_variant armv7-unknown-linux-musleabihf arm-linux-musleabihf mrtt-linux-armv7
+rm -f "$ROOT/../app/src/main/assets/mrtt"
 if command -v pwsh >/dev/null; then
   pwsh -NoProfile -File "$ROOT/../scripts/server_asset_provenance.ps1" -Mode Write
   pwsh -NoProfile -File "$ROOT/../scripts/server_asset_provenance.ps1" -Mode Verify

@@ -660,7 +660,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "csqtt"
+name = "mrtt"
 version = "2.5.0"
 dependencies = [
  "aes 0.9.2",

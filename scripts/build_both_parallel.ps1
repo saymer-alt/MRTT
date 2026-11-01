@@ -1,10 +1,10 @@
 Write-Host "Starting simultaneous builds: rust-server and rust-client..."
 $serverJob = Start-Job -ScriptBlock {
-    Set-Location "F:\csqtt\csqtt-2.5.0\rust-server"
+    Set-Location "F:\mrtt\mrtt-2.5.0\rust-server"
     cmd.exe /c "build_linux.bat --no-tests"
 }
 $clientJob = Start-Job -ScriptBlock {
-    Set-Location "F:\csqtt\csqtt-2.5.0\rust-client"
+    Set-Location "F:\mrtt\mrtt-2.5.0\rust-client"
     cmd.exe /c "build_so.bat --no-tests"
 }
 

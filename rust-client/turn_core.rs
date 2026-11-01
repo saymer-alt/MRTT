@@ -84,14 +84,14 @@ pub(crate) enum TurnControlTransport {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct CsqttTurnProfile {
+pub(crate) struct MrttTurnProfile {
     pub(crate) allocation_refresh: Duration,
     pub(crate) maintenance_refresh: Duration,
     pub(crate) keepalive_interval: Duration,
     pub(crate) max_nonce_retries: u8,
 }
 
-impl CsqttTurnProfile {
+impl MrttTurnProfile {
     pub(crate) const PJNATH_COMPAT: Self = Self {
         allocation_refresh: ALLOCATION_REFRESH,
         maintenance_refresh: MAINTENANCE_REFRESH,
@@ -101,7 +101,7 @@ impl CsqttTurnProfile {
 }
 
 #[used]
-static CORE_IMPLEMENTATION: [u8; 26] = *b"CSQTT_RUST_TURN_SANS_IO_V1";
+static CORE_IMPLEMENTATION: [u8; 26] = *b"MRTT_RUST_TURN_SANS_IO_V1";
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -214,7 +214,7 @@ struct Inner {
     keepalive: Option<Instant>,
     shutting_down: bool,
     destroyed: bool,
-    profile: CsqttTurnProfile,
+    profile: MrttTurnProfile,
     transport: TurnControlTransport,
 }
 
@@ -235,7 +235,7 @@ impl NativeCore {
             username,
             password,
             peer,
-            CsqttTurnProfile::PJNATH_COMPAT,
+            MrttTurnProfile::PJNATH_COMPAT,
         )
     }
 
@@ -245,7 +245,7 @@ impl NativeCore {
         username: &str,
         password: &str,
         peer: SocketAddr,
-        profile: CsqttTurnProfile,
+        profile: MrttTurnProfile,
     ) -> Result<Arc<Self>> {
         Self::create_with_profile_and_transport(
             server,
@@ -269,7 +269,7 @@ impl NativeCore {
             username,
             password,
             peer,
-            CsqttTurnProfile::PJNATH_COMPAT,
+            MrttTurnProfile::PJNATH_COMPAT,
             transport,
         )
     }
@@ -279,7 +279,7 @@ impl NativeCore {
         username: &str,
         password: &str,
         peer: SocketAddr,
-        profile: CsqttTurnProfile,
+        profile: MrttTurnProfile,
         transport: TurnControlTransport,
     ) -> Result<Arc<Self>> {
         if server.port() == 0 || peer.port() == 0 {
@@ -1240,7 +1240,7 @@ mod tests {
             "user",
             "pass",
             "127.0.0.1:9000".parse().unwrap(),
-            CsqttTurnProfile::PJNATH_COMPAT,
+            MrttTurnProfile::PJNATH_COMPAT,
         )
         .unwrap();
         core.start_allocation().unwrap();

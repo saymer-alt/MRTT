@@ -47,10 +47,10 @@ const DIAGNOSTIC_REQUEST_MAX_BYTES: usize = 128;
 const DIAGNOSTIC_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(3);
 const DIAGNOSTIC_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const DIAGNOSTIC_LEASE: Duration = Duration::from_secs(5 * 60);
-const SESSION_LEASE: &[u8] = b"\xffCSQTT_LEASE";
-pub const PANEL_RESTART_NOTICE: &[u8] = b"\xffCSQTT_PANEL_RESTART_V1\x00\x91\x7d\x03\xa8";
-const STREAM_REPAIR_PREFIX: &[u8] = b"\xffCSQTT_STREAM_REPAIR_V1";
-const STREAM_ALIVE_PREFIX: &[u8] = b"\xffCSQTT_STREAM_ALIVE_V1";
+const SESSION_LEASE: &[u8] = b"\xffMRTT_LEASE";
+pub const PANEL_RESTART_NOTICE: &[u8] = b"\xffMRTT_PANEL_RESTART_V1\x00\x91\x7d\x03\xa8";
+const STREAM_REPAIR_PREFIX: &[u8] = b"\xffMRTT_STREAM_REPAIR_V1";
+const STREAM_ALIVE_PREFIX: &[u8] = b"\xffMRTT_STREAM_ALIVE_V1";
 pub(crate) const MAX_STREAM_WORKERS: usize = 100;
 const MAX_STREAM_WORKERS_U16: u16 = MAX_STREAM_WORKERS as u16;
 const STREAM_RECONCILE_INTERVAL_MS: u64 = 3_000;
@@ -2832,7 +2832,7 @@ impl ProtocolEngine {
             if rem.is_empty() {
                 break;
             }
-            if rem[0] == crate::wire_protocol::CSQTT_FRAG_MAGIC {
+            if rem[0] == crate::wire_protocol::MRTT_FRAG_MAGIC {
                 if rem.len() < crate::wire_protocol::FRAG_HEADER_LEN {
                     break;
                 }
@@ -5622,7 +5622,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let directory = std::env::temp_dir().join(format!("csqtt-legacy-getconf-{unique}"));
+        let directory = std::env::temp_dir().join(format!("mrtt-legacy-getconf-{unique}"));
         std::fs::create_dir_all(&directory).unwrap();
 
         let mut legacy = Database {
@@ -5785,7 +5785,7 @@ mod tests {
         let decoded = unwrap_legacy_in_place(&aes, &hmac, &mut matching, None, false).unwrap();
         assert_eq!(
             decoded.range.get(&matching),
-            b"GETCONF:46000|wire-device|wire-password|7|wire-salt|1|27|CSQTT-WIRE-2"
+            b"GETCONF:46000|wire-device|wire-password|7|wire-salt|1|27|MRTT-WIRE-2"
         );
         assert_eq!(
             parse_getconf_identity(decoded.range.get(&matching)),
@@ -5828,7 +5828,7 @@ mod tests {
                 assert_eq!(address, peer);
                 assert_eq!(
                     payload,
-                    b"GETCONF:46000|wire-device|wire-password|7|wire-salt|1|27|CSQTT-WIRE-2"
+                    b"GETCONF:46000|wire-device|wire-password|7|wire-salt|1|27|MRTT-WIRE-2"
                 );
             }
             _ => panic!("expected GETCONF payload"),

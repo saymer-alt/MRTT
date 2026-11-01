@@ -275,9 +275,9 @@ async fn run(arguments: Arguments) -> Result<i32> {
     if arguments.peer.is_empty() || (!js_hash_mode && !jitsi_mode && arguments.vk.is_empty()) {
         bail!("[КЛИЕНТ] Нужны -peer и хеши VK");
     }
-    let password = std::env::var("CSQTT_PASSWORD").unwrap_or_default();
+    let password = std::env::var("MRTT_PASSWORD").unwrap_or_default();
     if password.is_empty() {
-        bail!("[КЛИЕНТ] Нужен пароль в переменной CSQTT_PASSWORD");
+        bail!("[КЛИЕНТ] Нужен пароль в переменной MRTT_PASSWORD");
     }
     let mut stdin = spawn_stdin_reader();
     let peer = resolve_peer(&arguments.peer).await?;
@@ -1061,7 +1061,7 @@ mod worker_count_tests {
     #[test]
     fn vk_hash_may_start_with_a_hyphen() {
         let arguments = Arguments::try_parse_from([
-            "csqtt-client",
+            "mrtt-client",
             "--vk",
             "-Wabc",
             "--peer",
@@ -1094,7 +1094,7 @@ mod worker_count_tests {
         assert_eq!(normalize_cli_argument("-password".to_owned()), "-password");
         assert!(
             Arguments::try_parse_from([
-                "csqtt-client",
+                "mrtt-client",
                 "--peer",
                 "127.0.0.1:9000",
                 "--password",
@@ -1107,7 +1107,7 @@ mod worker_count_tests {
     #[test]
     fn hyphenated_hash_values_parse_without_redistribution_flag() {
         let arguments = Arguments::try_parse_from([
-            "csqtt-client",
+            "mrtt-client",
             "--vk",
             "-Wabc,-Wdef",
             "--peer",
@@ -1172,7 +1172,7 @@ mod worker_count_tests {
             "--domains-file"
         );
         let raw_args = [
-            "csqtt-client",
+            "mrtt-client",
             "--vk",
             "abc",
             "--peer",

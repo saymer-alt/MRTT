@@ -43,11 +43,11 @@ val releaseSigningProblems = mutableListOf<String>().apply {
 val releaseSigningReady = releaseSigningProblems.isEmpty()
 
 val supportedAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-val selectedAbis = providers.gradleProperty("csqtt.abis").orNull
+val selectedAbis = providers.gradleProperty("mrtt.abis").orNull
     ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)?.distinct()
     ?: supportedAbis
 require(selectedAbis.isNotEmpty() && selectedAbis.all { it in supportedAbis }) {
-    "csqtt.abis must contain supported ABIs: ${supportedAbis.joinToString()}"
+    "mrtt.abis must contain supported ABIs: ${supportedAbis.joinToString()}"
 }
 
 val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
@@ -65,7 +65,7 @@ val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
 }
 
 android {
-    namespace = "com.csqtt.client"
+    namespace = "com.mrtt.client"
     // Android API 37 is published with a minor version (37.0).
     compileSdk {
         version = release(37) {
@@ -74,7 +74,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "csqtt.quic.amurcanov"
+        applicationId = "app.mrtt"
         minSdk = 26
         targetSdk = 37
         versionCode = 242
@@ -113,7 +113,7 @@ android {
     buildTypes {
         getByName("debug") {
             // Debug APK uses its own package ID, but the visible app label remains MRTT.
-            applicationIdSuffix = ".maxdebug"
+            applicationIdSuffix = ".debug"
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -128,7 +128,6 @@ android {
         }
         create("maxTest") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".maxdebug"
             signingConfig = signingConfigs.getByName("release")
             matchingFallbacks += "release"
         }

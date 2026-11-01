@@ -434,15 +434,15 @@ pub fn derive_dtls_srtp_deterministic(wrap_key: &[u8; 32]) -> DtlsSrtpKeys {
     let mut premaster_secret = [0u8; 32];
     tls12_prf(
         wrap_key,
-        b"csqtt-dtls-srtp-pms",
-        b"csqtt-premaster",
+        b"mrtt-dtls-srtp-pms",
+        b"mrtt-premaster",
         &mut premaster_secret,
     );
 
     let mut client_random = [0u8; 32];
     tls12_prf(
         wrap_key,
-        b"csqtt-dtls-random",
+        b"mrtt-dtls-random",
         b"client-random",
         &mut client_random,
     );
@@ -450,7 +450,7 @@ pub fn derive_dtls_srtp_deterministic(wrap_key: &[u8; 32]) -> DtlsSrtpKeys {
     let mut server_random = [0u8; 32];
     tls12_prf(
         wrap_key,
-        b"csqtt-dtls-random",
+        b"mrtt-dtls-random",
         b"server-random",
         &mut server_random,
     );

@@ -44,7 +44,7 @@ mod web_panel;
 #[path = "../shared/wire_protocol.rs"]
 mod wire_protocol;
 
-const WIRE_PROTOCOL_REVISION: &str = "CSQTT-WIRE-3";
+const WIRE_PROTOCOL_REVISION: &str = "MRTT-WIRE-3";
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
@@ -69,7 +69,7 @@ use tokio::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "csqtt", version, about = "Сервер и консоль управления MRTT")]
+#[command(name = "mrtt", version, about = "Сервер и консоль управления MRTT")]
 struct Args {
     #[arg(long, hide = true)]
     protocol_revision: bool,
@@ -84,12 +84,12 @@ struct Args {
     )]
     web_port: u16,
 
-    #[arg(long, default_value = "/etc/csqtt", help = "Каталог конфигурации")]
+    #[arg(long, default_value = "/etc/mrtt", help = "Каталог конфигурации")]
     config_dir: std::path::PathBuf,
 
     #[arg(
         long,
-        env = "CSQTT_MAIN_PASSWORD",
+        env = "MRTT_MAIN_PASSWORD",
         default_value = "",
         help = "Основной пароль MRTT"
     )]
@@ -97,7 +97,7 @@ struct Args {
 
     #[arg(
         long,
-        env = "CSQTT_PUBLIC_IP",
+        env = "MRTT_PUBLIC_IP",
         default_value = "",
         help = "Внешний IPv4-адрес сервера для клиентских ссылок"
     )]
@@ -105,7 +105,7 @@ struct Args {
 
     #[arg(
         long,
-        env = "CSQTT_DNS",
+        env = "MRTT_DNS",
         help = "Один или два DNS IPv4-адреса через запятую"
     )]
     dns: Option<String>,
@@ -373,7 +373,7 @@ fn enqueue_log_write(path: std::path::PathBuf, line: String) {
     let sender = SENDER.get_or_init(|| {
         let (sender, receiver) = std::sync::mpsc::sync_channel(512);
         let _ = std::thread::Builder::new()
-            .name("csqtt-log-writer".to_owned())
+            .name("mrtt-log-writer".to_owned())
             .spawn(move || {
                 while let Ok((path, line)) = receiver.recv() {
                     use std::io::Write;
@@ -571,16 +571,16 @@ async fn shutdown_signal() {
 }
 
 fn run_systemctl(action: &str) -> Result<()> {
-    if std::env::var("CSQTT_SERVICE_MANAGER").is_ok_and(|value| value == "docker") {
+    if std::env::var("MRTT_SERVICE_MANAGER").is_ok_and(|value| value == "docker") {
         if action != "restart" {
-            bail!("для управления контейнером используйте docker start/stop csqtt");
+            bail!("для управления контейнером используйте docker start/stop mrtt");
         }
         #[cfg(unix)]
         {
             let init_exe = std::fs::read_link("/proc/1/exe").ok();
             if init_exe.is_none() || init_exe != std::env::current_exe().ok() {
                 bail!(
-                    "PID 1 контейнера не является этим процессом; выполните docker restart csqtt"
+                    "PID 1 контейнера не является этим процессом; выполните docker restart mrtt"
                 );
             }
             if unsafe { libc::kill(1, libc::SIGTERM) } == 0 {
@@ -595,15 +595,15 @@ fn run_systemctl(action: &str) -> Result<()> {
     #[cfg(unix)]
     {
         if unsafe { libc_geteuid() } != 0 {
-            bail!("для управления службой csqtt нужны права root");
+            bail!("для управления службой mrtt нужны права root");
         }
     }
-    println!("[CLI] Выполняется systemctl {action} csqtt...");
+    println!("[CLI] Выполняется systemctl {action} mrtt...");
     let mut command = std::process::Command::new("systemctl");
     if action == "restart" {
         command.arg("--no-block");
     }
-    let status = command.args([action, "csqtt"]).status();
+    let status = command.args([action, "mrtt"]).status();
     match status {
         Ok(s) if s.success() => {
             println!("[CLI] Готово");
@@ -622,9 +622,9 @@ const PANEL_RESTART_DELAY_MILLIS: u64 = 750;
 static PANEL_RESTART_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 pub(crate) fn request_service_restart() -> Result<()> {
-    if std::env::var("CSQTT_SERVICE_MANAGER").is_ok_and(|value| value == "systemd") {
+    if std::env::var("MRTT_SERVICE_MANAGER").is_ok_and(|value| value == "systemd") {
         let sequence = PANEL_RESTART_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let unit = format!("csqtt-panel-restart-{}-{sequence}", std::process::id());
+        let unit = format!("mrtt-panel-restart-{}-{sequence}", std::process::id());
         let status = std::process::Command::new("systemd-run")
             .arg("--quiet")
             .arg(format!("--unit={unit}"))
@@ -632,7 +632,7 @@ pub(crate) fn request_service_restart() -> Result<()> {
             .arg("--timer-property=AccuracySec=100ms")
             .arg("--collect")
             .arg("/usr/bin/systemctl")
-            .args(["--no-block", "restart", "csqtt"])
+            .args(["--no-block", "restart", "mrtt"])
             .status()
             .context("schedule delayed systemd restart with systemd-run")?;
         if status.success() {
@@ -643,7 +643,7 @@ pub(crate) fn request_service_restart() -> Result<()> {
     #[cfg(unix)]
     {
         std::thread::Builder::new()
-            .name("csqtt-panel-restart".to_owned())
+            .name("mrtt-panel-restart".to_owned())
             .spawn(|| {
                 std::thread::sleep(Duration::from_millis(PANEL_RESTART_DELAY_MILLIS));
                 let pid = unsafe { libc::getpid() };
@@ -789,7 +789,7 @@ fn diagnostic_heartbeat(
 
 async fn run_dpi_client(samples: usize) -> Result<()> {
     if !cfg!(feature = "diagnostics") {
-        bail!("csqtt was built without diagnostics; rebuild with --diagnostics");
+        bail!("mrtt was built without diagnostics; rebuild with --diagnostics");
     }
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -807,7 +807,7 @@ async fn run_dpi_client(samples: usize) -> Result<()> {
         Ok(s) => s,
         Err(e) => {
             bail!(
-                "Could not connect to running MRTT server DPI socket (127.0.0.1:46003): {e}. Ensure csqtt is active!"
+                "Could not connect to running MRTT server DPI socket (127.0.0.1:46003): {e}. Ensure mrtt is active!"
             );
         }
     };
@@ -875,19 +875,19 @@ async fn run_dpi_client(samples: usize) -> Result<()> {
 
 fn print_cli_help() {
     println!(
-        "CSQTT — сервер и консоль управления\n\n\
+        "MRTT — сервер и консоль управления\n\n\
 Использование:\n  \
-  csqtt start                 Запустить службу\n  \
-  csqtt stop                  Остановить службу\n  \
-  csqtt restart               Перезапустить службу\n  \
-  csqtt dpi                   Открыть DPI-монитор\n  \
-  csqtt dpi s 50              Показать последние 50 DPI-записей и выйти\n  \
-  csqtt help                  Показать эту справку\n\n\
+  mrtt start                 Запустить службу\n  \
+  mrtt stop                  Остановить службу\n  \
+  mrtt restart               Перезапустить службу\n  \
+  mrtt dpi                   Открыть DPI-монитор\n  \
+  mrtt dpi s 50              Показать последние 50 DPI-записей и выйти\n  \
+  mrtt help                  Показать эту справку\n\n\
 Ручной запуск сервера:\n  \
   --listen АДРЕС              UDP-адрес, по умолчанию 0.0.0.0:46000\n  \
   --web-port ПОРТ             HTTPS-порт панели, по умолчанию 46002\n  \
-  --config-dir ПУТЬ           Каталог конфигурации, по умолчанию /etc/csqtt\n  \
-  --password ПАРОЛЬ           Основной пароль CSQTT\n  \
+  --config-dir ПУТЬ           Каталог конфигурации, по умолчанию /etc/mrtt\n  \
+  --password ПАРОЛЬ           Основной пароль MRTT\n  \
   --web-user ЛОГИН            Логин веб-панели\n  \
   --web-pass ПАРОЛЬ           Пароль веб-панели\n  \
   --dns IP[,IP]               Один или два DNS IPv4-адреса\n  \
@@ -953,7 +953,7 @@ async fn async_main() -> Result<()> {
     }
 
     if unsafe { libc_geteuid() } != 0 {
-        bail!("csqtt-server must run as root");
+        bail!("mrtt-server must run as root");
     }
 
     if args.tproxy_child {
@@ -1077,7 +1077,7 @@ async fn async_main() -> Result<()> {
         logs: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(LOG_RING_CAPACITY)),
         logging_active: std::sync::atomic::AtomicBool::new(logging_active_val),
         stream_debug_active: Arc::new(AtomicBool::new(false)),
-        log_file_path: args.config_dir.join("csqtt.log"),
+        log_file_path: args.config_dir.join("mrtt.log"),
         proxy_route: RwLock::new(None),
         proxy_operation: tokio::sync::Mutex::new(()),
         proxy_trigger: tokio::sync::Notify::new(),
@@ -1347,7 +1347,7 @@ fn arm_tproxy_child_parent_death() -> Result<()> {
     if result != 0 {
         return Err(std::io::Error::last_os_error()).context("arm TPROXY parent-death signal");
     }
-    let docker_mode = std::env::var("CSQTT_SERVICE_MANAGER").is_ok_and(|value| value == "docker");
+    let docker_mode = std::env::var("MRTT_SERVICE_MANAGER").is_ok_and(|value| value == "docker");
     if tproxy_parent_exited_during_startup(unsafe { libc::getppid() }, docker_mode) {
         bail!("TPROXY parent exited before child startup");
     }
@@ -1617,7 +1617,7 @@ mod lock_tests {
     fn parses_linux_cpu_counters_and_process_name_with_spaces() {
         let host = "cpu  100 2 30 400 10 0 0 0 0 0\ncpu0 50 1 15 200\ncpu1 50 1 15 200\n";
         assert_eq!(parse_host_cpu(host), Some((542, 2)));
-        let process = "77 (csqtt worker) R 1 2 3 4 5 6 7 8 9 10 11 12 13 14";
+        let process = "77 (mrtt worker) R 1 2 3 4 5 6 7 8 9 10 11 12 13 14";
         assert_eq!(parse_process_cpu(process), Some(23));
     }
 

@@ -2,14 +2,14 @@
 [CmdletBinding()]
 param(
     [string[]]$Distros = @("Ubuntu-24.04", "Debian"),
-    [string]$ProjectRoot = "F:\csqtt\csqtt-2.5.0"
+    [string]$ProjectRoot = "F:\mrtt\mrtt-2.5.0"
 )
 
 $ErrorActionPreference = "Continue"
 
 Write-Host ""
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "         CSQTT 2.5.0 -- UNIFIED WSL VERIFICATION RUNNER" -ForegroundColor Cyan
+Write-Host "         MRTT 2.5.0 -- UNIFIED WSL VERIFICATION RUNNER" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "Project Root: $ProjectRoot" -ForegroundColor DarkGray
 Write-Host "Distros:      $($Distros -join ', ')" -ForegroundColor DarkGray
@@ -30,7 +30,7 @@ foreach ($distro in $Distros) {
         continue
     }
 
-    $bashCmd = "bash /mnt/f/csqtt/csqtt-2.5.0/scripts/run_wsl_checks.sh"
+    $bashCmd = "bash /mnt/f/mrtt/mrtt-2.5.0/scripts/run_wsl_checks.sh"
     $output = wsl.exe -d $distro -u root bash -c $bashCmd
 
     $output | ForEach-Object {

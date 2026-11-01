@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../app/src/main/java/com/csqtt/client/MaxWebViewScripts.kt'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../app/src/main/java/com/mrtt/client/MaxWebViewScripts.kt'), 'utf8');
 const template = source.match(/return """([\s\S]*?)"""/)[1];
 const auth = '{"token":"synthetic-auth-must-stay"}';
 const storage = new Map([
