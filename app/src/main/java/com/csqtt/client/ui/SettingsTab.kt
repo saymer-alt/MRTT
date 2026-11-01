@@ -53,7 +53,6 @@ import com.csqtt.client.ui.design.MrttSizes
 import com.csqtt.client.ui.dialogs.HashesDialog
 import com.csqtt.client.ui.dialogs.VkTokenRevokeDialog
 import com.csqtt.client.ui.tunnel.WorkersInfoDialog
-import com.csqtt.client.ui.tunnel.CompactSteppedSlider
 import com.csqtt.client.ui.utils.parseMrttLink
 import com.csqtt.client.ui.utils.stripVkUrlStatic
 import kotlinx.coroutines.Job
