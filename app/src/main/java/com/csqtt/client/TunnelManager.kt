@@ -1091,11 +1091,15 @@ object TunnelManager {
         }
 
         // MAX has no VK hashes, so the hash-count cap would pin it at one group.
-        val totalWorkers = WorkerCountPolicy.normalizeForHashValues(
-            params.workersPerHash,
-            hashList,
-            params.allowHashRedistribution || jsHashMode || maxMode || jitsiMode,
-        )
+        val totalWorkers = if (jitsiMode) {
+            clampJitsiWorkers(params.jitsiWorkers)
+        } else {
+            WorkerCountPolicy.normalizeForHashValues(
+                params.workersPerHash,
+                hashList,
+                params.allowHashRedistribution || jsHashMode || maxMode,
+            )
+        }
         targetWorkers.value = totalWorkers
         val cmd = mutableListOf(
             binaryPath,
@@ -2160,6 +2164,7 @@ data class TunnelParams(
     val maxGroupId: String = "",
     val maxAccessToken: String = "",
     val jitsiRoom: String = "",
+    val jitsiWorkers: Int = MrttConstants.Tunnel.DEFAULT_JITSI_WORKERS,
     val customTurnIps: String = "",
     val domainRoutingEnabled: Boolean = false,
     val domainIsWhitelist: Boolean = false,

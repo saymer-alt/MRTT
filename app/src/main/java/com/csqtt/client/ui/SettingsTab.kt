@@ -53,6 +53,7 @@ import com.csqtt.client.ui.design.MrttSizes
 import com.csqtt.client.ui.dialogs.HashesDialog
 import com.csqtt.client.ui.dialogs.VkTokenRevokeDialog
 import com.csqtt.client.ui.tunnel.WorkersInfoDialog
+import com.csqtt.client.ui.tunnel.CompactSteppedSlider
 import com.csqtt.client.ui.utils.parseMrttLink
 import com.csqtt.client.ui.utils.stripVkUrlStatic
 import kotlinx.coroutines.Job
@@ -162,6 +163,7 @@ internal fun SettingsTabContent(
     // Настройки VK (хеши, режим кредов, капча) нужны только транспорту VK
     val vkTransportSelected = transportMode == MrttConstants.Transport.MODE_VK
     val jitsiRoomOverride by settingsStore.jitsiRoomOverride.collectAsStateWithLifecycle(initialValue = "")
+    val jitsiWorkers by settingsStore.jitsiWorkers.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_JITSI_WORKERS)
     var showJitsiRoomDialog by rememberSaveable { mutableStateOf(false) }
     var pendingTcpTransportSelection by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -719,19 +721,27 @@ internal fun SettingsTabContent(
                     },
                 )
 
-                TunnelWorkersControl(
-                    value = currentWorkers,
-                    maximum = selectableMaxWorkers,
-                    enabled = !tunnelRunning,
-                    onValueChange = { value ->
-                        val newWorkers = value.toInt()
-                        scope.launch {
-                            settingsStore.saveWorkersPerHash(newWorkers)
-                        }
-                    },
-                    onInfo = { showWorkersInfoDialog = true },
-                    fixedWorkers = effectiveServerWorkers,
-                )
+                if (transportMode == MrttConstants.Transport.MODE_JITSI) {
+                    JitsiWorkersControl(
+                        value = jitsiWorkers,
+                        enabled = !tunnelRunning,
+                        onValueChange = { scope.launch { settingsStore.saveJitsiWorkers(it) } },
+                    )
+                } else {
+                    TunnelWorkersControl(
+                        value = currentWorkers,
+                        maximum = selectableMaxWorkers,
+                        enabled = !tunnelRunning,
+                        onValueChange = { value ->
+                            val newWorkers = value.toInt()
+                            scope.launch {
+                                settingsStore.saveWorkersPerHash(newWorkers)
+                            }
+                        },
+                        onInfo = { showWorkersInfoDialog = true },
+                        fixedWorkers = effectiveServerWorkers,
+                    )
+                }
 
                 AnimatedVisibility(
                     visible = vkTransportSelected && vkAuthMode == MrttConstants.VkAuth.MODE_CAPTCHA,
@@ -1261,6 +1271,36 @@ private fun JitsiRoomButton(overrideRoom: String, linkRoom: String, onClick: () 
                 linkRoom.isNotBlank() -> "Из ссылки: $linkRoom"
                 else -> "Вставьте ссылку на комнату, в которой сидит ваш сервер"
             },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Воркеры Jitsi: каждый заходит в комнату отдельным участником, больше мест сервера (16) смысла нет. */
+@Composable
+private fun JitsiWorkersControl(value: Int, enabled: Boolean, onValueChange: (Int) -> Unit) {
+    var local by remember(value) { mutableStateOf(value.toFloat()) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Участники в комнате", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(local.toInt().toString(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        }
+        CompactSteppedSlider(
+            value = local,
+            onValueChange = { local = it },
+            onValueChangeFinished = { onValueChange(local.toInt()) },
+            valueRange = MrttConstants.Tunnel.MIN_JITSI_WORKERS.toFloat()..MrttConstants.Tunnel.MAX_JITSI_WORKERS.toFloat(),
+            stepSize = 1f,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Каждый воркер заходит в комнату Jitsi отдельным участником, примерно 4 Мбит/с на каждого. Лучше не больше, чем «Участников в комнате» в настройках сервера.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

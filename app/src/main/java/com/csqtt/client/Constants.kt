@@ -40,6 +40,10 @@ object MrttConstants {
         const val MAX_VK_HASHES = 6
         const val DEFAULT_MAX_WORKERS = 72
         const val MAX_WORKERS = 126
+        // Jitsi: each worker is a room participant and the server holds at most 16 seats.
+        const val MIN_JITSI_WORKERS = 3
+        const val MAX_JITSI_WORKERS = 16
+        const val DEFAULT_JITSI_WORKERS = 6
     }
 
     object Transport {

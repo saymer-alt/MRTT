@@ -143,6 +143,7 @@ class SettingsStore(context: Context) {
         private val MAX_GROUP_ID = stringPreferencesKey("max_group_id")
         private val TRANSPORT_MODE = stringPreferencesKey("transport_mode")
         private val JITSI_ROOM_OVERRIDE = stringPreferencesKey("jitsi_room_override")
+        private val JITSI_WORKERS = intPreferencesKey("jitsi_workers")
         private val MAX_ACCESS_TOKEN = stringPreferencesKey("max_access_token")
         private val MAX_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("max_access_token_encrypted")
 
@@ -558,6 +559,15 @@ class SettingsStore(context: Context) {
 
     suspend fun saveJitsiRoomOverride(room: String) {
         dataStore.edit { prefs -> prefs[JITSI_ROOM_OVERRIDE] = room }
+    }
+
+    /** Воркеры Jitsi: каждый становится участником комнаты, поэтому их не больше, чем мест у сервера. */
+    val jitsiWorkers: Flow<Int> = dataStore.data.map { prefs ->
+        clampJitsiWorkers(prefs[JITSI_WORKERS] ?: MrttConstants.Tunnel.DEFAULT_JITSI_WORKERS)
+    }.onIo()
+
+    suspend fun saveJitsiWorkers(workers: Int) {
+        dataStore.edit { prefs -> prefs[JITSI_WORKERS] = clampJitsiWorkers(workers) }
     }
 
     val vkAccessTokenUserId: Flow<String> = dataStore.data.map { prefs ->
@@ -1894,3 +1904,6 @@ class SettingsStore(context: Context) {
         }
     }
 }
+
+internal fun clampJitsiWorkers(workers: Int): Int =
+    workers.coerceIn(MrttConstants.Tunnel.MIN_JITSI_WORKERS, MrttConstants.Tunnel.MAX_JITSI_WORKERS)
