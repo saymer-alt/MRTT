@@ -101,7 +101,7 @@ impl MrttTurnProfile {
 }
 
 #[used]
-static CORE_IMPLEMENTATION: [u8; 26] = *b"MRTT_RUST_TURN_SANS_IO_V1";
+static CORE_IMPLEMENTATION: [u8; 25] = *b"MRTT_RUST_TURN_SANS_IO_V1";
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
