@@ -215,7 +215,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: native-exit-client
-          path: app/src/main/assets/mrtt-exit-client-*
+          # A second path keeps the repository as the artifact's root, so the files land back in assets.
+          path: |
+            app/src/main/assets/mrtt-exit-client-*
+            rust-client/build_linux_exit.sh
           if-no-files-found: error
           retention-days: 7
 
@@ -278,6 +281,8 @@ jobs:
                   assert f'lib/{abi}/libclient.so' in files, f'{abi} Rust client missing'
               for arch in ('amd64', 'arm64', 'armv7'):
                   assert f'assets/mrtt-linux-{arch}' in files, f'{arch} Linux server asset missing'
+              for arch in ('amd64', 'arm64'):
+                  assert f'assets/mrtt-exit-client-{arch}' in files, f'{arch} cascade client missing'
           print('All Rust client ABIs and Linux server assets found in APK')
           PY
       - name: Upload test APKs
