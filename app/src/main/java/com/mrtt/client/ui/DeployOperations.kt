@@ -452,14 +452,16 @@ internal fun createSSHClient(
     require(port in 1..65535) { "Invalid SSH port: $port" }
 
     ensureBouncyCastle()
-    val ssh = SshjClient()
+    // Ответ сервера проверяется: при обрыве связи установка падает с ошибкой примерно за минуту, а не висит.
+    val ssh = SshjClient(net.schmizz.sshj.DefaultConfig().apply { keepAliveProvider = net.schmizz.keepalive.KeepAliveProvider.KEEP_ALIVE })
     ssh.connectTimeout = 30000
     ssh.timeout = 300000
     ssh.addHostKeyVerifier(SshHostKeyStore.TofuVerifier(context))
+    // Поток keepalive запускается при подключении, и только если интервал уже задан.
+    ssh.connection.keepAlive.keepAliveInterval = 10
 
     try {
         ssh.connect(host, port)
-        runCatching { ssh.connection.keepAlive.keepAliveInterval = 10 }
     } catch (e: Exception) {
         DeployManager.writeError("SSH connect failed (${e.javaClass.simpleName}): ${e.message}")
         throw e
