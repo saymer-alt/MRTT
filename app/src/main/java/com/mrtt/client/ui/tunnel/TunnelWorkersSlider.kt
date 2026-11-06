@@ -89,7 +89,7 @@ internal fun TunnelWorkersControl(
                 text = if (isFixed) fixedWorkers.toString() else localValue.toInt().toString(),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF2563EB),
+                color = MaterialTheme.colorScheme.primary,
             )
         }
         if (!isFixed) {

@@ -7,6 +7,14 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 internal object VkTokenScraper {
+    /** Временный токен из сохранённой сессии VK: живёт только в памяти на время подключения. */
+    suspend fun tokenFromSession(context: android.content.Context, cookies: String): String {
+        if (cookies.isBlank()) return ""
+        val userAgent = runCatching { android.webkit.WebSettings.getDefaultUserAgent(context) }
+            .getOrDefault("Mozilla/5.0 (Linux; Android 13; Mobile)")
+        return scrape(cookies, userAgent).getOrNull()?.token.orEmpty()
+    }
+
     suspend fun scrape(cookies: String, userAgent: String): Result<VkAuthPayload> = withContext(Dispatchers.IO) {
         var endpoint = "https://oauth.vk.com/authorize?client_id=7793118&display=mobile&redirect_uri=https%3A%2F%2Foauth.vk.ru%2Fblank.html&response_type=token&scope=1073737727&v=5.199&revoke=1"
         

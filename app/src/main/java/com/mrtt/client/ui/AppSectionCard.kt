@@ -17,28 +17,14 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import com.mrtt.client.ui.design.MrttShapes
 import com.mrtt.client.ui.design.MrttSpacing
+import com.mrtt.client.ui.design.mrttGlass
+
+/** Сплошной цвет для окон и шторок: стекло в них читалось бы плохо. */
+@Composable
+fun appSectionCardColor(): Color = MaterialTheme.colorScheme.surface
 
 @Composable
-fun appSectionCardColor(): Color {
-    val colors = MaterialTheme.colorScheme
-    val isDark = colors.background.luminance() < 0.22f
-    return if (isDark) {
-        lerp(colors.background, colors.surface, 0.82f)
-    } else {
-        lerp(colors.surface, colors.surfaceVariant, 0.28f)
-    }
-}
-
-@Composable
-fun appSectionCardBorderColor(): Color {
-    val colors = MaterialTheme.colorScheme
-    val isDark = colors.background.luminance() < 0.22f
-    return if (isDark) {
-        colors.outlineVariant.copy(alpha = 0.32f)
-    } else {
-        colors.outlineVariant.copy(alpha = 0.24f)
-    }
-}
+fun appSectionCardBorderColor(): Color = MaterialTheme.colorScheme.outlineVariant
 
 @Composable
 fun AppSectionCard(
@@ -49,12 +35,9 @@ fun AppSectionCard(
 ) {
     Surface(
         shape = MrttShapes.Card,
-        color = appSectionCardColor(),
+        color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, appSectionCardBorderColor()),
-        shadowElevation = if (MaterialTheme.colorScheme.background.luminance() < 0.22f) 4.dp else 10.dp,
-        tonalElevation = if (MaterialTheme.colorScheme.background.luminance() < 0.22f) 0.dp else 2.dp,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth().mrttGlass(MrttShapes.Card),
     ) {
         Column(
             modifier = Modifier

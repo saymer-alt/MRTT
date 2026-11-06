@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -28,22 +29,28 @@ import com.mrtt.client.ui.design.MrttLightExtendedColors
 import com.mrtt.client.ui.design.MrttMaterialShapes
 import com.mrtt.client.ui.design.LocalMrttExtendedColors
 
+private val Geologica = FontFamily(
+    Font(R.font.geologica_regular, FontWeight.Normal),
+    Font(R.font.geologica_medium, FontWeight.Medium),
+    Font(R.font.geologica_bold, FontWeight.Bold),
+)
+
 val MrttTypography = Typography(
-    displayLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Bold, fontSize = 57.sp, lineHeight = 64.sp),
-    displayMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Bold, fontSize = 45.sp, lineHeight = 52.sp),
-    displaySmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Bold, fontSize = 36.sp, lineHeight = 44.sp),
-    headlineLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 40.sp),
-    headlineMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, lineHeight = 36.sp),
-    headlineSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 32.sp),
-    titleLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
-    titleMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
-    titleSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    bodyLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp),
-    labelLarge = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    labelMedium = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
-    labelSmall = TextStyle(fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
+    displayLarge = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Bold, fontSize = 57.sp, lineHeight = 64.sp),
+    displayMedium = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Bold, fontSize = 45.sp, lineHeight = 52.sp),
+    displaySmall = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Bold, fontSize = 36.sp, lineHeight = 44.sp),
+    headlineLarge = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 40.sp),
+    headlineMedium = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, lineHeight = 36.sp),
+    headlineSmall = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 32.sp),
+    titleLarge = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
+    titleMedium = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.15.sp),
+    titleSmall = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
+    bodyLarge = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
+    bodyMedium = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp),
+    bodySmall = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp),
+    labelLarge = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
+    labelMedium = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
+    labelSmall = TextStyle(fontFamily = Geologica, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -184,51 +191,52 @@ private val ForestDarkColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF48454E),
 )
 
+// Монохром как в новом стиле Rawline: чистый белый или чёрный OLED, акцент совпадает с текстом.
 private val BrandLightColorScheme = lightColorScheme(
-    primary = Color(0xFF3F4448),
+    primary = Color(0xFF0A0A0B),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFFFFFFF),
-    onPrimaryContainer = Color(0xFF14161A),
-    secondary = Color(0xFF3F4448),
+    primaryContainer = Color(0xFFE6E6EA),
+    onPrimaryContainer = Color(0xFF0A0A0B),
+    secondary = Color(0xFF0A0A0B),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFFFFFFF),
-    onSecondaryContainer = Color(0xFF14161A),
+    secondaryContainer = Color(0xFFE6E6EA),
+    onSecondaryContainer = Color(0xFF0A0A0B),
     tertiary = Color(0xFFD27D00),
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFFFE4B7),
     onTertiaryContainer = Color(0xFF241400),
-    background = Color(0xFFF2F3F5),
-    onBackground = Color(0xFF111215),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF111215),
-    surfaceVariant = Color(0xFFF2F3F5),
-    onSurfaceVariant = Color(0xFF5F6067),
-    outline = Color(0xFF878B92),
-    outlineVariant = Color(0xFFDFE1E6),
+    background = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF0A0A0B),
+    surface = Color(0xFFF3F3F6),
+    onSurface = Color(0xFF0A0A0B),
+    surfaceVariant = Color(0xFFEDEDF0),
+    onSurfaceVariant = Color(0xFF696970),
+    outline = Color(0xFF8E8E96),
+    outlineVariant = Color(0xFFDDDDE2),
     surfaceTint = Color.Transparent,
 )
 
 private val BrandDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFD3D7DC),
-    onPrimary = Color(0xFF17191C),
-    primaryContainer = Color(0xFF3A3E44),
-    onPrimaryContainer = Color(0xFFE9EBEE),
-    secondary = Color(0xFFD3D7DC),
-    onSecondary = Color(0xFF17191C),
-    secondaryContainer = Color(0xFF3A3E44),
-    onSecondaryContainer = Color(0xFFE9EBEE),
+    primary = Color(0xFFF5F5F7),
+    onPrimary = Color(0xFF000000),
+    primaryContainer = Color(0xFF2A2A2E),
+    onPrimaryContainer = Color(0xFFF5F5F7),
+    secondary = Color(0xFFF5F5F7),
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFF2A2A2E),
+    onSecondaryContainer = Color(0xFFF5F5F7),
     tertiary = Color(0xFFFFB74D),
     onTertiary = Color(0xFF271500),
     tertiaryContainer = Color(0xFF5A3900),
     onTertiaryContainer = Color(0xFFFFE5BD),
-    background = Color(0xFF09090A),
-    onBackground = Color(0xFFFAFAFA),
-    surface = Color(0xFF141416),
-    onSurface = Color(0xFFFAFAFA),
-    surfaceVariant = Color(0xFF202226),
-    onSurfaceVariant = Color(0xFFC9C9CF),
-    outline = Color(0xFF8C8C94),
-    outlineVariant = Color(0xFF35353A),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFF5F5F7),
+    surface = Color(0xFF151518),
+    onSurface = Color(0xFFF5F5F7),
+    surfaceVariant = Color(0xFF1C1C20),
+    onSurfaceVariant = Color(0xFF8E8E96),
+    outline = Color(0xFF69696F),
+    outlineVariant = Color(0xFF2C2C31),
     surfaceTint = Color.Transparent,
 )
 
@@ -275,11 +283,7 @@ fun MrttAppTheme(
         @Suppress("DEPRECATION")
         SideEffect {
             val window = (view.context as Activity).window
-            val navigationBarColor = if (darkTheme) {
-                Color.Transparent
-            } else {
-                lerp(colorScheme.background, colorScheme.surface, 0.55f)
-            }
+            val navigationBarColor = Color.Transparent
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = navigationBarColor.toArgb()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

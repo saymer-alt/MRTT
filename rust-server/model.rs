@@ -88,6 +88,9 @@ pub struct PasswordEntry {
     pub max_devices: Option<u32>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub devices: BTreeMap<String, BoundDevice>,
+    /// Транспорт по умолчанию для профиля из ссылки: "vk", "jitsi" или пусто (как решит клиент).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub transport: String,
 }
 
 /// Устройство, привязанное к ссылке (ключ — device_id клиента, `legacy` для клиентов без device_id).
@@ -271,6 +274,9 @@ pub struct Database {
     pub main_workers: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_max_devices: Option<u32>,
+    /// Транспорт в ссылке владельца: "vk", "jitsi" или пусто.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub main_transport: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub main_devices: BTreeMap<String, BoundDevice>,
     #[serde(default, alias = "slots")]
@@ -860,8 +866,9 @@ pub fn admit_device(
         device_id
     };
     let (limit, primary_ip) = match slot {
+        // Владелец по умолчанию без лимита устройств: не заданное значение значит 0.
         None => (
-            device_limit(db.main_max_devices),
+            device_limit(db.main_max_devices.or(Some(0))),
             OWNER_TUNNEL_IP.to_owned(),
         ),
         Some(key) => {
@@ -1161,6 +1168,14 @@ fn ensure_password_columns(connection: &Connection) -> Result<()> {
             )
             .context("add vk_token_enabled column")?;
     }
+    if !columns.iter().any(|column| column == "transport") {
+        connection
+            .execute(
+                "ALTER TABLE passwords ADD COLUMN transport TEXT NOT NULL DEFAULT ''",
+                [],
+            )
+            .context("add transport column")?;
+    }
     if !columns.iter().any(|column| column == "group_id") {
         connection
             .execute(
@@ -1275,6 +1290,13 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
             .execute("DELETE FROM meta WHERE key = 'main_max_devices'", [])
             .context("clear main_max_devices")?;
     }
+    transaction
+        .execute(
+            "INSERT INTO meta (key, value) VALUES ('main_transport', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![db.main_transport],
+        )
+        .context("write main_transport")?;
     if let Some(w) = db.main_workers {
         transaction
             .execute(
@@ -1415,8 +1437,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     password, ip, expires_at, down_bytes, up_bytes,
                     vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
                     dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
-                    max_devices, devices_json
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+                    max_devices, devices_json, transport
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
                 ON CONFLICT(password) DO UPDATE SET
                     ip = excluded.ip,
                     expires_at = excluded.expires_at,
@@ -1436,7 +1458,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     sub_uuid = excluded.sub_uuid,
                     workers = excluded.workers,
                     max_devices = excluded.max_devices,
-                    devices_json = excluded.devices_json",
+                    devices_json = excluded.devices_json,
+                    transport = excluded.transport",
             )
             .context("prepare passwords insert")?;
         for (password, entry) in &db.passwords {
@@ -1462,6 +1485,7 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     entry.workers.map(|w| w as i64),
                     entry.max_devices.map(i64::from),
                     serde_json::to_string(&entry.devices).unwrap_or_else(|_| "{}".to_owned()),
+                    entry.transport,
                 ])
                 .with_context(|| format!("write password {}", secret_tag(password)))?;
         }
@@ -1557,6 +1581,7 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                         .and_then(|w| (3..=100).contains(&w).then_some(w));
                 }
                 "logging_active" => db.logging_active = Some(value == "1"),
+                "main_transport" => db.main_transport = value,
                 "main_max_devices" => {
                     db.main_max_devices = value
                         .parse::<u32>()
@@ -1584,7 +1609,7 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 "SELECT password, ip, expires_at, down_bytes, up_bytes,
                         vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
                         dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
-                        max_devices, devices_json
+                        max_devices, devices_json, transport
                  FROM passwords",
             )
             .context("prepare passwords select")?;
@@ -1635,6 +1660,7 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 workers,
                 max_devices,
                 devices,
+                transport: row.get(20).unwrap_or_default(),
             };
             db.passwords.insert(password, entry);
         }
@@ -2166,6 +2192,7 @@ mod tests {
         assert_eq!(unbind_devices(&mut db, "client1234567890", "").len(), 2);
 
         // Старый клиент без device_id уступает место устройству с device_id.
+        db.main_max_devices = Some(1);
         let legacy = admit_device(&mut db, None, "", "", 105).unwrap();
         assert_eq!(legacy.ip, OWNER_TUNNEL_IP);
         assert!(db.main_devices.contains_key(LEGACY_DEVICE_ID));
@@ -2173,6 +2200,17 @@ mod tests {
         assert!(modern.evicted_legacy);
         assert_eq!(modern.ip, OWNER_TUNNEL_IP);
         assert!(!db.main_devices.contains_key(LEGACY_DEVICE_ID));
+    }
+
+    #[test]
+    fn owner_has_no_device_limit_by_default() {
+        use super::admit_device;
+        let mut db = Database::default();
+        for (index, device) in ["phone-a", "phone-b", "phone-c"].into_iter().enumerate() {
+            assert!(admit_device(&mut db, None, device, "", 100 + index as i64).is_ok());
+        }
+        db.main_max_devices = Some(1);
+        assert_eq!(admit_device(&mut db, None, "phone-d", "", 110), Err("DENIED:device_limit"));
     }
 
     #[test]

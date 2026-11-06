@@ -138,6 +138,7 @@ class SettingsStore(context: Context) {
 
         private val VK_HASH_MODE = stringPreferencesKey("vk_hash_mode")
         private val VK_ACCESS_TOKEN = stringPreferencesKey("vk_access_token")
+        private const val VK_SESSION_PREFIX = "vkweb:"
         private val VK_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("vk_access_token_encrypted")
         private val VK_ACCESS_TOKEN_USER_ID = stringPreferencesKey("vk_access_token_user_id")
         private val MAX_GROUP_ID = stringPreferencesKey("max_group_id")
@@ -150,6 +151,7 @@ class SettingsStore(context: Context) {
         private val MAX_ACCESS_TOKEN_ENCRYPTED = stringPreferencesKey("max_access_token_encrypted")
 
         private val IS_WHITELIST = booleanPreferencesKey("is_whitelist")
+        private val VK_PREFER_LINK_HASHES = booleanPreferencesKey("vk_prefer_link_hashes")
         private val SPLIT_TUNNEL_WHITELIST_MIGRATED = booleanPreferencesKey("split_tunnel_whitelist_migrated")
         private val EXTRA_WORKERS = booleanPreferencesKey("extra_workers")
         private val AUTO_JS_RISK_ACKNOWLEDGED = booleanPreferencesKey("auto_js_risk_acknowledged")
@@ -205,7 +207,7 @@ class SettingsStore(context: Context) {
         internal var cachedVkHashMode: String? = null
 
         @Volatile
-        internal var cachedVkAccessToken: String? = null
+        internal var cachedVkSession: String? = null
 
         @Volatile
         internal var cachedObfsMode: String? = null
@@ -533,9 +535,10 @@ class SettingsStore(context: Context) {
             else -> MrttConstants.VkAutoHash.MODE_MANUAL
         }
     }
-    val vkAccessToken: Flow<String> = dataStore.data.map { prefs ->
+    /** Куки сессии VK после входа через WebView; токен из них получается только на время подключения. */
+    val vkSession: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
-        readSecret(prefs, VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, profile)
+        readVkSession(prefs, profile)
     }.onIo()
     val maxGroupId: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
@@ -582,6 +585,19 @@ class SettingsStore(context: Context) {
     val vkAccessTokenUserId: Flow<String> = dataStore.data.map { prefs ->
         val profile = prefs[ACTIVE_PROFILE] ?: 0
         prefs[getProfileKey(VK_ACCESS_TOKEN_USER_ID, profile)] ?: ""
+    }
+
+    /** Хеши из ссылки вместо своего аккаунта VK. По умолчанию свой привязанный VK важнее. */
+    val vkPreferLinkHashes: Flow<Boolean> = dataStore.data.map { prefs ->
+        val profile = prefs[ACTIVE_PROFILE] ?: 0
+        prefs[getProfileKey(VK_PREFER_LINK_HASHES, profile)] ?: false
+    }.onIo()
+
+    suspend fun saveVkPreferLinkHashes(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            prefs[getProfileKey(VK_PREFER_LINK_HASHES, profile)] = enabled
+        }
     }
 
     val isWhitelist: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -734,7 +750,7 @@ class SettingsStore(context: Context) {
                     }
                 }
                 launch { vkHashMode.collect { cachedVkHashMode = it } }
-                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
+                launch { vkSession.collect { cachedVkSession = it } }
                 launch { obfsMode.collect { cachedObfsMode = it } }
                 launch { turnTransport.collect { cachedTurnTransport = it } }
                 launch { srtpMode.collect { cachedSrtpMode = it } }
@@ -962,6 +978,15 @@ class SettingsStore(context: Context) {
 
     suspend fun saveConnectionProfilesJson(json: String) {
         dataStore.edit { it[CONNECTION_PROFILES] = json }
+    }
+
+    /** Активный профиль удалён: подключаться больше не к чему, его ссылка не должна остаться. */
+    suspend fun clearActiveConnectionProfile() {
+        dataStore.edit { prefs ->
+            val profile = prefs[ACTIVE_PROFILE] ?: 0
+            prefs.remove(ACTIVE_CONNECTION_PROFILE)
+            prefs.remove(getProfileKey(MRTT_LINK, profile))
+        }
     }
 
     /** Делает профиль активным: его ссылка становится ссылкой подключения. */
@@ -1243,7 +1268,7 @@ class SettingsStore(context: Context) {
             prefs[getProfileKey(VK_HASH_MODE, profile)] = vkHashModeForAuthMode(
                 requestedAuthMode = normalized,
                 currentHashMode = prefs[getProfileKey(VK_HASH_MODE, profile)],
-                hasVkToken = readSecret(prefs, VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, profile).isNotBlank(),
+                hasVkToken = readVkSession(prefs, profile).isNotBlank(),
             )
         }
     }
@@ -1393,22 +1418,30 @@ class SettingsStore(context: Context) {
             val selection = normalizeVkModeSelection(
                 requestedAuthMode = nextAuthMode,
                 requestedHashMode = mode,
-                hasVkToken = readSecret(prefs, VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, profile).isNotBlank(),
+                hasVkToken = readVkSession(prefs, profile).isNotBlank(),
             )
             prefs[getProfileKey(VK_AUTH_MODE, profile)] = selection.authMode
             prefs[getProfileKey(VK_HASH_MODE, profile)] = selection.hashMode
         }
     }
 
-    suspend fun saveVkAccessToken(token: String, userId: String) {
+    suspend fun saveVkSession(cookies: String, userId: String) {
+        require(cookies.isNotBlank())
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
-            prefs.putSecret(VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, token, profile)
+            prefs.putSecret(VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, VK_SESSION_PREFIX + cookies, profile)
             prefs[getProfileKey(VK_ACCESS_TOKEN_USER_ID, profile)] = userId
         }
     }
 
-    suspend fun clearVkAccessToken() {
+    // Старые версии хранили здесь вечный токен API: он не считается привязкой, нужен вход заново.
+    private fun readVkSession(prefs: Preferences, profile: Int): String =
+        readSecret(prefs, VK_ACCESS_TOKEN_ENCRYPTED, VK_ACCESS_TOKEN, profile)
+            .takeIf { it.startsWith(VK_SESSION_PREFIX) }
+            ?.removePrefix(VK_SESSION_PREFIX)
+            .orEmpty()
+
+    suspend fun clearVkSession() {
         dataStore.edit { prefs ->
             val profile = prefs[ACTIVE_PROFILE] ?: 0
             prefs.remove(getProfileKey(VK_ACCESS_TOKEN_ENCRYPTED, profile))
@@ -1885,7 +1918,7 @@ class SettingsStore(context: Context) {
                     }
                 }
                 launch { vkHashMode.collect { cachedVkHashMode = it } }
-                launch { vkAccessToken.collect { cachedVkAccessToken = it } }
+                launch { vkSession.collect { cachedVkSession = it } }
                 launch { obfsMode.collect { cachedObfsMode = it } }
                 launch { turnTransport.collect { cachedTurnTransport = it } }
                 launch { srtpMode.collect { cachedSrtpMode = it } }

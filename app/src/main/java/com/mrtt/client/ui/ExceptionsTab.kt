@@ -36,7 +36,7 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -498,7 +498,7 @@ fun ExceptionsTab(
                     text = "Маршрутизация синхронизирована с сервером",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF2563EB),
+                    color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -613,7 +613,7 @@ fun ExceptionsTab(
                         text = "Маршрутизация синхронизирована с сервером",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF2563EB),
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 } else {
                     OutlinedButton(
@@ -683,7 +683,7 @@ fun ExceptionsTab(
                         text = "Маршрутизация синхронизирована с сервером",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF2563EB),
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 } else {
                     OutlinedButton(
@@ -848,7 +848,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                     enabled = isMigrationReady,
@@ -900,7 +900,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                     enabled = isMigrationReady,
@@ -1209,7 +1209,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1255,7 +1255,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1520,7 +1520,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                 ) {
@@ -1566,7 +1566,7 @@ fun ExceptionsTab(
                                         .height(MrttSizes.ControlHeight),
                                     shape = MrttShapes.Pill,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3F4448),
+                                        containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = Color.White,
                                     ),
                                 ) {

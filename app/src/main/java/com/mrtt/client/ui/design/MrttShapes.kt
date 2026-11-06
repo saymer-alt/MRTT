@@ -7,11 +7,11 @@ import androidx.compose.ui.unit.dp
 
 @Immutable
 object MrttShapes {
-    val Small = RoundedCornerShape(22.dp)
+    val Small = RoundedCornerShape(18.dp)
     val Control = RoundedCornerShape(percent = 50)
-    val Card = RoundedCornerShape(34.dp)
-    val LargeCard = RoundedCornerShape(42.dp)
-    val Dialog = RoundedCornerShape(40.dp)
+    val Card = RoundedCornerShape(28.dp)
+    val LargeCard = RoundedCornerShape(28.dp)
+    val Dialog = RoundedCornerShape(28.dp)
     val Pill = RoundedCornerShape(percent = 50)
 }
 

@@ -20,6 +20,8 @@ data class ConnectionSource(
 
 
 suspend fun resolveConnectionSource(store: SettingsStore): ConnectionSource? {
+    // Без активного профиля подключаться не к чему: старая ссылка в настройках не считается.
+    if (store.activeConnectionProfileId.first().isBlank()) return null
     val transportMode = store.transportMode.first()
     val maxTransportSelected = transportMode == MrttConstants.Transport.MODE_MAX
     val jitsiSelected = transportMode == MrttConstants.Transport.MODE_JITSI
@@ -32,14 +34,17 @@ suspend fun resolveConnectionSource(store: SettingsStore): ConnectionSource? {
 
     if (store.mrttLinkMode.first()) {
         val link = parseMrttLink(store.mrttLink.first()) ?: return null
-        val linkHashes = activeHashes(link.hashes.joinToString(","))
-        val tokenFromLink = link.vkAccessToken.isNotEmpty()
+        // Свой привязанный VK важнее хешей из ссылки, если у профиля не выбрано обратное.
+        val ownVk = store.vkSession.first().isNotBlank()
+        val useLinkVk = !ownVk || store.vkPreferLinkHashes.first()
+        val linkHashes = if (useLinkVk) activeHashes(link.hashes.joinToString(",")) else ""
+        val tokenFromLink = useLinkVk && link.vkAccessToken.isNotEmpty()
         return ConnectionSource(
             peer = link.peerAddress(),
             password = link.password,
             hashes = if (tokenFromLink) "" else linkHashes.ifEmpty { activeHashes(store.vkHashes.first()) },
             hashesFromLink = linkHashes.isNotEmpty(),
-            vkAccessToken = link.vkAccessToken,
+            vkAccessToken = if (tokenFromLink) link.vkAccessToken else "",
             tokenFromLink = tokenFromLink,
             maxGroupId = if (maxTransportSelected) link.maxGroupId.ifBlank { store.maxGroupId.first() } else "",
             jitsiRoom = if (jitsiSelected) store.jitsiRoomOverride.first().ifBlank { link.jitsiRoom } else "",

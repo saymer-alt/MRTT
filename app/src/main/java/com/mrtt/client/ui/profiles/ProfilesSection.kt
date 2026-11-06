@@ -301,6 +301,7 @@ private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit,
     var hashes by remember { mutableStateOf(link.hashes.joinToString(",")) }
     var maxGroup by remember { mutableStateOf(link.maxGroupId) }
     var jitsiRoom by remember { mutableStateOf(link.jitsiRoom.takeIf { it.isNotBlank() }?.let { "https://$it" }.orEmpty()) }
+    var transport by remember { mutableStateOf(link.transport) }
     val hashList = com.mrtt.client.ui.common.splitVkHashes(hashes)
     val room = if (jitsiRoom.isBlank()) "" else com.mrtt.client.ui.utils.parseJitsiRoomInput(jitsiRoom)
     val error = when {
@@ -322,6 +323,7 @@ private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit,
                 maxGroupId = maxGroup.trim(),
                 jitsiRoom = room.orEmpty(),
                 jitsiSeats = if (room == link.jitsiRoom) link.jitsiSeats else 0,
+                transport = transport,
             )
         }.getOrNull()
     } else {
@@ -333,11 +335,18 @@ private fun ProfileEditDialog(profile: ConnectionProfile, onDismiss: () -> Unit,
         confirmEnabled = rebuilt != null && parseMrttLink(rebuilt) != link,
         onConfirm = { rebuilt?.let(onSave) },
     ) {
+        com.mrtt.client.ui.CompactDropdownSetting(
+            title = "Транспорт в ссылке",
+            selectedKey = transport,
+            options = listOf("" to "Не задан", "vk" to "VK", "jitsi" to "Jitsi"),
+            enabled = true,
+            onSelected = { transport = it },
+        )
         com.mrtt.client.ui.common.VkHashesButton(hashes) { hashes = it }
         FormField(maxGroup, { maxGroup = it.trim() }, "ID группы MAX")
         FormField(jitsiRoom, { jitsiRoom = it }, "Ссылка на комнату Jitsi")
         Text(
-            error ?: "Сервер и пароль не меняются. Транспорт выбирается во вкладке «Транспорт».",
+            error ?: "Сервер и пароль не меняются. MAX в ссылку не попадает: его данные приватные.",
             style = MaterialTheme.typography.bodySmall,
             color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )

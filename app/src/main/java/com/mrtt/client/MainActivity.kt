@@ -1,5 +1,6 @@
 package com.mrtt.client
 
+import com.mrtt.client.ui.design.mrttGlass
 import android.annotation.SuppressLint
 import android.Manifest
 import android.content.Context
@@ -196,10 +197,12 @@ class MainActivity : ComponentActivity() {
                     onToken = { payload ->
                         showVkAuthDialog = false
                         authScope.launch {
-                            appSettingsStore.saveVkAccessToken(payload.token, payload.userId)
-                            // VK иногда выдаёт временный токен: пишем, какой сохранён
-                            val kind = if (payload.expiresIn > 0) "VK access token сохранён (временный)" else "Вечный VK access token сохранён"
-                            authContext.showRaisedToast(kind, Toast.LENGTH_SHORT)
+                            if (payload.cookies.isBlank()) {
+                                authContext.showRaisedToast("VK не отдал сессию, войдите ещё раз", Toast.LENGTH_SHORT)
+                            } else {
+                                appSettingsStore.saveVkSession(payload.cookies, payload.userId)
+                                authContext.showRaisedToast("VK привязан", Toast.LENGTH_SHORT)
+                            }
                         }
                     },
                     onDismiss = { showVkAuthDialog = false },
@@ -473,6 +476,7 @@ fun MainScreen(
                                             selectedTab = 1
                                             tunnelValidationRequest += 1
                                         },
+                                        onProfileRequired = { selectedTab = 5 },
                                     )
                                 } else {
                                     Spacer(modifier = Modifier.fillMaxSize())
@@ -569,21 +573,9 @@ private fun ProxyNavigationBar(
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
-    val isDark = colors.background.luminance() < 0.22f
-    val selectedColor = colors.onPrimary
-    val unselectedColor = colors.onSurfaceVariant.copy(alpha = 0.55f)
-    val indicatorShape = RoundedCornerShape(22.dp)
-    val shellColor = if (isDark) {
-        lerp(colors.background, colors.surface, 0.86f)
-    } else {
-        lerp(colors.surface, colors.surfaceVariant, 0.48f).copy(alpha = 0.95f)
-    }
-    val shellBorder = if (isDark) {
-        colors.outlineVariant.copy(alpha = 0.42f)
-    } else {
-        colors.outline.copy(alpha = 0.16f)
-    }
-    val indicatorColor = colors.primary
+    val selectedColor = colors.onSurface
+    val unselectedColor = colors.onSurfaceVariant
+    val indicatorShape = RoundedCornerShape(20.dp)
     val selectedVisualIndex = remember(selectedTab, navItems) {
         navItems.indexOfFirst { it.id == selectedTab }.coerceAtLeast(0)
     }
@@ -611,26 +603,22 @@ private fun ProxyNavigationBar(
 
         Surface(
             shape = MrttShapes.Card,
-            color = shellColor,
-            border = BorderStroke(1.dp, shellBorder),
-            tonalElevation = if (isDark) 0.dp else 1.dp,
-            shadowElevation = if (isDark) 4.dp else 6.dp,
-            modifier = Modifier.fillMaxWidth()
+            color = Color.Transparent,
+            modifier = Modifier.fillMaxWidth().mrttGlass(MrttShapes.Card)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(66.dp)
             ) {
-                Surface(
-                    shape = indicatorShape,
-                    color = indicatorColor,
+                Box(
                     modifier = Modifier
                         .offset(x = indicatorOffset)
                         .padding(vertical = 7.dp)
                         .width(itemWidth)
                         .fillMaxHeight()
-                ) {}
+                        .mrttGlass(indicatorShape, colors.onSurface)
+                )
 
                 Row(
                     modifier = Modifier
@@ -665,7 +653,7 @@ private fun ProxyNavigationBar(
                                 if (item.id == 3 && unreadErrors > 0) {
                                     Badge(
                                         containerColor = if (tunnelRunning) colors.primary else MrttColors.warning,
-                                        contentColor = colors.onPrimary,
+                                        contentColor = if (tunnelRunning) colors.onPrimary else Color.Black,
                                         modifier = Modifier.offset(x = 12.dp, y = (-8).dp)
                                     ) {
                                         Text("$unreadErrors")

@@ -32,6 +32,8 @@ internal data class ServerClient(
     val workers: Int,
     val maxDevices: Int,
     val devices: List<ClientDevice>,
+    /** Транспорт в ссылке конфига: `vk`, `jitsi` или пусто. */
+    val transport: String = "",
 ) {
     /** Строка владельца (главный пароль) всегда получает фиксированный IP 10.66.67.2. */
     val isOwner: Boolean get() = ip == OWNER_TUNNEL_IP && expires == 0L && groupId.isEmpty() && name == "Владелец"
@@ -118,7 +120,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
 
     suspend fun clients(): List<ServerClient> = api.getArray("/api/clients").objects().map(::parseClient)
 
-    suspend fun createClient(name: String, groupId: String, days: Int, workers: Int, maxDevices: Int) {
+    suspend fun createClient(name: String, groupId: String, days: Int, workers: Int, maxDevices: Int, transport: String) {
         api.post(
             "/api/clients",
             JSONObject()
@@ -127,7 +129,8 @@ internal class ServerControl(context: Context, server: VpsServer) {
                 .put("days", days)
                 .put("hash", "")
                 .put("workers", workers)
-                .put("max_devices", maxDevices),
+                .put("max_devices", maxDevices)
+                .put("transport", transport),
         )
     }
 
@@ -140,6 +143,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
         maxDevices: Int,
         vkHashes: String,
         vkToken: Boolean,
+        transport: String,
     ) {
         api.post(
             "/api/clients/${enc(client.password)}",
@@ -152,7 +156,8 @@ internal class ServerControl(context: Context, server: VpsServer) {
                 .put("peer_port", client.peerPort)
                 .put("local_port", client.localPort)
                 .put("workers", workers)
-                .put("max_devices", maxDevices),
+                .put("max_devices", maxDevices)
+                .put("transport", transport),
         )
     }
 
@@ -317,6 +322,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
         link = it.optString("link"),
         workers = if (it.isNull("workers")) 0 else it.optInt("workers"),
         maxDevices = it.optInt("max_devices", 1),
+        transport = it.optString("transport"),
         devices = it.optJSONArray("devices").objects().map { device ->
             ClientDevice(
                 id = device.optString("id"),

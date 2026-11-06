@@ -17,7 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -294,7 +294,7 @@ internal fun TurnSubnetsDialog(
                         shape = MrttShapes.Pill,
                         border = BorderStroke(1.dp, Color(0xFF8A9099)),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF3F4448),
+                            contentColor = MaterialTheme.colorScheme.primary,
                         ),
                         modifier = Modifier
                             .weight(1f)
@@ -304,7 +304,7 @@ internal fun TurnSubnetsDialog(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
-                                color = Color(0xFF3F4448),
+                                color = MaterialTheme.colorScheme.primary,
                             )
                             Spacer(Modifier.width(6.dp))
                             Text("Пинг...", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -317,7 +317,7 @@ internal fun TurnSubnetsDialog(
                         onClick = onDismiss,
                         shape = MrttShapes.Pill,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF3F4448),
+                            containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White,
                         ),
                         modifier = Modifier

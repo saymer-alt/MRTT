@@ -48,6 +48,19 @@ struct CreateClientRequest {
     /// 0 — без лимита; поле не передано — не менять (при создании — одно устройство).
     #[serde(default)]
     max_devices: Option<u32>,
+    /// Транспорт по умолчанию для профиля из ссылки: "vk", "jitsi" или пусто; не передан — не менять.
+    #[serde(default)]
+    transport: Option<String>,
+}
+
+/// MAX в ссылку не передаётся: он работает только через привязку на клиенте.
+fn normalize_link_transport(raw: &str) -> Result<String, &'static str> {
+    match raw.trim() {
+        "" => Ok(String::new()),
+        "vk" => Ok("vk".to_owned()),
+        "jitsi" => Ok("jitsi".to_owned()),
+        _ => Err("transport must be vk, jitsi or empty"),
+    }
 }
 
 /// 1 хранится как `None` (значение по умолчанию), 0 — без лимита.
@@ -393,6 +406,8 @@ struct ClientInfo {
     workers: Option<u32>,
     /// 0 — без лимита.
     max_devices: u32,
+    #[serde(default)]
+    transport: String,
     devices: Vec<DeviceInfo>,
 }
 
@@ -507,7 +522,8 @@ fn make_client_link(
     password: &str,
     vk_hashes: &str,
     vk_token: bool,
-    shared_token: &str,
+    server_hashes: &str,
+    transport: &str,
 ) -> String {
     let mut payload = format!(
         "connect?v=2&host={}&peer={}",
@@ -518,7 +534,13 @@ fn make_client_link(
         payload.push_str("&password=");
         payload.push_str(&url_encode(password));
     }
-    let hashes: Vec<&str> = vk_hashes
+    // «Аккаунт сервера»: в ссылку идут хеши, созданные с VK-аккаунта сервера; токен наружу не уходит.
+    let source = if vk_hashes.trim().is_empty() && vk_token {
+        server_hashes
+    } else {
+        vk_hashes
+    };
+    let hashes: Vec<&str> = source
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
@@ -532,9 +554,10 @@ fn make_client_link(
                 .collect::<Vec<_>>()
                 .join("+"),
         );
-    } else if vk_token && !shared_token.is_empty() {
-        payload.push_str("&token=");
-        payload.push_str(&url_encode(shared_token));
+    }
+    if transport == "vk" || transport == "jitsi" {
+        payload.push_str("&transport=");
+        payload.push_str(transport);
     }
     if let Some(room) = crate::jitsi_relay::current_room() {
         payload.push_str("&jitsi=");
@@ -557,7 +580,8 @@ fn make_main_link(host: &str, port: u16, db: &model::Database) -> String {
         &db.main_password,
         vk_hashes,
         db.main_vk_token_enabled,
-        &db.vk_access_token,
+        &db.vk_hashes,
+        &db.main_transport,
     )
 }
 
@@ -567,7 +591,7 @@ fn make_entry_link(
     port: u16,
     password: &str,
     entry: &model::PasswordEntry,
-    shared_token: &str,
+    server_hashes: &str,
 ) -> String {
     make_client_link(
         host,
@@ -575,7 +599,8 @@ fn make_entry_link(
         password,
         &entry.vk_hashes,
         entry.vk_token_enabled,
-        shared_token,
+        server_hashes,
+        &entry.transport,
     )
 }
 
@@ -1247,12 +1272,13 @@ async fn clients_get(
                     client_peer_port,
                     password,
                     entry,
-                    &db.vk_access_token,
+                    &db.vk_hashes,
                 ),
                 sub_uuid: entry.sub_uuid.clone(),
                 workers: entry.workers,
                 max_devices: entry.max_devices.unwrap_or(1),
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
+                transport: entry.transport.clone(),
             }
         })
         .collect();
@@ -1292,8 +1318,9 @@ async fn clients_get(
             link: make_main_link(&host, main_peer_port, &db),
             sub_uuid: db.main_sub_uuid.clone(),
             workers: db.main_workers,
-            max_devices: db.main_max_devices.unwrap_or(1),
+            max_devices: db.main_max_devices.unwrap_or(0),
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
+            transport: db.main_transport.clone(),
         });
     }
 
@@ -1334,11 +1361,7 @@ async fn group_clients_get(
             .into_response();
     }
     let host = resolve_client_host(&headers, &state).await;
-    let effective_vk_token = db
-        .groups
-        .get(&id)
-        .and_then(|g| g.vk_token.as_deref())
-        .unwrap_or(&db.vk_access_token);
+    let effective_vk_token = db.vk_hashes.as_str();
     let list: Vec<ClientInfo> = db
         .passwords
         .iter()
@@ -1375,6 +1398,7 @@ async fn group_clients_get(
                 workers: entry.workers,
                 max_devices: entry.max_devices.unwrap_or(1),
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
+                transport: entry.transport.clone(),
             }
         })
         .collect();
@@ -1442,13 +1466,17 @@ async fn clients_create(
         Ok(limit) => limit,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
+    let transport = match normalize_link_transport(request.transport.as_deref().unwrap_or("")) {
+        Ok(value) => value,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
 
     let host = resolve_client_host(&headers, &state).await;
 
     let (password, expires, revision, link, sub_uuid) = {
         let mut db = state.app.db.write().await;
-        if request.vk_token && db.vk_access_token.is_empty() {
-            return (StatusCode::BAD_REQUEST, "configure a VK token first").into_response();
+        if request.vk_token && db.vk_hashes.trim().is_empty() {
+            return (StatusCode::BAD_REQUEST, "Сначала привяжите VK к серверу: у сервера нет хешей").into_response();
         }
         db.passwords.retain(|_, entry| !is_expired(entry));
 
@@ -1523,6 +1551,7 @@ async fn clients_create(
                 workers: validated_workers,
                 max_devices: validated_max_devices.unwrap_or(Some(0)),
                 devices: Default::default(),
+                transport: transport.clone(),
             },
         );
         let link = make_client_link(
@@ -1531,7 +1560,8 @@ async fn clients_create(
             &password,
             &vk_hashes,
             request.vk_token,
-            &db.vk_access_token,
+            &db.vk_hashes,
+            &transport,
         );
         let revision = state.app.db_persistence.submit(db.clone());
         (password, expires, revision, link, sub_uuid)
@@ -1583,11 +1613,23 @@ async fn client_update(
         Ok(limit) => limit,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
+    let transport = match request.transport.as_deref().map(normalize_link_transport).transpose() {
+        Ok(value) => value,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    // Новый пароль конфига: ссылка меняется, старые подключения обрываются.
+    let new_password = match request.password.as_deref().map(str::trim).filter(|pw| *pw != password) {
+        Some(pw) if pw.is_empty() || pw.len() > 128 => {
+            return (StatusCode::BAD_REQUEST, "password must be 1..128 characters").into_response();
+        }
+        other => other.map(str::to_owned),
+    };
 
+    let mut rekeyed = false;
     let revision = {
         let mut db = state.app.db.write().await;
-        if request.vk_token && db.vk_access_token.is_empty() {
-            return (StatusCode::BAD_REQUEST, "configure a VK token first").into_response();
+        if request.vk_token && db.vk_hashes.trim().is_empty() {
+            return (StatusCode::BAD_REQUEST, "Сначала привяжите VK к серверу: у сервера нет хешей").into_response();
         }
         if secret_eq(&password, &db.main_password) {
             // Список показывает владельцу глобальные хеши, если своих нет: их эхо не делает их «своими».
@@ -1597,7 +1639,11 @@ async fn client_update(
             db.main_vk_token_enabled = request.vk_token;
             db.main_workers = validated_workers;
             if let Some(limit) = validated_max_devices {
-                db.main_max_devices = limit;
+                // None у владельца значит «без лимита», поэтому 1 хранится явно.
+                db.main_max_devices = limit.or(Some(1));
+            }
+            if let Some(ref value) = transport {
+                db.main_transport = value.clone();
             }
             state.app.db_persistence.submit(db.clone())
         } else {
@@ -1622,7 +1668,19 @@ async fn client_update(
                 trimmed
             };
 
-            let entry = db.passwords.get_mut(&password).unwrap();
+            if let Some(ref pw) = new_password {
+                if db.passwords.contains_key(pw) || secret_eq(pw, &db.main_password) {
+                    return (StatusCode::BAD_REQUEST, "password already exists").into_response();
+                }
+                let moved = db.passwords.remove(&password).unwrap();
+                db.passwords.insert(pw.clone(), moved);
+                rekeyed = true;
+            }
+            let key = new_password.clone().unwrap_or_else(|| password.clone());
+            let entry = db.passwords.get_mut(&key).unwrap();
+            if let Some(ref value) = transport {
+                entry.transport = value.clone();
+            }
 
             let default_peer_port = state.app.listen.port();
             let fallback_port = if entry.dtls_port == 0 {
@@ -1658,6 +1716,10 @@ async fn client_update(
     };
     if let Err(response) = wait_for_persistence(&state, revision).await {
         return response;
+    }
+    if rekeyed {
+        crate::protocol::drop_password_sessions(&state.app, &password);
+        crate::protocol::forget_idle_password_epoch(&state.app, &password);
     }
     if let Err(message) = refresh_credentials_report(&state).await {
         let warning = format!("saved but reload failed: {message}");
@@ -1767,8 +1829,9 @@ async fn client_get(
             link: make_main_link(&host, main_peer_port, &db),
             sub_uuid: db.main_sub_uuid.clone(),
             workers: db.main_workers,
-            max_devices: db.main_max_devices.unwrap_or(1),
+            max_devices: db.main_max_devices.unwrap_or(0),
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
+            transport: db.main_transport.clone(),
         };
         return Json(info).into_response();
     }
@@ -1806,12 +1869,13 @@ async fn client_get(
                 client_peer_port,
                 &password,
                 entry,
-                &db.vk_access_token,
+                &db.vk_hashes,
             ),
             sub_uuid: entry.sub_uuid.clone(),
             workers: entry.workers,
             max_devices: entry.max_devices.unwrap_or(1),
             devices: device_infos(&state.app.sessions, &password, &entry.devices),
+            transport: entry.transport.clone(),
         };
         return Json(info).into_response();
     }
@@ -1931,7 +1995,7 @@ async fn api_links_get(State(state): State<WebState>, headers: HeaderMap) -> imp
                     client_peer_port,
                     password,
                     entry,
-                    &db.vk_access_token,
+                    &db.vk_hashes,
                 ),
                 expires: entry.expires_at,
                 peer_port: client_peer_port,
@@ -2248,6 +2312,8 @@ struct ExportClientEntry {
     ip: String,
     #[serde(default)]
     max_devices: Option<u32>,
+    #[serde(default)]
+    transport: String,
 }
 
 async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
@@ -2274,6 +2340,7 @@ async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
             workers: entry.workers,
             ip: entry.ip.clone(),
             max_devices: entry.max_devices,
+            transport: entry.transport.clone(),
         })
         .collect();
     let export = ServerExportData {
@@ -2367,6 +2434,7 @@ async fn api_import_post(
                                 .filter(|&limit| limit <= model::MAX_DEVICES_LIMIT),
                             // Привязки устройств не переносим: их IP выдавал другой сервер.
                             devices: Default::default(),
+                            transport: normalize_link_transport(&c.transport).unwrap_or_default(),
                         },
                     );
                     added_clients += 1;
@@ -3702,7 +3770,7 @@ mod tests {
 
     #[test]
     fn make_client_link_contains_password_and_aes_roundtrip() {
-        let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "");
+        let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "", "");
         assert!(link.starts_with("mrtt://"));
         let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=abc1234567890123"));
@@ -3712,7 +3780,7 @@ mod tests {
 
     #[test]
     fn owner_link_contains_owner_password_without_workers() {
-        let link = make_client_link("1.2.3.4", 46000, "ownerpass1234567", "", false, "");
+        let link = make_client_link("1.2.3.4", 46000, "ownerpass1234567", "", false, "", "");
         let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=ownerpass1234567"));
         assert!(!decrypted.contains("client="));

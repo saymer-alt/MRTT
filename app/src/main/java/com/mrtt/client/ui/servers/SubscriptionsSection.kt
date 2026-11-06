@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -177,7 +177,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onSave = { form ->
                 creating = false
                 runner.run("Конфиг создан", ::refresh) {
-                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices)
+                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices, form.transport)
                 }
             },
         )
@@ -190,7 +190,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onSave = { form ->
                 editing = null
                 runner.run("Сохранено", ::refresh) {
-                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken)
+                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport)
                 }
             },
             onShare = { sharing = client },
@@ -316,6 +316,7 @@ internal data class ClientForm(
     val maxDevices: Int,
     val vkHashes: String,
     val vkToken: Boolean,
+    val transport: String,
 )
 
 @Composable
@@ -341,6 +342,7 @@ private fun ClientEditDialog(
     var maxDevices by remember { mutableStateOf((client?.maxDevices ?: 0).toString()) }
     var vkHashes by remember { mutableStateOf(client?.vkHashes.orEmpty()) }
     var vkToken by remember { mutableStateOf(client?.vkToken ?: false) }
+    var transport by remember { mutableStateOf(client?.transport.orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val workersValue = workers.toIntOrNull() ?: 0
@@ -348,7 +350,8 @@ private fun ClientEditDialog(
         (workersValue == 0 || workersValue in 3..100) && (maxDevices.toIntOrNull() ?: -1) in 0..1000
     val changed = client == null || name != client.name || groupId != client.groupId ||
         days != remainingDays(client.expires).toString() || workers != client.workers.toString() ||
-        maxDevices != client.maxDevices.toString() || vkHashes != client.vkHashes || vkToken != client.vkToken
+        maxDevices != client.maxDevices.toString() || vkHashes != client.vkHashes || vkToken != client.vkToken ||
+        transport != client.transport
 
     MrttFormDialog(
         title = if (client == null) "Новый конфиг" else client.name,
@@ -364,6 +367,7 @@ private fun ClientEditDialog(
                     maxDevices = maxDevices.toInt(),
                     vkHashes = vkHashes.trim(),
                     vkToken = vkToken,
+                    transport = transport,
                 ),
             )
         },
@@ -381,6 +385,13 @@ private fun ClientEditDialog(
         }
         FormField(workers, { workers = it }, "Потоки (0 — как в приложении, 3–100)", numeric = true)
         FormField(maxDevices, { maxDevices = it }, "Устройств (0 — без лимита)", numeric = true)
+        CompactDropdownSetting(
+            title = "Транспорт в ссылке",
+            selectedKey = transport,
+            options = listOf("" to "Не задан", "vk" to "VK", "jitsi" to "Jitsi"),
+            enabled = true,
+            onSelected = { transport = it },
+        )
         if (client != null) {
             var hashSource by remember {
                 mutableStateOf(

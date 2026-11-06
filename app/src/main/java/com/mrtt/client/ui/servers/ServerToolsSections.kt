@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import com.mrtt.client.ui.common.MrttFormDialog
 import com.mrtt.client.ui.common.FormField
 import com.mrtt.client.ui.common.formatBytes
 import com.mrtt.client.ui.common.rememberActionRunner
+import com.mrtt.client.ui.common.shareLogFile
 import com.mrtt.client.ui.components.MrttSettingRow
 import com.mrtt.client.ui.design.MrttShapes
 import com.mrtt.client.ui.design.MrttSizes
@@ -289,9 +293,17 @@ internal fun ServerLogsSection(control: ServerControl) {
     val runner = rememberActionRunner()
     var reload by remember { mutableStateOf(0) }
     val (logs, error) = rememberServerData(control, reload) { logs() }
+    val context = LocalContext.current
     fun refresh() { reload++ }
+    LaunchedEffect(control) {
+        // Лог живой: новые строки подтягиваются, пока раздел открыт.
+        while (true) {
+            kotlinx.coroutines.delay(5_000)
+            reload++
+        }
+    }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         LoadState(logs != null, error)
         val json = logs ?: return@Column
         MrttSettingRow(
@@ -299,18 +311,48 @@ internal fun ServerLogsSection(control: ServerControl) {
             checked = json.optBoolean("active"),
             onCheckedChange = { active -> runner.run(after = ::refresh) { control.setLogging(active) } },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AssistChip(onClick = ::refresh, label = { Text("Обновить") })
-            AssistChip(onClick = { runner.run("Логи очищены", ::refresh) { control.clearLogs() } }, label = { Text("Очистить") })
+        val array = json.optJSONArray("lines")
+        val lines = if (array == null) emptyList() else (0 until array.length()).map { array.optString(it) }
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        // Самые новые строки снизу, и экран всегда стоит на них.
+        LaunchedEffect(lines.size, lines.lastOrNull()) {
+            if (lines.isNotEmpty()) listState.scrollToItem(lines.lastIndex)
         }
-        val lines = json.optJSONArray("lines")
-        val text = if (lines == null) "" else (0 until lines.length()).joinToString("\n") { lines.optString(it) }
-        Text(
-            text.ifBlank { "Логи пусты" },
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            shape = MrttShapes.Card,
+            color = com.mrtt.client.ui.design.MrttTheme.extendedColors.terminalBackground,
+            contentColor = com.mrtt.client.ui.design.MrttTheme.extendedColors.terminalText,
+        ) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 64.dp),
+                ) {
+                    if (lines.isEmpty()) item { Text("Логи пусты", style = MaterialTheme.typography.bodySmall) }
+                    items(lines.size) { index ->
+                        Text(lines[index], style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                    }
+                }
+                Row(
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    androidx.compose.material3.IconButton(
+                        enabled = lines.isNotEmpty(),
+                        onClick = { context.shareLogFile("MRTT server log", lines.joinToString("\n")) },
+                    ) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Share, contentDescription = "Поделиться логом сервера")
+                    }
+                    androidx.compose.material3.IconButton(
+                        onClick = { runner.run("Логи очищены", ::refresh) { control.clearLogs() } },
+                    ) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Очистить логи сервера")
+                    }
+                }
+            }
+        }
     }
 }
 

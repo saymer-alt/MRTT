@@ -660,49 +660,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mrtt"
-version = "2.5.0"
-dependencies = [
- "aes 0.9.2",
- "anyhow",
- "async-trait",
- "aws-lc-rs",
- "axum",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "clap",
- "crossbeam-queue",
- "ctr 0.10.1",
- "dashmap",
- "flate2",
- "futures-util",
- "hex",
- "hkdf",
- "hmac 0.13.0",
- "libc",
- "rand 0.8.7",
- "rcgen 0.13.2",
- "rusqlite",
- "rustls",
- "serde",
- "serde_json",
- "sha1 0.11.0",
- "sha2",
- "slab",
- "snmalloc-rs",
- "socket2",
- "subtle",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
- "tower-service",
- "tun",
- "webrtc",
- "x25519-dalek",
-]
-
-[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1558,6 +1515,49 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mrtt"
+version = "2.5.0"
+dependencies = [
+ "aes 0.9.2",
+ "anyhow",
+ "async-trait",
+ "aws-lc-rs",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "clap",
+ "crossbeam-queue",
+ "ctr 0.10.1",
+ "dashmap",
+ "flate2",
+ "futures-util",
+ "hex",
+ "hkdf",
+ "hmac 0.13.0",
+ "libc",
+ "rand 0.8.7",
+ "rcgen 0.13.2",
+ "rusqlite",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha1 0.11.0",
+ "sha2",
+ "slab",
+ "snmalloc-rs",
+ "socket2",
+ "subtle",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tower-service",
+ "tun",
+ "webrtc",
+ "x25519-dalek",
 ]
 
 [[package]]

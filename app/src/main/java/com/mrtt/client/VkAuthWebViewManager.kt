@@ -23,6 +23,8 @@ internal data class VkAuthPayload(
     val token: String,
     val userId: String,
     val expiresIn: Long,
+    /** Куки сессии VK: это и есть привязка, токен из них получается заново при каждом подключении. */
+    val cookies: String = "",
 )
 
 internal enum class VkAuthPhase { LOGIN, TOKEN }
@@ -337,7 +339,7 @@ internal class VkAuthSession(
                         finished = true
                         mainHandler.removeCallbacksAndMessages(null)
                         runCatching { CookieManager.getInstance().flush() }
-                        onToken(payload)
+                        onToken(payload.copy(cookies = cookieString))
                     },
                     onFailure = {
                         repeatAuthorization()

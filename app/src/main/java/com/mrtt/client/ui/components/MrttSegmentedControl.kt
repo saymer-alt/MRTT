@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.mrtt.client.ui.design.MrttShapes
 import com.mrtt.client.ui.design.MrttSizes
 import com.mrtt.client.ui.design.MrttSpacing
+import com.mrtt.client.ui.design.mrttGlass
 
 @Composable
 fun <T> MrttSegmentedControl(
@@ -43,10 +44,11 @@ fun <T> MrttSegmentedControl(
             val isSelected = value == selected
             Surface(
                 shape = MrttShapes.Control,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                contentColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .weight(1f)
+                    .mrttGlass(MrttShapes.Control, if (isSelected) MaterialTheme.colorScheme.onSurface else null)
                     .defaultMinSize(minHeight = MrttSizes.MinimumTouchTarget)
                     .selectable(
                         selected = isSelected,

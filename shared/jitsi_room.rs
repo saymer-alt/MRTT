@@ -7,12 +7,13 @@ use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 use webrtc::data_channel::{DataChannel, DataChannelEvent, RTCDataChannelInit};
 use webrtc::peer_connection::{
-    PeerConnection, PeerConnectionBuilder, PeerConnectionEventHandler, RTCIceGatheringState,
+    PeerConnection, PeerConnectionBuilder, PeerConnectionEventHandler, RTCIceCandidateInit, RTCIceGatheringState,
     RTCPeerConnectionState, RTCSessionDescription,
 };
 
@@ -24,9 +25,9 @@ pub fn set_fallback_resolver(resolver: FallbackResolver) {
     let _ = FALLBACK_RESOLVER.set(resolver);
 }
 
-/// TCP to the Jitsi host on 443, trying the system resolver first and the fallback one after it.
-async fn connect_tcp(host: &str) -> Result<tokio::net::TcpStream> {
-    let mut addresses: Vec<std::net::IpAddr> = tokio::net::lookup_host((host, 443))
+/// TCP to a Jitsi host, trying the system resolver first and the fallback one after it.
+async fn connect_tcp(host: &str, port: u16) -> Result<tokio::net::TcpStream> {
+    let mut addresses: Vec<std::net::IpAddr> = tokio::net::lookup_host((host, port))
         .await
         .map(|found| found.map(|address| address.ip()).collect())
         .unwrap_or_default();
@@ -40,7 +41,7 @@ async fn connect_tcp(host: &str) -> Result<tokio::net::TcpStream> {
     }
     let mut last_error = None;
     for address in addresses {
-        match tokio::time::timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((address, 443))).await {
+        match tokio::time::timeout(STEP_TIMEOUT, tokio::net::TcpStream::connect((address, port))).await {
             Ok(Ok(stream)) => return Ok(stream),
             Ok(Err(error)) => last_error = Some(anyhow!("{address}: {error}")),
             Err(_) => last_error = Some(anyhow!("{address}: таймаут TCP")),
@@ -55,6 +56,17 @@ const STEP_TIMEOUT: Duration = Duration::from_secs(20);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(60);
 const KEEPALIVE: Duration = Duration::from_secs(25);
 const INBOUND_QUEUE: usize = 1024;
+/// Datagrams waiting for the sender task. A full queue drops them, as a congested UDP path would.
+const OUTBOX_QUEUE: usize = 512;
+/// Bytes SCTP may hold unacknowledged. Without a bound a fast upload turns into seconds of delay.
+const SEND_BUFFER: usize = 64 * 1024;
+/// Datagrams to one endpoint already waiting go out as one message: the bridge limits messages, not bytes.
+const BATCH_BYTES: usize = 12 * 1024;
+const OUTBOX_DRAIN: usize = 64;
+/// How long the UDP path may take before the bridge WebSocket takes over, when the bridge offers one.
+const CHANNEL_WAIT: Duration = Duration::from_secs(8);
+const HELLO_WAIT: Duration = Duration::from_secs(3);
+const CLIENT_HELLO: &str = r#"{"colibriClass":"ClientHello"}"#;
 /// Docker installs (docker-jitsi-meet) serve this XMPP domain whatever the web host is.
 const DOCKER_DOMAIN: &str = "meet.jitsi";
 const BASE64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
@@ -106,7 +118,7 @@ impl std::fmt::Display for RoomTarget {
 /// Sends datagrams to endpoints of the room; cheap to clone into other tasks.
 #[derive(Clone)]
 pub struct RoomSender {
-    dc: Arc<dyn DataChannel>,
+    outbox: mpsc::Sender<(String, Vec<u8>)>,
     closed: watch::Receiver<bool>,
 }
 
@@ -115,7 +127,8 @@ impl RoomSender {
         if *self.closed.borrow() {
             bail!("комната Jitsi закрыта");
         }
-        self.dc.send_text(&endpoint_message(to, data)).await.map_err(|error| anyhow!("отправка в комнату: {error}"))
+        let _ = self.outbox.try_send((to.to_owned(), data.to_vec()));
+        Ok(())
     }
 
     pub fn is_closed(&self) -> bool {
@@ -123,7 +136,73 @@ impl RoomSender {
     }
 }
 
-/// One guest in the room with an open bridge datachannel.
+/// The way to the bridge: its datachannel over UDP, or its WebSocket when UDP does not get through.
+#[derive(Clone)]
+enum BridgeLink {
+    Channel(Arc<dyn DataChannel>),
+    Socket(mpsc::Sender<String>),
+}
+
+impl BridgeLink {
+    async fn send(&self, text: &str) -> Result<()> {
+        match self {
+            Self::Channel(dc) => match dc.try_send_text(text).await {
+                // SCTP is full: drop, the tunnel above recovers as it does on any lossy path.
+                Err(webrtc::error::Error::ErrSendBufferFull) => Ok(()),
+                other => other.map_err(|error| anyhow!("отправка в комнату: {error}")),
+            },
+            Self::Socket(out) => out.send(text.to_owned()).await.map_err(|_| anyhow!("WebSocket видеомоста закрыт")),
+        }
+    }
+}
+
+/// Groups datagrams by endpoint, keeping their order, with no message over [`BATCH_BYTES`].
+fn batch_up(items: impl Iterator<Item = (String, Vec<u8>)>) -> Vec<(String, Vec<Vec<u8>>)> {
+    let mut batches: Vec<(String, Vec<Vec<u8>>, usize)> = Vec::new();
+    for (to, data) in items {
+        match batches.iter_mut().rfind(|batch| batch.0 == to) {
+            Some(batch) if batch.2 + data.len() <= BATCH_BYTES => {
+                batch.2 += data.len();
+                batch.1.push(data);
+            }
+            _ => {
+                let size = data.len();
+                batches.push((to, vec![data], size));
+            }
+        }
+    }
+    batches.into_iter().map(|(to, datagrams, _)| (to, datagrams)).collect()
+}
+
+async fn pump_out(mut outbox: mpsc::Receiver<(String, Vec<u8>)>, link: BridgeLink, closed: Arc<watch::Sender<bool>>) {
+    let mut items = Vec::with_capacity(OUTBOX_DRAIN);
+    while outbox.recv_many(&mut items, OUTBOX_DRAIN).await > 0 {
+        for (to, datagrams) in batch_up(items.drain(..)) {
+            if link.send(&endpoint_message(&to, &datagrams)).await.is_err() {
+                let _ = closed.send(true);
+                return;
+            }
+        }
+    }
+}
+
+/// Hands a bridge message to the participant; ServerHello only says the bridge is ready.
+fn deliver(text: &[u8], inbound: &mpsc::Sender<(String, Vec<u8>)>, hello: &watch::Sender<bool>) {
+    let Some((from, datagrams)) = parse_endpoint_message(text) else {
+        if serde_json::from_slice::<serde_json::Value>(text)
+            .is_ok_and(|value| value.get("colibriClass").and_then(|class| class.as_str()) == Some("ServerHello"))
+        {
+            let _ = hello.send(true);
+        }
+        return;
+    };
+    for data in datagrams {
+        // A full queue drops the datagram, as a congested UDP path would.
+        let _ = inbound.try_send((from.clone(), data));
+    }
+}
+
+/// One guest in the room with an open way to the bridge.
 pub struct Participant {
     endpoint: String,
     sender: RoomSender,
@@ -173,19 +252,36 @@ pub fn peers_in(occupants: &HashMap<String, String>, prefix: &str) -> Vec<String
     list
 }
 
-fn endpoint_message(to: &str, data: &[u8]) -> String {
-    format!(r#"{{"colibriClass":"EndpointMessage","to":"{to}","msgPayload":{{"raw":"{}"}}}}"#, BASE64.encode(data))
+/// `raw` for one datagram, `raws` for several.
+fn endpoint_message(to: &str, datagrams: &[Vec<u8>]) -> String {
+    let payload = match datagrams {
+        [one] => format!(r#""raw":"{}""#, BASE64.encode(one)),
+        many => {
+            let encoded: Vec<String> = many.iter().map(|data| format!("\"{}\"", BASE64.encode(data))).collect();
+            format!(r#""raws":[{}]"#, encoded.join(","))
+        }
+    };
+    format!(r#"{{"colibriClass":"EndpointMessage","to":"{to}","msgPayload":{{{payload}}}}}"#)
 }
 
-/// (sender, bytes) of an `EndpointMessage` carrying raw bytes; None for any other bridge message.
-fn parse_endpoint_message(text: &[u8]) -> Option<(String, Vec<u8>)> {
+/// (sender, datagrams) of an `EndpointMessage` carrying raw bytes; None for any other bridge message.
+fn parse_endpoint_message(text: &[u8]) -> Option<(String, Vec<Vec<u8>>)> {
     let value: serde_json::Value = serde_json::from_slice(text).ok()?;
     if value.get("colibriClass")?.as_str()? != "EndpointMessage" {
         return None;
     }
     let from = value.get("from")?.as_str()?.to_owned();
-    let raw = value.get("msgPayload")?.get("raw")?.as_str()?;
-    Some((from, BASE64.decode(raw).ok()?))
+    let payload = value.get("msgPayload")?;
+    let datagrams = if let Some(raw) = payload.get("raw") {
+        vec![BASE64.decode(raw.as_str()?).ok()?]
+    } else {
+        let mut list = Vec::new();
+        for raw in payload.get("raws")?.as_array()? {
+            list.push(BASE64.decode(raw.as_str()?).ok()?);
+        }
+        list
+    };
+    Some((from, datagrams))
 }
 
 fn attr(xml: &str, name: &str) -> Option<String> {
@@ -250,25 +346,35 @@ fn offer_from_jingle(jingle: &str) -> Result<(String, String)> {
          m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\n\
          a=ice-ufrag:{ufrag}\r\na=ice-pwd:{pwd}\r\na=fingerprint:{hash} {fp}\r\na=setup:actpass\r\na=mid:data\r\na=sctp-port:{port}\r\n"
     );
-    for candidate in elements(jingle, "candidate") {
-        if attr(candidate, "protocol").as_deref() != Some("udp") {
-            continue;
-        }
-        let (Some(ip), Some(cport)) = (attr(candidate, "ip"), attr(candidate, "port")) else { continue };
-        let related = match (attr(candidate, "rel-addr"), attr(candidate, "rel-port")) {
-            (Some(addr), Some(port)) => format!(" raddr {addr} rport {port}"),
-            _ => String::new(),
-        };
-        sdp += &format!(
-            "a=candidate:{} {} udp {} {ip} {cport} typ {}{related}\r\n",
-            attr(candidate, "foundation").unwrap_or_else(|| "1".into()),
-            attr(candidate, "component").unwrap_or_else(|| "1".into()),
-            attr(candidate, "priority").unwrap_or_else(|| "1".into()),
-            attr(candidate, "type").unwrap_or_else(|| "host".into()),
-        );
+    for candidate in elements(jingle, "candidate").into_iter().filter_map(sdp_candidate) {
+        sdp += &format!("a={candidate}\r\n");
     }
-    sdp += "a=end-of-candidates\r\n";
+    // No end-of-candidates: Jicofo may still send more in transport-info.
     Ok((sdp, port))
+}
+
+/// `candidate:…` attribute of a Jingle candidate; None for anything but UDP, the only protocol webrtc-rs dials.
+fn sdp_candidate(candidate: &str) -> Option<String> {
+    if attr(candidate, "protocol").as_deref() != Some("udp") {
+        return None;
+    }
+    let (ip, port) = (attr(candidate, "ip")?, attr(candidate, "port")?);
+    let related = match (attr(candidate, "rel-addr"), attr(candidate, "rel-port")) {
+        (Some(addr), Some(port)) => format!(" raddr {addr} rport {port}"),
+        _ => String::new(),
+    };
+    Some(format!(
+        "candidate:{} {} udp {} {ip} {port} typ {}{related}",
+        attr(candidate, "foundation").unwrap_or_else(|| "1".into()),
+        attr(candidate, "component").unwrap_or_else(|| "1".into()),
+        attr(candidate, "priority").unwrap_or_else(|| "1".into()),
+        attr(candidate, "type").unwrap_or_else(|| "host".into()),
+    ))
+}
+
+/// The bridge's WebSocket from the session-initiate, when it offers one.
+fn bridge_socket_url(jingle: &str) -> Option<String> {
+    elements(jingle, "web-socket").into_iter().find_map(|element| attr(element, "url")).filter(|url| url.starts_with("wss://"))
 }
 
 /// session-accept body: every offered content answered with our ICE/DTLS, audio and video without sources.
@@ -359,7 +465,7 @@ impl Xmpp {
         let mut request = format!("wss://{host}/xmpp-websocket?room={}", target.room).into_client_request()?;
         request.headers_mut().insert("Sec-WebSocket-Protocol", "xmpp".parse()?);
         request.headers_mut().insert("Origin", format!("https://{host}").parse()?);
-        let tcp = connect_tcp(host).await?;
+        let tcp = connect_tcp(host, 443).await?;
         let (ws, _) = tokio_tungstenite::client_async_tls(request, tcp).await.with_context(|| format!("XMPP {host}"))?;
         let (mut sink, mut stream) = ws.split();
         let (out, mut out_rx) = mpsc::unbounded_channel::<String>();
@@ -448,9 +554,53 @@ impl Xmpp {
     }
 }
 
+/// Opens the bridge's own WebSocket; messages on it are the same as on the datachannel.
+async fn open_bridge_socket(
+    url: &str,
+    inbound: mpsc::Sender<(String, Vec<u8>)>,
+    hello: Arc<watch::Sender<bool>>,
+    closed: Arc<watch::Sender<bool>>,
+) -> Result<mpsc::Sender<String>> {
+    let mut request = url.into_client_request()?;
+    let host = request.uri().host().context("в адресе WebSocket нет хоста")?.to_owned();
+    let port = request.uri().port_u16().unwrap_or(443);
+    request.headers_mut().insert("Origin", format!("https://{host}").parse()?);
+    let tcp = connect_tcp(&host, port).await?;
+    let (ws, _) = tokio::time::timeout(STEP_TIMEOUT, tokio_tungstenite::client_async_tls(request, tcp))
+        .await
+        .map_err(|_| anyhow!("WebSocket {host}: таймаут"))?
+        .with_context(|| format!("WebSocket {host}"))?;
+    let (mut sink, mut stream) = ws.split();
+    let (out, mut out_rx) = mpsc::channel::<String>(64);
+    tokio::spawn(async move {
+        let mut keepalive = tokio::time::interval(KEEPALIVE);
+        keepalive.tick().await;
+        loop {
+            let frame = tokio::select! {
+                message = out_rx.recv() => match message { Some(text) => Message::Text(text.into()), None => break },
+                _ = keepalive.tick() => Message::Ping(Vec::new().into()),
+            };
+            if sink.send(frame).await.is_err() {
+                break;
+            }
+        }
+    });
+    tokio::spawn(async move {
+        while let Some(Ok(message)) = stream.next().await {
+            if let Message::Text(text) = message {
+                deliver(text.as_bytes(), &inbound, &hello);
+            }
+        }
+        let _ = closed.send(true);
+    });
+    Ok(out)
+}
+
 struct EventHandler {
     gathered: mpsc::UnboundedSender<()>,
     closed: Arc<watch::Sender<bool>>,
+    // On the bridge WebSocket a failed ICE no longer ends the participant.
+    on_socket: Arc<AtomicBool>,
 }
 
 #[async_trait::async_trait]
@@ -462,7 +612,9 @@ impl PeerConnectionEventHandler for EventHandler {
     }
 
     async fn on_connection_state_change(&self, state: RTCPeerConnectionState) {
-        if matches!(state, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+        if matches!(state, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed)
+            && !self.on_socket.load(Ordering::Acquire)
+        {
             let _ = self.closed.send(true);
         }
     }
@@ -507,10 +659,12 @@ async fn join_as(target: &RoomTarget, display: &str, domain: &str) -> Result<Par
     let (offer, port) = offer_from_jingle(&initiate)?;
     let (closed_tx, closed) = watch::channel(false);
     let closed_tx = Arc::new(closed_tx);
+    let on_socket = Arc::new(AtomicBool::new(false));
     let (gathered_tx, mut gathered) = mpsc::unbounded_channel();
     let pc = PeerConnectionBuilder::new()
-        .with_handler(Arc::new(EventHandler { gathered: gathered_tx, closed: closed_tx.clone() }))
+        .with_handler(Arc::new(EventHandler { gathered: gathered_tx, closed: closed_tx.clone(), on_socket: on_socket.clone() }))
         .with_udp_addrs(vec!["0.0.0.0:0".to_string()])
+        .with_data_channel_send_buffer_limit(SEND_BUFFER)
         .build()
         .await
         .map_err(|error| anyhow!("WebRTC: {error}"))?;
@@ -530,8 +684,33 @@ async fn join_as(target: &RoomTarget, display: &str, domain: &str) -> Result<Par
     let focus = attr(&initiate, "from").context("нет from")?;
     xmpp.send(format!(
         "<iq to=\"{focus}\" type=\"set\" id=\"accept\" xmlns=\"jabber:client\"><jingle xmlns=\"urn:xmpp:jingle:1\" action=\"session-accept\" sid=\"{sid}\" initiator=\"{initiator}\" responder=\"{jid}\">{}</jingle></iq>",
+        // Without our candidates: private addresses in session-accept make Jicofo end the session ("moving").
         accept_contents(&initiate, &ufrag, &pwd, &fingerprint, &port)
     ))?;
+
+    // Keep the XMPP side alive from here on: late candidates and Jicofo's questions must not wait for the channel.
+    let out = xmpp.out.clone();
+    {
+        let closed_tx = closed_tx.clone();
+        let room_jid = room_jid.clone();
+        let pc = pc.clone();
+        tokio::spawn(async move {
+            while let Some(stanza) = xmpp.inbox.recv().await {
+                answer_iq(&stanza, &xmpp.out);
+                track_presence(&stanza, &room_jid, &occupants_tx);
+                if stanza.contains("transport-info") {
+                    for candidate in elements(&stanza, "candidate").into_iter().filter_map(sdp_candidate) {
+                        let init = RTCIceCandidateInit { candidate, sdp_mid: Some("data".into()), sdp_mline_index: Some(0), ..Default::default() };
+                        let _ = pc.add_ice_candidate(init).await;
+                    }
+                }
+                if stanza.contains("session-terminate") || stanza.contains("<stream:error") {
+                    break;
+                }
+            }
+            let _ = closed_tx.send(true);
+        });
+    }
 
     let dc = pc
         .create_data_channel(
@@ -542,52 +721,59 @@ async fn join_as(target: &RoomTarget, display: &str, domain: &str) -> Result<Par
         .map_err(|error| anyhow!("datachannel: {error}"))?;
     let (open_tx, mut open_rx) = mpsc::unbounded_channel::<()>();
     let (inbound_tx, inbound) = mpsc::channel(INBOUND_QUEUE);
+    let (hello_tx, mut hello) = watch::channel(false);
+    let hello_tx = Arc::new(hello_tx);
     {
         let dc = dc.clone();
         let closed_tx = closed_tx.clone();
+        let on_socket = on_socket.clone();
+        let inbound_tx = inbound_tx.clone();
+        let hello_tx = hello_tx.clone();
         tokio::spawn(async move {
             while let Some(event) = dc.poll().await {
                 match event {
                     DataChannelEvent::OnOpen => {
                         let _ = open_tx.send(());
                     }
-                    DataChannelEvent::OnMessage(message) => {
-                        if let Some(datagram) = parse_endpoint_message(&message.data) {
-                            // A full queue drops the datagram, as a congested UDP path would.
-                            let _ = inbound_tx.try_send(datagram);
-                        }
-                    }
+                    DataChannelEvent::OnMessage(message) => deliver(&message.data, &inbound_tx, &hello_tx),
                     DataChannelEvent::OnClose => break,
                     _ => {}
                 }
             }
-            let _ = closed_tx.send(true);
-        });
-    }
-    tokio::time::timeout(STEP_TIMEOUT, open_rx.recv())
-        .await
-        .map_err(|_| anyhow!("канал данных видеомоста не открылся"))?;
-    dc.send_text(r#"{"colibriClass":"ClientHello"}"#).await.map_err(|error| anyhow!("ClientHello: {error}"))?;
-
-    // Keep the XMPP side alive: answer Jicofo, follow who is in the room, notice the end of the session.
-    let out = xmpp.out.clone();
-    {
-        let closed_tx = closed_tx.clone();
-        let room_jid = room_jid.clone();
-        tokio::spawn(async move {
-            while let Some(stanza) = xmpp.inbox.recv().await {
-                answer_iq(&stanza, &xmpp.out);
-                track_presence(&stanza, &room_jid, &occupants_tx);
-                if stanza.contains("session-terminate") || stanza.contains("<stream:error") {
-                    break;
-                }
+            if !on_socket.load(Ordering::Acquire) {
+                let _ = closed_tx.send(true);
             }
-            let _ = closed_tx.send(true);
         });
     }
+
+    let socket_url = bridge_socket_url(&initiate);
+    let mut failed = closed.clone();
+    let opened = tokio::select! {
+        open = open_rx.recv() => open.is_some(),
+        _ = failed.wait_for(|closed| *closed) => false,
+        () = tokio::time::sleep(if socket_url.is_some() { CHANNEL_WAIT } else { STEP_TIMEOUT }) => false,
+    };
+    let link = if opened {
+        BridgeLink::Channel(dc)
+    } else if let Some(url) = socket_url {
+        on_socket.store(true, Ordering::Release);
+        let out = open_bridge_socket(&url, inbound_tx, hello_tx, closed_tx.clone())
+            .await
+            .context("канал данных не открылся, WebSocket видеомоста тоже")?;
+        closed_tx.send_replace(false);
+        BridgeLink::Socket(out)
+    } else {
+        bail!("канал данных видеомоста не открылся");
+    };
+    link.send(CLIENT_HELLO).await.context("ClientHello")?;
+    // Messages sent before ServerHello can be lost; a bridge that never answers still gets to work.
+    let _ = tokio::time::timeout(HELLO_WAIT, hello.wait_for(|ready| *ready)).await;
+
+    let (outbox_tx, outbox) = mpsc::channel(OUTBOX_QUEUE);
+    tokio::spawn(pump_out(outbox, link, closed_tx));
     Ok(Participant {
         endpoint: nick,
-        sender: RoomSender { dc, closed },
+        sender: RoomSender { outbox: outbox_tx, closed },
         pc,
         inbound,
         occupants,
@@ -633,10 +819,44 @@ mod tests {
 
     #[test]
     fn endpoint_message_round_trip() {
-        let wire = endpoint_message("abcd1234", b"\x00\x01payload");
-        let incoming = wire.replace("\"to\"", "\"from\"");
-        assert_eq!(parse_endpoint_message(incoming.as_bytes()), Some(("abcd1234".into(), b"\x00\x01payload".to_vec())));
+        let one = vec![b"\x00\x01payload".to_vec()];
+        let wire = endpoint_message("abcd1234", &one).replace("\"to\"", "\"from\"");
+        assert!(wire.contains("\"raw\":"));
+        assert_eq!(parse_endpoint_message(wire.as_bytes()), Some(("abcd1234".into(), one)));
+        let many = vec![b"first".to_vec(), b"second".to_vec()];
+        let wire = endpoint_message("abcd1234", &many).replace("\"to\"", "\"from\"");
+        assert_eq!(parse_endpoint_message(wire.as_bytes()), Some(("abcd1234".into(), many)));
         assert_eq!(parse_endpoint_message(br#"{"colibriClass":"ServerHello"}"#), None);
+    }
+
+    #[test]
+    fn batches_keep_order_per_endpoint_and_stay_small() {
+        let big = vec![0u8; BATCH_BYTES - 10];
+        let items = vec![
+            ("a".to_owned(), vec![1]),
+            ("b".to_owned(), vec![2]),
+            ("a".to_owned(), vec![3]),
+            ("b".to_owned(), big.clone()),
+            ("b".to_owned(), big.clone()),
+        ];
+        let batches = batch_up(items.into_iter());
+        assert_eq!(batches[0], ("a".to_owned(), vec![vec![1], vec![3]]));
+        assert_eq!(batches[1], ("b".to_owned(), vec![vec![2], big.clone()]));
+        assert_eq!(batches[2], ("b".to_owned(), vec![big]));
+    }
+
+    #[test]
+    fn late_candidates_become_sdp() {
+        let late = "<candidate component='1' foundation='3' ip='203.0.113.9' port='10000' priority='5' protocol='udp' type='host'/>";
+        assert_eq!(sdp_candidate(late).as_deref(), Some("candidate:3 1 udp 5 203.0.113.9 10000 typ host"));
+        assert_eq!(sdp_candidate(&late.replace("udp", "tcp")), None);
+    }
+
+    #[test]
+    fn bridge_socket_comes_from_the_invitation() {
+        let jingle = "<transport><web-socket xmlns='http://jitsi.org/protocol/colibri' url='wss://jvb.example/colibri-ws/a/b/c?pwd=x'/></transport>";
+        assert_eq!(bridge_socket_url(jingle).as_deref(), Some("wss://jvb.example/colibri-ws/a/b/c?pwd=x"));
+        assert_eq!(bridge_socket_url("<transport/>"), None);
     }
 
     #[test]

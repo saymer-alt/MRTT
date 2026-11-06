@@ -252,6 +252,22 @@ class TunnelService : Service() {
                             return@launch
                         }
 
+                        // Каждый звонок VK держит ограниченное число воркеров: сверх этого они не поднимутся.
+                        val hashValues = resolvedHashes.value.split(',').map(String::trim).filter(String::isNotEmpty)
+                        val startWorkers = if (vkTransport && hashValues.isNotEmpty()) {
+                            WorkerCountPolicy.normalizeForHashValues(workersPerHash, hashValues)
+                        } else {
+                            workersPerHash
+                        }
+                        if (startWorkers < workersPerHash) {
+                            TunnelManager.updateLog(
+                                "workers_capped",
+                                "[ПОДКЛЮЧЕНИЕ] Воркеров $startWorkers вместо $workersPerHash: столько держат звонки VK (${hashValues.size})",
+                                90,
+                                false,
+                            )
+                        }
+
                         val domainWhite = store.domainIsWhitelist.first()
                         val domainList = if (domainWhite) store.directDomainsWhite.first() else store.directDomainsBlack.first()
                         val ipWhite = store.ipIsWhitelist.first()
@@ -265,7 +281,7 @@ class TunnelService : Service() {
                             peer = intent.getStringExtra("peer") ?: "",
                             vkHashes = resolvedHashes.value,
                             secondaryVkHash = intent.getStringExtra("secondary_vk_hash") ?: "",
-                            workersPerHash = workersPerHash,
+                            workersPerHash = startWorkers,
                             jitsiWorkers = store.jitsiWorkers.first(),
                             jitsiSeats = intent.getIntExtra("jitsi_seats", 0),
                             port = intent.getIntExtra("port", 0),
@@ -579,7 +595,7 @@ class TunnelService : Service() {
     ): ResolvedVkHashes? {
         return when (val mode = forcedMode ?: store.vkHashMode.first()) {
             MrttConstants.VkAutoHash.MODE_AUTO_API -> {
-                val token = accessTokenOverride ?: store.vkAccessToken.first()
+                val token = accessTokenOverride ?: sessionToken(store)
                 val result = VkAutoCallsManager.startAutoCalls(
                     applicationContext,
                     token,
@@ -595,7 +611,7 @@ class TunnelService : Service() {
             }
 
             MrttConstants.VkAutoHash.MODE_AUTO_JS -> {
-                val token = accessTokenOverride ?: store.vkAccessToken.first()
+                val token = accessTokenOverride ?: sessionToken(store)
                 if (token.isBlank()) return null
                 ResolvedVkHashes(
                     "",
@@ -606,6 +622,16 @@ class TunnelService : Service() {
             }
 
             else -> ResolvedVkHashes(fallbackHashes, false)
+        }
+    }
+
+    private suspend fun sessionToken(store: SettingsStore): String {
+        val session = store.vkSession.first()
+        if (session.isBlank()) return ""
+        return VkTokenScraper.tokenFromSession(applicationContext, session).also {
+            if (it.isBlank()) {
+                TunnelManager.updateLog("vk_session_error", "[ERR] Не удалось войти в VK по сохранённой сессии · войдите снова", 95, true)
+            }
         }
     }
 

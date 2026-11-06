@@ -60,8 +60,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.widget.Toast
 
 private const val WORKERS_PER_GROUP = MrttConstants.Tunnel.WORKERS_PER_GROUP
@@ -123,7 +121,7 @@ internal fun SettingsTabContent(
         VkHashValidationCodec.decode(vkHashCheckResultsJson)
     }
     val savedHashMode by settingsStore.vkHashMode.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkHashMode)
-    val savedVkAccessToken by settingsStore.vkAccessToken.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkAccessToken)
+    val savedVkAccessToken by settingsStore.vkSession.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkSession)
     val savedMaxGroupId by settingsStore.maxGroupId.collectAsStateWithLifecycle(initialValue = "")
     val savedMaxAccessToken by settingsStore.maxAccessToken.collectAsStateWithLifecycle(initialValue = "")
     val transportMode by settingsStore.transportMode.collectAsStateWithLifecycle(initialValue = MrttConstants.Transport.MODE_VK)
@@ -224,8 +222,14 @@ internal fun SettingsTabContent(
     }
     val parsedMrttLink = remember(linkText) { parseMrttLink(linkText) }
     val jitsiRoomReady = jitsiRoomOverride.isNotBlank() || !parsedMrttLink?.jitsiRoom.isNullOrBlank()
-    val linkHashes = parsedMrttLink?.hashes.orEmpty()
-    val linkVkAccessToken = parsedMrttLink?.vkAccessToken.orEmpty()
+    val preferLinkHashes by settingsStore.vkPreferLinkHashes.collectAsStateWithLifecycle(initialValue = false)
+    val ownVkBound = savedVkAccessToken?.isNotBlank() == true
+    val linkVkAvailable = participantMode &&
+        (parsedMrttLink?.hashes.orEmpty().isNotEmpty() || parsedMrttLink?.vkAccessToken.orEmpty().isNotEmpty())
+    // Свой привязанный VK важнее ссылки; хеши из ссылки берутся, только если так выбрано у профиля.
+    val useLinkVk = !ownVkBound || preferLinkHashes
+    val linkHashes = if (useLinkVk) parsedMrttLink?.hashes.orEmpty() else emptyList()
+    val linkVkAccessToken = if (useLinkVk) parsedMrttLink?.vkAccessToken.orEmpty() else ""
     val serverWorkers by TunnelManager.serverAssignedWorkers.collectAsState()
     val effectiveServerWorkers = serverWorkers.takeIf { tunnelRunning && it in 3..100 }
     val linkTokenActive = participantMode && linkVkAccessToken.isNotEmpty()
@@ -253,7 +257,13 @@ internal fun SettingsTabContent(
     val combinedHashes = remember(vkHash1, vkHash2, vkHash3, vkHash4, vkHash5, vkHash6) {
         allHashes.filter { it.isNotBlank() && it.length >= 16 }.distinct().joinToString(",")
     }
-    val selectableMaxWorkers = SLIDER_MAX_WORKERS.toFloat()
+    // Ползунок не даёт выбрать больше, чем держат звонки: 2 звонка это 54 воркера, а не 99.
+    val selectableMaxWorkers = WorkerCountPolicy.maximumForSources(
+        linkMode = participantMode,
+        linkHashCount = linkHashes.size,
+        autoHashMode = autoHashMode,
+        manualHashCount = uniqueHashes.size,
+    ).coerceAtMost(SLIDER_MAX_WORKERS).toFloat()
     var sniInput by rememberSaveable { mutableStateOf("") }
 
     val currentWorkers = roundToGroup(
@@ -522,21 +532,10 @@ internal fun SettingsTabContent(
     if (showVkRevokeDialog) {
         VkTokenRevokeDialog(
             onCancel = { showVkRevokeDialog = false },
-            onCopyToken = {
-                val token = savedVkAccessToken.orEmpty()
-                if (token.isNotBlank()) {
-                    val clipboard = context.getSystemService(ClipboardManager::class.java)
-                    if (clipboard != null) {
-                        clipboard.setPrimaryClip(ClipData.newPlainText("VK token", token))
-                        context.showRaisedToast("Бессрочный VK токен скопирован", Toast.LENGTH_SHORT)
-                    } else {
-                        context.showRaisedToast("Не удалось скопировать VK токен", Toast.LENGTH_SHORT)
-                    }
-                }
-            },
             onRevokeToken = {
                 showVkRevokeDialog = false
-                scope.launch { settingsStore.clearVkAccessToken() }
+                com.mrtt.client.VkAuthWebViewManager.clearVkSessionCookies()
+                scope.launch { settingsStore.clearVkSession() }
             }
         )
     }
@@ -591,7 +590,15 @@ internal fun SettingsTabContent(
                     )
                 } else if (!vkTransportSelected) {
                     // MAX не использует VK-хеши и токен из ссылки.
-                } else if (linkHashes.isNotEmpty()) {
+                } else {
+                    if (linkVkAvailable && ownVkBound) CompactDropdownSetting(
+                        title = "Хеши VK",
+                        selectedKey = if (preferLinkHashes) "link" else "own",
+                        options = listOf("own" to "Мой аккаунт VK", "link" to "Из ссылки"),
+                        enabled = !tunnelRunning,
+                        onSelected = { choice -> scope.launch { settingsStore.saveVkPreferLinkHashes(choice == "link") } },
+                    )
+                if (linkHashes.isNotEmpty()) {
                     Text(
                         text = "VK хеши из ссылки: ${linkHashes.size}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -627,6 +634,7 @@ internal fun SettingsTabContent(
                         manualAllowed = !linkTokenActive,
                         tokenFromLink = linkTokenActive,
                     )
+                }
                 }
 
                 if (vkTransportSelected) CompactDropdownSetting(
@@ -1141,7 +1149,7 @@ private fun VkHashModeControls(
                 modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
                 shape = MrttShapes.Pill,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3F4448),
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                 ),
             ) {
@@ -1197,6 +1205,8 @@ private fun TransportModeSelector(
     onMaxRequested: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val profiles = remember { com.mrtt.client.profiles.ProfileRepository(appContext) }
     AppSectionCard(contentPadding = PaddingValues(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Транспорт", style = MaterialTheme.typography.titleMedium)
@@ -1209,7 +1219,10 @@ private fun TransportModeSelector(
                     selected = transportMode == MrttConstants.Transport.MODE_VK,
                     enabled = true,
                     onClick = {
-                        scope.launch { settingsStore.saveTransportMode(MrttConstants.Transport.MODE_VK) }
+                        scope.launch {
+                            settingsStore.saveTransportMode(MrttConstants.Transport.MODE_VK)
+                            profiles.rememberTransport(MrttConstants.Transport.MODE_VK)
+                        }
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -1227,7 +1240,10 @@ private fun TransportModeSelector(
                     selected = transportMode == MrttConstants.Transport.MODE_JITSI,
                     enabled = true,
                     onClick = {
-                        scope.launch { settingsStore.saveTransportMode(MrttConstants.Transport.MODE_JITSI) }
+                        scope.launch {
+                            settingsStore.saveTransportMode(MrttConstants.Transport.MODE_JITSI)
+                            profiles.rememberTransport(MrttConstants.Transport.MODE_JITSI)
+                        }
                     },
                     modifier = Modifier.weight(1f),
                 )

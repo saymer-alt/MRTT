@@ -16,6 +16,8 @@ data class MrttLink(
     val jitsiRoom: String = "",
     /** Сколько мест держит сервер в комнате Jitsi; 0, если ссылка этого не сообщает. */
     val jitsiSeats: Int = 0,
+    /** Транспорт профиля: `vk`, `jitsi` или пусто. MAX в ссылке не бывает: он на приватных данных клиента. */
+    val transport: String = "",
 )
 
 private const val MRTT_CIPHER_KEY_SEED = "mrtt-chiper-key"
@@ -138,7 +140,10 @@ private fun parseMrttV2(uri: java.net.URI): MrttLink? {
     if (parameters.containsKey("jitsi") && !isValidJitsiRoom(jitsiRoom)) return null
     val jitsiSeats = parameters["seats"]?.let(::decodeQueryComponent)?.toIntOrNull()
         ?.coerceIn(1, com.mrtt.client.MrttConstants.Tunnel.MAX_JITSI_WORKERS) ?: 0
-    return MrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom, jitsiSeats)
+    val transport = parameters["transport"]?.let(::decodeQueryComponent)?.trim()?.lowercase().orEmpty()
+        .takeIf { it == com.mrtt.client.MrttConstants.Transport.MODE_VK || it == com.mrtt.client.MrttConstants.Transport.MODE_JITSI }
+        .orEmpty()
+    return MrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom, jitsiSeats, transport)
 }
 
 private val JITSI_ROOM_REGEX = Regex("^[a-z0-9.:-]+/[a-z0-9]{1,64}$")
@@ -176,7 +181,7 @@ private fun parseRawQuery(rawQuery: String): Map<String, String>? {
         }
     }
 
-    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|max|jitsi|seats|workers)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|max|jitsi|seats|workers)=|$)", RegexOption.IGNORE_CASE)
+    val pattern = Regex("(?:^|[&;]|(?<=[a-zA-Z0-9_]))(v|host|peer|password|client|hashes|token|max|jitsi|seats|workers|transport)=([^&?]*?)(?=(?:v|host|peer|password|client|hashes|token|max|jitsi|seats|workers|transport)=|$)", RegexOption.IGNORE_CASE)
     val matches = pattern.findAll(sanitized).toList()
     if (matches.isNotEmpty()) {
         val extracted = linkedMapOf<String, String>()
@@ -275,6 +280,7 @@ fun formatMrttLink(
     maxGroupId: String = "",
     jitsiRoom: String = "",
     jitsiSeats: Int = 0,
+    transport: String = "",
 ): String {
     val queryParts = mutableListOf("v=2", "host=$host", "peer=$peer", "password=" + java.net.URLEncoder.encode(password, Charsets.UTF_8.name()))
     if (maxGroupId.isNotEmpty()) {
@@ -290,6 +296,11 @@ fun formatMrttLink(
         queryParts.add("jitsi=" + java.net.URLEncoder.encode(jitsiRoom, Charsets.UTF_8.name()))
         if (jitsiSeats > 0) queryParts.add("seats=$jitsiSeats")
     }
+    if (transport == com.mrtt.client.MrttConstants.Transport.MODE_VK || transport == com.mrtt.client.MrttConstants.Transport.MODE_JITSI) {
+        queryParts.add("transport=$transport")
+    }
     val plain = "connect?" + queryParts.joinToString("&")
     return MRTT_LINK_SCHEME + encryptMrttPayload(plain)
 }
+
+fun MrttLink.format(): String = formatMrttLink(host, port, password, hashes, vkAccessToken, maxGroupId, jitsiRoom, jitsiSeats, transport)

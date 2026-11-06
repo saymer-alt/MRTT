@@ -4,6 +4,7 @@ import android.content.Context
 import com.mrtt.client.SettingsStore
 import com.mrtt.client.ui.utils.decryptMrttPayload
 import com.mrtt.client.ui.utils.encryptMrttPayload
+import com.mrtt.client.ui.utils.format
 import com.mrtt.client.ui.utils.parseMrttLink
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -84,19 +85,33 @@ internal class ProfileRepository(context: Context) {
 
     suspend fun delete(id: String) {
         save(current().filterNot { it.id == id })
+        if (activeId.first() == id) store.clearActiveConnectionProfile()
     }
 
     suspend fun activate(profile: ConnectionProfile) {
         store.activateConnectionProfile(profile.id, profile.link)
-        // Профиль не навязывает транспорт: по умолчанию VK, остальное пользователь выберет в «Транспорт».
-        store.saveTransportMode(com.mrtt.client.MrttConstants.Transport.MODE_VK)
+        // Транспорт берётся из ссылки; в ссылке его нет — VK.
+        store.saveTransportMode(
+            parseMrttLink(profile.link)?.transport?.ifEmpty { null } ?: com.mrtt.client.MrttConstants.Transport.MODE_VK,
+        )
     }
 
     /** Меняет ссылку профиля (свои хеши и т. п.); активный профиль сразу получает новую ссылку. */
     suspend fun updateLink(id: String, link: String) {
         val updated = current().map { if (it.id == id) it.copy(link = link) else it }
         save(updated)
-        if (activeId.first() == id) updated.firstOrNull { it.id == id }?.let { store.activateConnectionProfile(it.id, it.link) }
+        if (activeId.first() == id) updated.firstOrNull { it.id == id }?.let { activate(it) }
+    }
+
+    /** Выбранный транспорт VK или Jitsi сохраняется в ссылке активного профиля; MAX в ссылку не попадает. */
+    suspend fun rememberTransport(transport: String) {
+        val id = activeId.first()
+        val profile = current().firstOrNull { it.id == id } ?: return
+        val link = parseMrttLink(profile.link) ?: return
+        if (link.transport == transport) return
+        val rebuilt = runCatching { link.copy(transport = transport).format() }.getOrNull() ?: return
+        save(current().map { if (it.id == id) it.copy(link = rebuilt) else it })
+        store.activateConnectionProfile(id, rebuilt)
     }
 
     /** Один раз переносит ссылки старых слотов (в том числе настройки «владельца»). */

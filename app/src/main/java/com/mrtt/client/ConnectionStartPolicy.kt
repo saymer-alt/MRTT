@@ -1,6 +1,7 @@
 package com.mrtt.client
 
 internal enum class ConnectionStartBlocker(val message: String) {
+    NoProfile("не выбран профиль: выберите его во вкладке «Профили»"),
     Link("нужна корректная ссылка MRTT"),
     Server("не указан корректный адрес сервера"),
     Port("указан некорректный порт сервера"),
@@ -32,7 +33,9 @@ internal object ConnectionStartPolicy {
         connectionPasswordSet: Boolean,
         connectionPasswordReadable: Boolean = true,
         hashesReady: Boolean,
+        profileActive: Boolean = true,
     ): ConnectionStartBlocker? {
+        if (!profileActive) return ConnectionStartBlocker.NoProfile
         if (!hashesReady) return ConnectionStartBlocker.Hashes
         if (linkMode) return if (linkValid) null else ConnectionStartBlocker.Link
         if (!peerValid) return ConnectionStartBlocker.Server

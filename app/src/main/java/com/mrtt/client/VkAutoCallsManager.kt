@@ -99,12 +99,12 @@ object VkAutoCallsManager {
                     )
                     if (VkApi.isTokenInvalid(result)) {
                         if (clearStoredTokenOnInvalid) {
-                            runCatching { SettingsStore(context).clearVkAccessToken() }
+                            runCatching { SettingsStore(context).clearVkSession() }
                         }
                         log(
                             "vk_token_invalidated",
                             if (clearStoredTokenOnInvalid) {
-                                "[ERR] Токен VK недействителен · войдите снова"
+                                "[ERR] Сессия VK истекла · войдите снова"
                             } else {
                                 "[ERR] Токен VK из ссылки недействителен"
                             },

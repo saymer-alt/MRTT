@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +36,6 @@ import com.mrtt.client.ui.design.MrttSizes
 @Composable
 internal fun VkTokenRevokeDialog(
     onCancel: () -> Unit,
-    onCopyToken: () -> Unit,
     onRevokeToken: () -> Unit,
 ) {
     Dialog(
@@ -66,7 +65,7 @@ internal fun VkTokenRevokeDialog(
                         modifier = Modifier.size(22.dp),
                     )
                     Text(
-                        "Отзыв VK-авторизации",
+                        "Отвязать VK",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -74,7 +73,7 @@ internal fun VkTokenRevokeDialog(
                 }
 
                 Text(
-                    text = "При удалении токена сессия VK сохраняется настолько, насколько это возможно: токен можно будет быстро получить заново, либо вы сможете сменить аккаунт самостоятельно.",
+                    text = "Сессия VK будет удалена из приложения. Чтобы снова пользоваться своим аккаунтом, нажмите «Вход» и войдите в VK, можно в другой аккаунт.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 15.sp,
@@ -94,19 +93,6 @@ internal fun VkTokenRevokeDialog(
                 }
 
                 OutlinedButton(
-                    onClick = onCopyToken,
-                    modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
-                    shape = MrttShapes.Pill,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                ) {
-                    Text("Копировать токен", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-
-                OutlinedButton(
                     onClick = onRevokeToken,
                     modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
                     shape = MrttShapes.Pill,
@@ -116,7 +102,7 @@ internal fun VkTokenRevokeDialog(
                     ),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                 ) {
-                    Text("Удалить токен", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text("Отвязать", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
         }

@@ -1,12 +1,7 @@
 package com.mrtt.client.ui
 
 import androidx.compose.material.icons.outlined.Share
-import android.content.Intent
-import com.mrtt.client.showRaisedToast
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
@@ -47,6 +41,7 @@ import com.mrtt.client.LogEntry
 import com.mrtt.client.R
 import com.mrtt.client.SettingsStore
 import com.mrtt.client.TunnelManager
+import com.mrtt.client.ui.common.shareLogFile
 import com.mrtt.client.ui.components.MrttEmptyState
 import com.mrtt.client.ui.components.MrttScreen
 import com.mrtt.client.ui.components.MrttSettingRow
@@ -97,7 +92,6 @@ private fun LogsTerminal() {
     val context = LocalContext.current
     val currentLogs = TunnelManager.logs
     val listState = rememberLazyListState()
-    val copiedMessage = stringResource(R.string.logs_copied)
     val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
 
     LaunchedEffect(currentLogs.size, isDeploying) {
@@ -143,24 +137,6 @@ private fun LogsTerminal() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = {
-                    val text = currentLogs.joinToString("\n") { "${it.message} (x${it.count})" }
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("MRTT Logs", text))
-                    context.showRaisedToast(copiedMessage, Toast.LENGTH_SHORT)
-                },
-                enabled = currentLogs.isNotEmpty(),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.ContentCopy,
-                    contentDescription = stringResource(R.string.action_copy),
-                    tint = if (currentLogs.isNotEmpty()) Color.White else Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-
-            IconButton(
                 onClick = { shareFullLog(context) },
                 modifier = Modifier.size(40.dp)
             ) {
@@ -195,14 +171,5 @@ private fun shareFullLog(context: Context) {
         appendLine()
         append(com.mrtt.client.FullLog.text().takeLast(400_000).ifBlank { "Лог пуст: подключитесь и повторите." })
     }
-    val send = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "MRTT лог")
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    try {
-        context.startActivity(Intent.createChooser(send, "Поделиться логом").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: Exception) {
-        context.showRaisedToast("Не удалось открыть отправку", Toast.LENGTH_SHORT)
-    }
+    context.shareLogFile("MRTT log", text)
 }

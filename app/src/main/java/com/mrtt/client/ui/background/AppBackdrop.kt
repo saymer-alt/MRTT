@@ -16,28 +16,19 @@ internal fun AppBackdrop(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val isDark = colors.background.luminance() < 0.22f
-    val baseBrush = remember(colors.background, colors.surface, colors.surfaceVariant, isDark) {
-        Brush.verticalGradient(
-            colors = if (isDark) {
-                listOf(
-                    lerp(colors.background, colors.surface, 0.18f),
-                    colors.background,
-                    lerp(colors.surfaceVariant, colors.background, 0.72f),
-                )
-            } else {
-                listOf(
-                    lerp(colors.background, colors.surface, 0.78f),
-                    colors.background,
-                    lerp(colors.surfaceVariant, colors.background, 0.30f),
-                )
-            },
-        )
+    val day = colors.background.luminance() > 0.5f
+    // Мягкий свет под стекло днём; ночью чистый чёрный OLED.
+    androidx.compose.foundation.Canvas(modifier = modifier.fillMaxSize().background(colors.background)) {
+        if (!day) return@Canvas
+        val light = androidx.compose.ui.graphics.Color(70, 70, 90, 26)
+        listOf(Triple(0.92f, 0.1f, 0.85f), Triple(0.02f, 0.48f, 0.8f), Triple(0.8f, 0.95f, 0.9f)).forEach { (x, y, r) ->
+            drawRect(
+                Brush.radialGradient(
+                    listOf(light, androidx.compose.ui.graphics.Color.Transparent),
+                    androidx.compose.ui.geometry.Offset(size.width * x, size.height * y),
+                    size.width * r,
+                ),
+            )
+        }
     }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(baseBrush),
-    )
 }

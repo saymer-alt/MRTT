@@ -86,6 +86,16 @@ class MrttLinkTest {
     }
 
     @Test
+    fun transportSurvivesTheLinkAndMaxNeverEntersIt() {
+        for (transport in listOf("vk", "jitsi")) {
+            assertEquals(transport, parseMrttLink(formatMrttLink("203.0.113.7", 46000, "pass", transport = transport))?.transport)
+        }
+        val max = decryptMrttPayload(formatMrttLink("203.0.113.7", 46000, "pass", transport = "max").removePrefix("mrtt://"))
+        assertEquals("connect?v=2&host=203.0.113.7&peer=46000&password=pass", max)
+        assertEquals("", parseMrttLink(enc("connect?v=2&host=203.0.113.7&peer=46000&password=pass&transport=max"))?.transport)
+    }
+
+    @Test
     fun aLettersAndDigitsPasswordIsWrittenAsBefore() {
         val plain = decryptMrttPayload(formatMrttLink("203.0.113.7", 46000, "SecretPass123456").removePrefix("mrtt://"))
         assertEquals("connect?v=2&host=203.0.113.7&peer=46000&password=SecretPass123456", plain)

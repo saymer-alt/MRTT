@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Button
+import com.mrtt.client.ui.components.MrttGlassButton as Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -49,7 +49,7 @@ import com.mrtt.client.ui.design.MrttShapes
 import com.mrtt.client.ui.friendlyDeployError
 import com.mrtt.client.ui.components.MrttScreen
 
-private val SECTIONS = listOf("Конфиги", "Группы", "Маршруты", "Прокси", "Настройки", "Логи", "Статистика")
+private val SECTIONS = listOf("Конфиги", "Группы", "Маршруты", "Прокси", "Настройки", "Статистика", "Логи")
 
 @Composable
 internal fun ServerManageScreen(
@@ -158,8 +158,8 @@ internal fun ServerManageScreen(
                 2 -> RoutingSection(control)
                 3 -> ProxySection(control)
                 4 -> ServerSettingsSection(control)
-                5 -> ServerLogsSection(control)
-                else -> ServerStatsSection(control)
+                5 -> ServerStatsSection(control)
+                else -> ServerLogsSection(control)
             } }
         }
     }

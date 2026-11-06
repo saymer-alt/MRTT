@@ -59,6 +59,7 @@ import com.mrtt.client.resolveConnectionSource
 import com.mrtt.client.showRaisedToast
 import com.mrtt.client.ui.components.MrttScreen
 import com.mrtt.client.ui.design.MrttShapes
+import com.mrtt.client.ui.design.mrttGlass
 import com.mrtt.client.ui.utils.parseMrttLink
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -69,6 +70,7 @@ internal fun ConnectionTab(
     settingsStore: SettingsStore,
     tunnelAuthSettings: TunnelAuthSnapshot,
     onInvalidConfiguration: () -> Unit,
+    onProfileRequired: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
@@ -100,11 +102,15 @@ internal fun ConnectionTab(
     val activeFingerprint by settingsStore.selectedFingerprint.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_FINGERPRINT)
     val activeClientIds by settingsStore.activeClientIds.collectAsStateWithLifecycle(initialValue = MrttConstants.Tunnel.DEFAULT_CLIENT_IDS)
     val savedHashMode by settingsStore.vkHashMode.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkHashMode)
-    val savedVkAccessToken by settingsStore.vkAccessToken.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkAccessToken)
+    val savedVkAccessToken by settingsStore.vkSession.collectAsStateWithLifecycle(initialValue = SettingsStore.cachedVkSession)
     val savedMaxGroupId by settingsStore.maxGroupId.collectAsStateWithLifecycle(initialValue = "")
     val savedMaxAccessToken by settingsStore.maxAccessToken.collectAsStateWithLifecycle(initialValue = "")
     val transportMode by settingsStore.transportMode.collectAsStateWithLifecycle(initialValue = MrttConstants.Transport.MODE_VK)
     val jitsiRoomOverride by settingsStore.jitsiRoomOverride.collectAsStateWithLifecycle(initialValue = "")
+
+    val activeProfileId by settingsStore.activeConnectionProfileId.collectAsStateWithLifecycle(initialValue = "")
+    // Старые установки: ссылка из настроек становится профилем, иначе подключение было бы запрещено.
+    LaunchedEffect(Unit) { com.mrtt.client.profiles.ProfileRepository(context).migrateLegacy() }
 
     var pendingStartAfterVpnPermission by remember { mutableStateOf(false) }
 
@@ -156,6 +162,7 @@ internal fun ConnectionTab(
         connectionPasswordSet = connectionPassword.isNotBlank(),
         connectionPasswordReadable = tunnelAuthSettings.connectionPasswordState != StoredSecretState.Unreadable,
         hashesReady = hashesReady,
+        profileActive = activeProfileId.isNotBlank(),
     )
     val isValid = startBlocker == null
 
@@ -237,6 +244,11 @@ internal fun ConnectionTab(
         }
         if (!isValid) {
             val blocker = requireNotNull(startBlocker)
+            if (blocker == ConnectionStartBlocker.NoProfile) {
+                context.showRaisedToast("Сначала выберите профиль", Toast.LENGTH_SHORT)
+                onProfileRequired()
+                return
+            }
             TunnelManager.updateLog(
                 "connection_configuration_${blocker.name}",
                 "[ПОДКЛЮЧЕНИЕ] Запуск не начат: ${blocker.message}",
@@ -268,24 +280,48 @@ internal fun ConnectionTab(
         }
     }
 
+    val profileRepository = remember { com.mrtt.client.profiles.ProfileRepository(context) }
+    val profiles by profileRepository.profiles.collectAsStateWithLifecycle(initialValue = emptyList())
+    val activeProfile = profiles.firstOrNull { it.id == activeProfileId }
+
     MrttScreen {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(bottom = 16.dp)
-                .offset(y = 10.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            TunnelConnectionPanel(
-                tunnelRunning = tunnelRunning,
-                tunnelStarting = tunnelStarting,
-                tunnelStopping = tunnelStopping,
-                autoPausedForWifi = autoPausedForWifi,
-                cooldownActive = cooldownActive,
-                configurationValid = isValid,
-                onToggleTunnel = { toggleTunnel() },
-            )
+        Column(modifier = Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp)) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                TunnelConnectionPanel(
+                    tunnelRunning = tunnelRunning,
+                    tunnelStarting = tunnelStarting,
+                    tunnelStopping = tunnelStopping,
+                    autoPausedForWifi = autoPausedForWifi,
+                    cooldownActive = cooldownActive,
+                    configurationValid = isValid,
+                    onToggleTunnel = { toggleTunnel() },
+                )
+            }
+            // К чему подключаемся видно всегда; нажатие открывает список профилей.
+            androidx.compose.material3.Surface(
+                onClick = onProfileRequired,
+                shape = MrttShapes.Card,
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth().mrttGlass(MrttShapes.Card),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
+                    Text(
+                        text = activeProfile?.name ?: "Профиль не выбран",
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = activeProfile?.let { parseMrttLink(it.link) }?.let { "${it.host}:${it.port}" }
+                            ?: "Нажмите, чтобы выбрать",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }
@@ -303,7 +339,6 @@ private fun TunnelConnectionPanel(
     val isStarting = tunnelStarting && !tunnelRunning && !tunnelStopping
     val canToggle = !tunnelStopping && (tunnelRunning || isStarting || autoPausedForWifi || !cooldownActive || !configurationValid)
     val activeVisual = tunnelRunning || isStarting || autoPausedForWifi || tunnelStopping
-    val logoScale = if (activeVisual) 1.06f else 0.96f
     val statusColor = when {
         autoPausedForWifi -> MaterialTheme.colorScheme.tertiary
         tunnelStopping -> MaterialTheme.colorScheme.tertiary
@@ -321,62 +356,29 @@ private fun TunnelConnectionPanel(
         else -> "Отключено"
     }
 
-    AppSectionCard(
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    run {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val activeWorkers by TunnelManager.activeWorkers.collectAsStateWithLifecycle()
             val targetWorkers by TunnelManager.targetWorkers.collectAsStateWithLifecycle()
             val showWorkers = (tunnelRunning || isStarting) && !tunnelStopping && targetWorkers > 0
-            androidx.compose.material3.Surface(
-                onClick = onToggleTunnel,
+            com.mrtt.client.ui.components.MrttOrb(
+                connected = tunnelRunning || autoPausedForWifi,
+                connecting = isStarting || tunnelStopping,
                 enabled = canToggle,
-                shape = MrttShapes.Pill,
-                color = if (activeVisual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (activeVisual) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (activeVisual) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                ),
+                description = when {
+                    tunnelStopping -> "Ожидание отключения VPN"
+                    tunnelRunning || autoPausedForWifi -> "Остановить VPN"
+                    else -> "Включить VPN"
+                },
+                onClick = onToggleTunnel,
                 modifier = Modifier
-                    .size(172.dp)
-                    .scale(logoScale)
-                    .alpha(if (canToggle || activeVisual) 1f else 0.5f)
-                    .semantics {
-                        contentDescription = when {
-                            tunnelStopping -> "Ожидание отключения VPN"
-                            tunnelRunning || autoPausedForWifi -> "Остановить VPN"
-                            else -> "Включить VPN"
-                        }
-                    },
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PowerSettingsNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                    )
-                    if (showWorkers) {
-                        Text(
-                            text = "$activeWorkers / $targetWorkers",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = "воркеров",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                }
-            }
+                    .size(270.dp)
+                    .alpha(if (canToggle || activeVisual) 1f else 0.5f),
+            )
 
             Text(
                 text = statusText,
@@ -387,6 +389,14 @@ private fun TunnelConnectionPanel(
             )
 
             TunnelUptimeText(tunnelRunning = tunnelRunning || autoPausedForWifi || tunnelStopping)
+
+            if (showWorkers) {
+                Text(
+                    text = "воркеров: $activeWorkers / $targetWorkers",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             // «Экономия батареи» in force: said under the status, where the user looks
             val batterySaving by BatterySaver.active.collectAsStateWithLifecycle()
