@@ -94,7 +94,23 @@ pub struct PasswordEntry {
     /// В ссылке нет комнаты Jitsi: клиент задаёт её сам.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub link_room_off: bool,
+    /// Выход этого конфига: пусто — как на сервере, `direct` — напрямую, иначе id выхода.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub exit: String,
 }
+
+/// Другой VPS, через который можно выпускать клиентов: WireGuard до него поднимает приложение.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExitLink {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    /// Таблица маршрутов на этом сервере, ведущая в туннель.
+    pub table: u32,
+}
+
+/// Значение приоритета, при котором настройка конфига важнее настройки сервера.
+pub const EXIT_PRIORITY_CONFIG: &str = "config";
 
 /// Устройство, привязанное к ссылке (ключ — device_id клиента, `legacy` для клиентов без device_id).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,6 +147,35 @@ pub struct LocalProxyProfile {
     pub username: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub password: String,
+}
+
+impl Database {
+    /// Таблица выхода для конфига с выбором `own`; None — напрямую.
+    fn exit_table(&self, own: &str) -> Option<u32> {
+        let chosen = if self.exit_priority == EXIT_PRIORITY_CONFIG && !own.is_empty() {
+            own
+        } else {
+            self.default_exit.as_str()
+        };
+        self.exits.iter().find(|exit| exit.id == chosen).map(|exit| exit.table)
+    }
+
+    /// Маршруты всех адресов клиентов: основной адрес конфига и адреса его устройств.
+    pub fn exit_routes(&self) -> std::collections::BTreeSet<(String, u32)> {
+        let mut routes = std::collections::BTreeSet::new();
+        if let Some(table) = self.exit_table(&self.main_exit) {
+            routes.insert((OWNER_TUNNEL_IP.to_owned(), table));
+            routes.extend(self.main_devices.values().map(|device| (device.ip.clone(), table)));
+        }
+        for entry in self.passwords.values() {
+            if let Some(table) = self.exit_table(&entry.exit) {
+                routes.insert((entry.ip.clone(), table));
+                routes.extend(entry.devices.values().map(|device| (device.ip.clone(), table)));
+            }
+        }
+        routes.retain(|(ip, _)| !ip.is_empty());
+        routes
+    }
 }
 
 impl LocalProxyProfile {
@@ -282,6 +327,15 @@ pub struct Database {
     pub main_transport: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub main_link_room_off: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub main_exit: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exits: Vec<ExitLink>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub default_exit: String,
+    /// `config`: настройка конфига важнее серверной; иначе все идут через серверную.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub exit_priority: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub main_devices: BTreeMap<String, BoundDevice>,
     #[serde(default, alias = "slots")]
@@ -1181,6 +1235,11 @@ fn ensure_password_columns(connection: &Connection) -> Result<()> {
             )
             .context("add transport column")?;
     }
+    if !columns.iter().any(|column| column == "exit") {
+        connection
+            .execute("ALTER TABLE passwords ADD COLUMN exit TEXT NOT NULL DEFAULT ''", [])
+            .context("add exit column")?;
+    }
     if !columns.iter().any(|column| column == "link_room_off") {
         connection
             .execute(
@@ -1251,6 +1310,7 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
         .context("begin database transaction")?;
     let auto_restart_interval_hours = db.auto_restart_interval_hours().to_string();
     let jitsi_seats = db.jitsi_seats().to_string();
+    let exits_json = serde_json::to_string(&db.exits).unwrap_or_else(|_| "[]".to_owned());
     for (key, value) in [
         ("main_password", db.main_password.as_str()),
         ("main_sub_uuid", db.main_sub_uuid.as_str()),
@@ -1272,6 +1332,10 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
         ("main_routing_rule_id", db.main_routing_rule_id.as_str()),
         ("jitsi_room", db.jitsi_room.as_str()),
         ("jitsi_seats", jitsi_seats.as_str()),
+        ("exits_json", exits_json.as_str()),
+        ("default_exit", db.default_exit.as_str()),
+        ("exit_priority", db.exit_priority.as_str()),
+        ("main_exit", db.main_exit.as_str()),
     ] {
         transaction
             .execute(
@@ -1457,8 +1521,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     password, ip, expires_at, down_bytes, up_bytes,
                     vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
                     dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
-                    max_devices, devices_json, transport, link_room_off
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)
+                    max_devices, devices_json, transport, link_room_off, exit
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
                 ON CONFLICT(password) DO UPDATE SET
                     ip = excluded.ip,
                     expires_at = excluded.expires_at,
@@ -1480,7 +1544,8 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     max_devices = excluded.max_devices,
                     devices_json = excluded.devices_json,
                     transport = excluded.transport,
-                    link_room_off = excluded.link_room_off",
+                    link_room_off = excluded.link_room_off,
+                    exit = excluded.exit",
             )
             .context("prepare passwords insert")?;
         for (password, entry) in &db.passwords {
@@ -1508,6 +1573,7 @@ fn write_database_snapshot(connection: &mut Connection, db: &Database) -> Result
                     serde_json::to_string(&entry.devices).unwrap_or_else(|_| "{}".to_owned()),
                     entry.transport,
                     entry.link_room_off,
+                    entry.exit,
                 ])
                 .with_context(|| format!("write password {}", secret_tag(password)))?;
         }
@@ -1596,6 +1662,10 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 "main_routing_rule_id" => db.main_routing_rule_id = value,
                 "jitsi_room" => db.jitsi_room = value,
                 "jitsi_seats" => db.jitsi_seats = value.parse().ok(),
+                "exits_json" => db.exits = serde_json::from_str(&value).unwrap_or_default(),
+                "default_exit" => db.default_exit = value,
+                "exit_priority" => db.exit_priority = value,
+                "main_exit" => db.main_exit = value,
                 "main_workers" => {
                     db.main_workers = value
                         .parse::<u32>()
@@ -1632,7 +1702,7 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 "SELECT password, ip, expires_at, down_bytes, up_bytes,
                         vk_hash, ports, is_deactivated, name, vk_hashes, vk_token_enabled,
                         dtls_port, wg_port, local_port, group_id, routing_rule_id, sub_uuid, workers,
-                        max_devices, devices_json, transport, link_room_off
+                        max_devices, devices_json, transport, link_room_off, exit
                  FROM passwords",
             )
             .context("prepare passwords select")?;
@@ -1685,6 +1755,7 @@ fn read_database_snapshot(config_dir: &Path) -> Result<Database> {
                 devices,
                 transport: row.get(20).unwrap_or_default(),
                 link_room_off: row.get::<_, i64>(21).unwrap_or(0) != 0,
+                exit: row.get(22).unwrap_or_default(),
             };
             db.passwords.insert(password, entry);
         }
@@ -2224,6 +2295,34 @@ mod tests {
         assert!(modern.evicted_legacy);
         assert_eq!(modern.ip, OWNER_TUNNEL_IP);
         assert!(!db.main_devices.contains_key(LEGACY_DEVICE_ID));
+    }
+
+    #[test]
+    fn exit_priority_decides_whose_choice_counts() {
+        let exit = |id: &str, table| super::ExitLink { id: id.to_owned(), table, ..Default::default() };
+        let mut db = Database {
+            exits: vec![exit("a", 2001), exit("b", 2002)],
+            default_exit: "a".to_owned(),
+            ..Database::default()
+        };
+        let mut client = PasswordEntry { ip: "10.66.67.3".to_owned(), exit: "b".to_owned(), ..PasswordEntry::default() };
+        client.devices.insert("phone".to_owned(), super::BoundDevice { ip: "10.66.67.9".to_owned(), ..Default::default() });
+        db.passwords.insert("client".to_owned(), client);
+        let table_of = |db: &Database, ip: &str| db.exit_routes().iter().find(|(addr, _)| addr == ip).map(|(_, table)| *table);
+
+        // Приоритет сервера: выбор конфига не действует.
+        assert_eq!(table_of(&db, "10.66.67.3"), Some(2001));
+        assert_eq!(table_of(&db, super::OWNER_TUNNEL_IP), Some(2001));
+        // Приоритет конфига: его выбор важнее, устройства идут с ним.
+        db.exit_priority = super::EXIT_PRIORITY_CONFIG.to_owned();
+        assert_eq!(table_of(&db, "10.66.67.3"), Some(2002));
+        assert_eq!(table_of(&db, "10.66.67.9"), Some(2002));
+        assert_eq!(table_of(&db, super::OWNER_TUNNEL_IP), Some(2001));
+        // «Напрямую» у конфига, удалённый выход и пустой сервер не дают маршрута.
+        db.passwords.get_mut("client").unwrap().exit = "direct".to_owned();
+        assert_eq!(table_of(&db, "10.66.67.3"), None);
+        db.default_exit = "gone".to_owned();
+        assert!(db.exit_routes().is_empty());
     }
 
     #[test]

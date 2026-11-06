@@ -62,6 +62,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
     val profiles = remember { ProfileRepository(context) }
     var clients by remember { mutableStateOf<List<ServerClient>?>(null) }
     var groups by remember { mutableStateOf<List<ServerGroup>>(emptyList()) }
+    var exitSettings by remember { mutableStateOf(com.mrtt.client.servers.ServerSettings()) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableStateOf(0) }
     var search by remember { mutableStateOf("") }
@@ -76,6 +77,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
     var batchDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(control, reload) {
+        runCatching { exitSettings = control.settings() }
         runCatching { control.clients() to control.groups() }
             .onSuccess { (loadedClients, loadedGroups) ->
                 clients = loadedClients
@@ -173,11 +175,12 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
         ClientEditDialog(
             client = null,
             groups = groups,
+            exitSettings = exitSettings,
             onDismiss = { creating = false },
             onSave = { form ->
                 creating = false
                 runner.run("Конфиг создан", ::refresh) {
-                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff)
+                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff, form.exit)
                 }
             },
         )
@@ -186,11 +189,12 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
         ClientEditDialog(
             client = client,
             groups = groups,
+            exitSettings = exitSettings,
             onDismiss = { editing = null },
             onSave = { form ->
                 editing = null
                 runner.run("Сохранено", ::refresh) {
-                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff)
+                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff, form.exit)
                 }
             },
             onShare = { sharing = client },
@@ -318,12 +322,14 @@ internal data class ClientForm(
     val vkToken: Boolean,
     val transport: String,
     val linkRoomOff: Boolean,
+    val exit: String,
 )
 
 @Composable
 private fun ClientEditDialog(
     client: ServerClient?,
     groups: List<ServerGroup>,
+    exitSettings: com.mrtt.client.servers.ServerSettings,
     onDismiss: () -> Unit,
     onSave: (ClientForm) -> Unit,
     onShare: () -> Unit = {},
@@ -345,6 +351,7 @@ private fun ClientEditDialog(
     var vkToken by remember { mutableStateOf(client?.vkToken ?: false) }
     var transport by remember { mutableStateOf(client?.transport.orEmpty()) }
     var linkRoomOff by remember { mutableStateOf(client?.linkRoomOff ?: false) }
+    var exit by remember { mutableStateOf(client?.exit.orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val workersValue = workers.toIntOrNull() ?: 0
@@ -353,7 +360,7 @@ private fun ClientEditDialog(
     val changed = client == null || name != client.name || groupId != client.groupId ||
         days != remainingDays(client.expires).toString() || workers != client.workers.toString() ||
         maxDevices != client.maxDevices.toString() || vkHashes != client.vkHashes || vkToken != client.vkToken ||
-        transport != client.transport || linkRoomOff != client.linkRoomOff
+        transport != client.transport || linkRoomOff != client.linkRoomOff || exit != client.exit
 
     MrttFormDialog(
         title = if (client == null) "Новый конфиг" else client.name,
@@ -371,6 +378,7 @@ private fun ClientEditDialog(
                     vkToken = vkToken,
                     transport = transport,
                     linkRoomOff = linkRoomOff,
+                    exit = exit,
                 ),
             )
         },
@@ -395,6 +403,24 @@ private fun ClientEditDialog(
             enabled = true,
             onSelected = { transport = it },
         )
+        if (exitSettings.exits.isNotEmpty()) {
+            val configDecides = exitSettings.exitPriority == com.mrtt.client.servers.EXIT_PRIORITY_CONFIG
+            CompactDropdownSetting(
+                title = "Выходной IP",
+                selectedKey = exit,
+                options = listOf("" to "Как на сервере", com.mrtt.client.servers.EXIT_DIRECT to "Этот сервер") +
+                    exitSettings.exits.map { it.id to it.name },
+                enabled = configDecides,
+                onSelected = { exit = it },
+            )
+            if (!configDecides) {
+                Text(
+                    "Сейчас действует настройка сервера. Выбор появится, когда в настройках сервера приоритет выходного IP будет «Настройка конфига».",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         if (transport == "jitsi") {
             CompactDropdownSetting(
                 title = "Комната Jitsi",

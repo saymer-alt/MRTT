@@ -36,10 +36,18 @@ internal data class ServerClient(
     val transport: String = "",
     /** В ссылке нет комнаты Jitsi: клиент задаёт её сам. */
     val linkRoomOff: Boolean = false,
+    /** Выход конфига: пусто — как на сервере, `direct` — напрямую, иначе id выхода. */
+    val exit: String = "",
 ) {
     /** Строка владельца (главный пароль) всегда получает фиксированный IP 10.66.67.2. */
     val isOwner: Boolean get() = ip == OWNER_TUNNEL_IP && expires == 0L && groupId.isEmpty() && name == "Владелец"
 }
+
+/** Другой VPS, через который сервер может выпускать клиентов. */
+internal data class ServerExit(val id: String, val name: String, val host: String, val table: Int)
+
+internal const val EXIT_DIRECT = "direct"
+internal const val EXIT_PRIORITY_CONFIG = "config"
 
 internal data class ServerGroup(
     val id: String,
@@ -93,6 +101,9 @@ internal data class ServerSettings(
     val jitsiRoom: String = "",
     val jitsiSeats: Int = 6,
     val restartRequired: Boolean = false,
+    val exits: List<ServerExit> = emptyList(),
+    val defaultExit: String = "",
+    val exitPriority: String = "",
 )
 
 internal const val OWNER_TUNNEL_IP = "10.66.67.2"
@@ -132,6 +143,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
         vkToken: Boolean,
         transport: String,
         linkRoomOff: Boolean,
+        exit: String,
     ) {
         api.post(
             "/api/clients",
@@ -144,7 +156,8 @@ internal class ServerControl(context: Context, server: VpsServer) {
                 .put("workers", workers)
                 .put("max_devices", maxDevices)
                 .put("transport", transport)
-                .put("link_room_off", linkRoomOff),
+                .put("link_room_off", linkRoomOff)
+                .put("exit", exit),
         )
     }
 
@@ -159,6 +172,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
         vkToken: Boolean,
         transport: String,
         linkRoomOff: Boolean,
+        exit: String,
     ) {
         api.post(
             "/api/clients/${enc(client.password)}",
@@ -173,7 +187,8 @@ internal class ServerControl(context: Context, server: VpsServer) {
                 .put("workers", workers)
                 .put("max_devices", maxDevices)
                 .put("transport", transport)
-                .put("link_room_off", linkRoomOff),
+                .put("link_room_off", linkRoomOff)
+                .put("exit", exit),
         )
     }
 
@@ -284,11 +299,26 @@ internal class ServerControl(context: Context, server: VpsServer) {
             jitsiRoom = json.optString("jitsi_room"),
             jitsiSeats = json.optInt("jitsi_seats", 6),
             restartRequired = json.optBoolean("restart_required"),
+            exits = json.optJSONArray("exits").objects().map {
+                ServerExit(it.optString("id"), it.optString("name"), it.optString("host"), it.optInt("table"))
+            },
+            defaultExit = json.optString("default_exit"),
+            exitPriority = json.optString("exit_priority"),
         )
+    }
+
+    suspend fun saveExits(exits: List<ServerExit>, defaultExit: String) {
+        val list = org.json.JSONArray()
+        exits.forEach {
+            list.put(JSONObject().put("id", it.id).put("name", it.name).put("host", it.host).put("table", it.table))
+        }
+        api.post("/api/settings", JSONObject().put("exits", list).put("default_exit", defaultExit))
     }
 
     suspend fun saveSettings(settings: ServerSettings) {
         val body = JSONObject()
+            .put("default_exit", settings.defaultExit)
+            .put("exit_priority", settings.exitPriority)
             .put("main_password", settings.mainPassword)
             .put("dns_provider", settings.dnsProvider)
             .put("auto_restart_interval_hours", settings.autoRestartHours)
@@ -340,6 +370,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
         maxDevices = it.optInt("max_devices", 1),
         transport = it.optString("transport"),
         linkRoomOff = it.optBoolean("link_room_off"),
+        exit = it.optString("exit"),
         devices = it.optJSONArray("devices").objects().map { device ->
             ClientDevice(
                 id = device.optString("id"),

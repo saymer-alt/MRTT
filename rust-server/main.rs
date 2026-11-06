@@ -24,6 +24,7 @@ pub(crate) fn collect_allocator_thread_heap() -> bool {
 }
 
 mod dataplane;
+mod exit_routes;
 // Peer discovery helpers of the shared module serve the client only.
 #[allow(dead_code)]
 #[path = "../shared/jitsi_room.rs"]
@@ -1165,6 +1166,7 @@ async fn async_main() -> Result<()> {
 
     let monitor_app = app.clone();
     tokio::spawn(local_proxy_monitor_loop(monitor_app));
+    tokio::spawn(exit_routes_loop(app.clone()));
 
     let mut web_completed = false;
     let mut terminal_error = None;
@@ -1375,6 +1377,35 @@ unsafe fn libc_geteuid() -> u32 {
 #[cfg(not(target_os = "linux"))]
 unsafe fn libc_geteuid() -> u32 {
     0
+}
+
+/// Keeps the rules of clients with an exit server in line with the settings.
+// shortcut: a new device leaves directly until the next pass, up to 10 s; trigger the pass on admission if that matters.
+async fn exit_routes_loop(app: Arc<App>) {
+    let mut failing = false;
+    loop {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        let desired = app.db.read().await.exit_routes();
+        let shown = tokio::process::Command::new("ip").args(["-4", "rule", "show"]).output().await;
+        let Ok(shown) = shown else { continue };
+        let current = exit_routes::parse_rules(&String::from_utf8_lossy(&shown.stdout));
+        let mut failed = None;
+        for step in exit_routes::plan(&current, &desired) {
+            let done = tokio::process::Command::new("ip").args(&step).status().await;
+            if !done.is_ok_and(|status| status.success()) {
+                failed = Some(step.join(" "));
+            }
+        }
+        // A rule that keeps failing is reported once, not every 10 s.
+        match failed {
+            Some(step) if !failing => {
+                failing = true;
+                log_event(&app, "WARN", "EXIT", &format!("не удалось применить ip {step}"));
+            }
+            Some(_) => {}
+            None => failing = false,
+        }
+    }
 }
 
 async fn local_proxy_monitor_loop(app: Arc<App>) {

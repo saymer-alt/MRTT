@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mrtt.client.servers.DNS_PROVIDERS
 import com.mrtt.client.servers.ProxyProfile
 import com.mrtt.client.servers.ServerControl
@@ -129,7 +130,7 @@ internal fun ProxySection(control: ServerControl) {
 }
 
 @Composable
-internal fun ServerSettingsSection(control: ServerControl) {
+internal fun ServerSettingsSection(control: ServerControl, server: com.mrtt.client.servers.VpsServer) {
     val runner = rememberActionRunner()
     val context = LocalContext.current
     var reload by remember { mutableStateOf(0) }
@@ -138,6 +139,11 @@ internal fun ServerSettingsSection(control: ServerControl) {
     var confirmReboot by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<String?>(null) }
     var bindingVk by remember { mutableStateOf(false) }
+    val repository = remember { com.mrtt.client.servers.ServerRepository(context) }
+    val allServers by repository.servers.collectAsStateWithLifecycle(initialValue = emptyList())
+    var addingExit by remember { mutableStateOf(false) }
+    var settingUpExit by remember { mutableStateOf(false) }
+    var removingExit by remember { mutableStateOf<com.mrtt.client.servers.ServerExit?>(null) }
     fun refresh() { reload++ }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
@@ -236,6 +242,40 @@ internal fun ServerSettingsSection(control: ServerControl) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        AppSectionCard {
+            Text("Выходной IP", fontWeight = FontWeight.SemiBold)
+            CompactDropdownSetting(
+                title = "Приоритет выходного IP",
+                selectedKey = if (form.exitPriority == com.mrtt.client.servers.EXIT_PRIORITY_CONFIG) "config" else "server",
+                options = listOf("server" to "Настройка сервера", "config" to "Настройка конфига"),
+                enabled = true,
+                onSelected = { form = form.copy(exitPriority = if (it == "config") com.mrtt.client.servers.EXIT_PRIORITY_CONFIG else "") },
+            )
+            CompactDropdownSetting(
+                title = "Выход сервера",
+                selectedKey = form.defaultExit.takeIf { id -> form.exits.any { it.id == id } }.orEmpty(),
+                options = listOf("" to "Этот сервер") + form.exits.map { it.id to it.name },
+                enabled = true,
+                onSelected = { form = form.copy(defaultExit = it) },
+            )
+            form.exits.forEach { exit ->
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("${exit.name} · ${exit.host}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { removingExit = exit }) { Text("Убрать") }
+                }
+            }
+            OutlinedButton(
+                onClick = { addingExit = true },
+                enabled = !settingUpExit,
+                modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
+                shape = MrttShapes.Pill,
+            ) { Text(if (settingUpExit) "Настраиваем туннель..." else "Добавить выход через другой VPS", maxLines = 1) }
+            Text(
+                "Трафик клиентов выходит через выбранный VPS по WireGuard, UDP тоже. Если туннель упадёт, такие клиенты теряют интернет, а не выходят через этот сервер.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Button(
             onClick = { runner.run("Настройки сохранены", ::refresh) { control.saveSettings(form) } },
             enabled = form != loaded,
@@ -253,6 +293,65 @@ internal fun ServerSettingsSection(control: ServerControl) {
         }
     }
 
+    if (addingExit) {
+        val candidates = allServers.filter { other -> other.id != server.id && form.exits.none { it.host == other.host } }
+        var chosen by remember { mutableStateOf(candidates.firstOrNull()?.id.orEmpty()) }
+        com.mrtt.client.ui.common.MrttFormDialog(
+            title = "Выход через другой VPS",
+            onDismiss = { addingExit = false },
+            confirmText = "Добавить",
+            confirmEnabled = chosen.isNotEmpty(),
+            onConfirm = {
+                addingExit = false
+                val target = candidates.firstOrNull { it.id == chosen } ?: return@MrttFormDialog
+                settingUpExit = true
+                runner.run("Выход добавлен", { settingUpExit = false; refresh() }) {
+                    try {
+                        val created = com.mrtt.client.ui.setupExit(context, server, target)
+                        val exit = com.mrtt.client.servers.ServerExit(created.id, target.title, target.host, created.table)
+                        control.saveExits(form.exits + exit, form.defaultExit)
+                    } catch (error: Exception) {
+                        settingUpExit = false
+                        throw error
+                    }
+                }
+            },
+        ) {
+            if (candidates.isEmpty()) {
+                Text("Других серверов нет: добавьте VPS во вкладке «Серверы».", style = MaterialTheme.typography.bodySmall)
+            } else {
+                CompactDropdownSetting(
+                    title = "Сервер",
+                    selectedKey = chosen,
+                    options = candidates.map { it.id to it.title },
+                    enabled = true,
+                    onSelected = { chosen = it },
+                )
+                Text(
+                    "На обоих VPS поставится WireGuard, на выбранном откроется UDP-порт от 51821. Если у хостера есть свой фаервол, порт нужно открыть и там.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    removingExit?.let { exit ->
+        ConfirmDialog(
+            title = "Убрать выход",
+            text = "Убрать выход через ${exit.name}? Конфиги с этим выходом пойдут через этот сервер.",
+            confirmText = "Убрать",
+            onConfirm = {
+                removingExit = null
+                runner.run("Выход убран", ::refresh) {
+                    val remaining = form.exits.filterNot { it.id == exit.id }
+                    // Сначала настройки: клиенты не должны остаться с маршрутом в пропавшую таблицу.
+                    control.saveExits(remaining, form.defaultExit.takeUnless { it == exit.id }.orEmpty())
+                    com.mrtt.client.ui.removeExit(context, server, allServers.firstOrNull { it.host == exit.host }, exit.id)
+                }
+            },
+            onDismiss = { removingExit = null },
+        )
+    }
     if (bindingVk) {
         com.mrtt.client.ui.dialogs.VkAuthDialog(
             onToken = { payload ->

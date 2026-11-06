@@ -54,6 +54,9 @@ struct CreateClientRequest {
     /// true: в ссылке нет комнаты Jitsi; не передан — не менять.
     #[serde(default)]
     link_room_off: Option<bool>,
+    /// Выход конфига; не передан — не менять.
+    #[serde(default)]
+    exit: Option<String>,
 }
 
 /// MAX в ссылку не передаётся: он работает только через привязку на клиенте.
@@ -185,6 +188,12 @@ struct SettingsRequest {
     jitsi_room: Option<String>,
     #[serde(default)]
     jitsi_seats: Option<u8>,
+    #[serde(default)]
+    exits: Option<Vec<model::ExitLink>>,
+    #[serde(default)]
+    default_exit: Option<String>,
+    #[serde(default)]
+    exit_priority: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -413,6 +422,8 @@ struct ClientInfo {
     transport: String,
     #[serde(default)]
     link_room_off: bool,
+    #[serde(default)]
+    exit: String,
     devices: Vec<DeviceInfo>,
 }
 
@@ -961,6 +972,9 @@ async fn settings_get(State(state): State<WebState>) -> impl IntoResponse {
         "peer_port": state.app.listen.port(),
         "jitsi_room": db.jitsi_room,
         "jitsi_seats": db.jitsi_seats(),
+        "exits": db.exits,
+        "default_exit": db.default_exit,
+        "exit_priority": db.exit_priority,
         "restart_required": db.main_password != state.app.startup_main_password
     }))
 }
@@ -1076,6 +1090,15 @@ async fn settings_post(
         }
         if let Some(seats) = request.jitsi_seats {
             db.jitsi_seats = Some(seats);
+        }
+        if let Some(exits) = request.exits {
+            db.exits = exits;
+        }
+        if let Some(exit) = request.default_exit {
+            db.default_exit = exit;
+        }
+        if let Some(priority) = request.exit_priority {
+            db.exit_priority = priority;
         }
         if jitsi_changed {
             crate::jitsi_relay::configure(crate::jitsi_relay::Config::from_db(&db));
@@ -1291,6 +1314,7 @@ async fn clients_get(
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
                 transport: entry.transport.clone(),
                 link_room_off: entry.link_room_off,
+                exit: entry.exit.clone(),
             }
         })
         .collect();
@@ -1334,6 +1358,7 @@ async fn clients_get(
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
             transport: db.main_transport.clone(),
             link_room_off: db.main_link_room_off,
+            exit: db.main_exit.clone(),
         });
     }
 
@@ -1413,6 +1438,7 @@ async fn group_clients_get(
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
                 transport: entry.transport.clone(),
                 link_room_off: entry.link_room_off,
+                exit: entry.exit.clone(),
             }
         })
         .collect();
@@ -1567,6 +1593,7 @@ async fn clients_create(
                 devices: Default::default(),
                 transport: transport.clone(),
                 link_room_off: request.link_room_off.unwrap_or(false),
+                exit: request.exit.clone().unwrap_or_default(),
             },
         );
         let link = make_client_link(
@@ -1664,6 +1691,9 @@ async fn client_update(
             if let Some(value) = request.link_room_off {
                 db.main_link_room_off = value;
             }
+            if let Some(ref value) = request.exit {
+                db.main_exit = value.clone();
+            }
             state.app.db_persistence.submit(db.clone())
         } else {
             let current_group_id = match db.passwords.get(&password) {
@@ -1702,6 +1732,9 @@ async fn client_update(
             }
             if let Some(value) = request.link_room_off {
                 entry.link_room_off = value;
+            }
+            if let Some(ref value) = request.exit {
+                entry.exit = value.clone();
             }
 
             let default_peer_port = state.app.listen.port();
@@ -1855,6 +1888,7 @@ async fn client_get(
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
             transport: db.main_transport.clone(),
             link_room_off: db.main_link_room_off,
+            exit: db.main_exit.clone(),
         };
         return Json(info).into_response();
     }
@@ -1900,6 +1934,7 @@ async fn client_get(
             devices: device_infos(&state.app.sessions, &password, &entry.devices),
             transport: entry.transport.clone(),
             link_room_off: entry.link_room_off,
+            exit: entry.exit.clone(),
         };
         return Json(info).into_response();
     }
@@ -2340,6 +2375,8 @@ struct ExportClientEntry {
     transport: String,
     #[serde(default)]
     link_room_off: bool,
+    #[serde(default)]
+    exit: String,
 }
 
 async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
@@ -2368,6 +2405,7 @@ async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
             max_devices: entry.max_devices,
             transport: entry.transport.clone(),
             link_room_off: entry.link_room_off,
+            exit: entry.exit.clone(),
         })
         .collect();
     let export = ServerExportData {
@@ -2463,6 +2501,7 @@ async fn api_import_post(
                             devices: Default::default(),
                             transport: normalize_link_transport(&c.transport).unwrap_or_default(),
                             link_room_off: c.link_room_off,
+                            exit: c.exit,
                         },
                     );
                     added_clients += 1;

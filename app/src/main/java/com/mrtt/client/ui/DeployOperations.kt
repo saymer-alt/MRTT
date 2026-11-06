@@ -730,6 +730,15 @@ internal suspend fun performUninstall(
             rootCommand("env MRTT_PEER_PORT=$peerPort MRTT_SSH_PORT=$port bash /tmp/deploy.sh uninstall", pass),
             timeout = 30000L,
         )
+        // Туннели каскада принадлежат MRTT и уходят вместе с ним.
+        sshClient.exec(
+            rootCommand(
+                "for c in /etc/wireguard/mrtc*.conf /etc/wireguard/mrtg*.conf; do [ -e \"\$c\" ] || continue; " +
+                    "systemctl disable --now \"wg-quick@\$(basename \"\$c\" .conf)\" >/dev/null 2>&1; rm -f \"\$c\"; done; true",
+                pass,
+            ),
+            timeout = 30000L,
+        )
 
         onProgress(1.0f, "Готово!")
         TunnelManager.addDeploySuccessLog("Удаление MRTT завершено")
@@ -753,4 +762,65 @@ internal suspend fun performUninstall(
         DeployManager.activeSession = null
         uninstallScript?.delete()
     }
+}
+
+/** Выход каскада на сервере [from]: что сохранить в его настройках. */
+internal data class CreatedExit(val id: String, val table: Int)
+
+private class CascadeHost(context: Context, private val server: com.mrtt.client.servers.VpsServer) : java.io.Closeable {
+    private val script = context.assets.open("cascade.sh").use { it.readBytes().toString(Charsets.UTF_8) }
+    private val ssh = createSSHClient(context, server.host, server.sshUser, server.sshPassword, server.sshPort, server.sshPrivateKey, server.sshKeyPassphrase)
+    private val client = DeploySSHClient(ssh, server.sshPassword)
+
+    /** Строка ответа с маркером [marker], разбитая на слова. */
+    fun run(marker: String, vararg args: String): List<String> {
+        val quoted = args.joinToString(" ") { shellQuote(it) }
+        val result = client.execResult(rootCommand("set -- $quoted\n$script", server.sshPassword), 180_000L)
+        val line = result.output.lines().firstOrNull { it.startsWith(marker) }
+        if (result.exitStatus != 0 || line == null) {
+            val reason = result.output.lines().lastOrNull { it.startsWith("error:") }?.removePrefix("error:")?.trim()
+            throw IOException("${server.title}: ${reason ?: "каскад не настроился"}")
+        }
+        return line.split(' ')
+    }
+
+    override fun close() {
+        runCatching { ssh.disconnect() }
+    }
+}
+
+/** Поднимает WireGuard от [from] к [to] и проверяет рукопожатие; при ошибке за собой всё убирает. */
+internal suspend fun setupExit(
+    context: Context,
+    from: com.mrtt.client.servers.VpsServer,
+    to: com.mrtt.client.servers.VpsServer,
+): CreatedExit = withContext(Dispatchers.IO) {
+    val id = java.util.UUID.randomUUID().toString().replace("-", "").take(8)
+    CascadeHost(context, to).use { gateway ->
+        CascadeHost(context, from).use { client ->
+            try {
+                val (_, gatewayKey, port, number) = gateway.run("CASCADE_GW", "gw-init", id)
+                val up = client.run("CASCADE_CLIENT", "client-up", id, to.host, port, number, gatewayKey)
+                gateway.run("CASCADE_OK", "gw-peer", id, up[1])
+                client.run("CASCADE_OK", "client-check", id)
+                CreatedExit(id, up[2].toInt())
+            } catch (error: Exception) {
+                runCatching { client.run("CASCADE_OK", "client-down", id) }
+                runCatching { gateway.run("CASCADE_OK", "gw-down", id) }
+                throw error
+            }
+        }
+    }
+}
+
+/** Убирает туннель на обеих сторонах; недоступный или уже удалённый выход не мешает убрать его здесь. */
+internal suspend fun removeExit(
+    context: Context,
+    from: com.mrtt.client.servers.VpsServer,
+    to: com.mrtt.client.servers.VpsServer?,
+    id: String,
+) = withContext(Dispatchers.IO) {
+    CascadeHost(context, from).use { it.run("CASCADE_OK", "client-down", id) }
+    if (to != null) runCatching { CascadeHost(context, to).use { it.run("CASCADE_OK", "gw-down", id) } }
+    Unit
 }

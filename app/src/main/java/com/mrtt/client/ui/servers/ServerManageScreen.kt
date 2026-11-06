@@ -168,7 +168,7 @@ internal fun ServerManageScreen(
                 1 -> GroupsSection(control)
                 2 -> RoutingSection(control)
                 3 -> ProxySection(control)
-                4 -> ServerSettingsSection(control)
+                4 -> ServerSettingsSection(control, server)
                 5 -> ServerStatsSection(control)
                 else -> ServerLogsSection(control)
             } }

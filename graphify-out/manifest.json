@@ -366,15 +366,15 @@
     "semantic_hash": ""
   },
   "rust-server/main.rs": {
-    "mtime": 1793536819.2026827,
-    "seen": 1793978700.7575982,
-    "ast_hash": "0392f74f8d6cb41ca9d7ea27ad3d1032",
+    "mtime": 1793984680.849706,
+    "seen": 1793984804.9000468,
+    "ast_hash": "4a08d1d1c2444df478eed1d4eb2cfcbb",
     "semantic_hash": ""
   },
   "rust-server/model.rs": {
-    "mtime": 1793983778.3552272,
-    "seen": 1793983834.615666,
-    "ast_hash": "6191bda491044a3b25b65ce9f5b67b1d",
+    "mtime": 1793984783.4715717,
+    "seen": 1793984804.9000468,
+    "ast_hash": "b5a858fbf9f91497ee561d8de7dcfd8c",
     "semantic_hash": ""
   },
   "rust-server/net_setup.rs": {
@@ -426,9 +426,9 @@
     "semantic_hash": ""
   },
   "rust-server/web_panel.rs": {
-    "mtime": 1793983778.3587475,
-    "seen": 1793983834.615666,
-    "ast_hash": "69f25fab2267250428569cbbbcdbb512",
+    "mtime": 1793984680.8487003,
+    "seen": 1793984804.9000468,
+    "ast_hash": "03312a5a078239c33db14045d6691b8c",
     "semantic_hash": ""
   },
   "scripts/build_both_parallel.ps1": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/servers/ServerControl.kt": {
-    "mtime": 1793983778.363296,
-    "seen": 1793983834.615666,
-    "ast_hash": "f38e2c0b45a7ca0e611889cf4e604504",
+    "mtime": 1793984680.8522127,
+    "seen": 1793984804.8990407,
+    "ast_hash": "7e8b45d1b879a7b68933dfee90730184",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/servers/ServerRepository.kt": {
@@ -1002,9 +1002,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/DeployOperations.kt": {
-    "mtime": 1793981191.088047,
-    "seen": 1793983834.615666,
-    "ast_hash": "16753f6869e7c65d465caf88686f0d7b",
+    "mtime": 1793984680.8507063,
+    "seen": 1793984804.8990407,
+    "ast_hash": "748635b00fdd23e2693a24944989d448",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/ExceptionsTab.kt": {
@@ -1248,15 +1248,15 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/ServerManageScreen.kt": {
-    "mtime": 1793983778.3668077,
-    "seen": 1793983834.615666,
-    "ast_hash": "1a1af6da3ba7c282262a169f825ba8b9",
+    "mtime": 1793984680.8547447,
+    "seen": 1793984804.9000468,
+    "ast_hash": "19398a9f1fecb700c0aed2ca32476601",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/ServerToolsSections.kt": {
-    "mtime": 1793978637.61246,
-    "seen": 1793978700.7575982,
-    "ast_hash": "f9a393b74544dd465a92034a0a0afca7",
+    "mtime": 1793984680.853743,
+    "seen": 1793984804.9000468,
+    "ast_hash": "3a0771048f24039df06b7d62cf460136",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/ServersTab.kt": {
@@ -1266,9 +1266,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/SubscriptionsSection.kt": {
-    "mtime": 1793983778.3658068,
-    "seen": 1793983834.615666,
-    "ast_hash": "e935ecdcab3bb71aff1933890f9a9e9e",
+    "mtime": 1793984680.852736,
+    "seen": 1793984804.9000468,
+    "ast_hash": "f06994e04054c559dbf08e19291d9cac",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/tunnel/HashModeInfoDialog.kt": {
@@ -1665,6 +1665,18 @@
     "mtime": 1793981189.687328,
     "seen": 1793983834.615666,
     "ast_hash": "b512543cc7c91e8d52b9025529635590",
+    "semantic_hash": ""
+  },
+  "app/src/main/assets/cascade.sh": {
+    "mtime": 1793984679.6271055,
+    "seen": 1793984804.8990407,
+    "ast_hash": "66f93c25313e66fc5e0729d2ff7e0a6d",
+    "semantic_hash": ""
+  },
+  "rust-server/exit_routes.rs": {
+    "mtime": 1793984679.7455578,
+    "seen": 1793984804.9000468,
+    "ast_hash": "c1afafd69bab7fabbf3bc7f68172f0bb",
     "semantic_hash": ""
   }
 }
