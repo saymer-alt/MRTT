@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,29 +62,11 @@ internal fun ProfilesTab(onOpened: () -> Unit) {
     }
 }
 
-/** URL-тест как в клиентах: время HTTP-ответа (обычно 204) от адреса проверки; null, если не ответил. */
-private suspend fun urlTest(url: String): Int? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-    runCatching {
-        // Первый запрос прогревает DNS и TLS, меряем второй, как это делают клиенты.
-        repeat(2) { attempt ->
-            val started = System.nanoTime()
-            val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                connectTimeout = 5_000
-                readTimeout = 5_000
-                instanceFollowRedirects = false
-                useCaches = false
-            }
-            try {
-                val code = connection.responseCode
-                if (code !in 200..399) return@runCatching null
-                if (attempt == 1) return@runCatching ((System.nanoTime() - started) / 1_000_000).toInt()
-            } finally {
-                connection.disconnect()
-            }
-        }
-        null
-    }.getOrNull()
-}
+/** Хост и порт адреса проверки; null, если адрес не разобрать. */
+private fun pingTarget(url: String): Pair<String, Int>? = runCatching {
+    val parsed = java.net.URL(url.trim())
+    parsed.host.takeIf { it.isNotBlank() }?.let { it to if (parsed.port > 0) parsed.port else parsed.defaultPort }
+}.getOrNull()
 
 /** Раздел «Профили»: добавленные конфиги и подписки, свои и чужие. Выбранный профиль — то, к чему подключаемся. */
 @Composable
@@ -94,7 +77,7 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     val activeId by repository.activeId.collectAsStateWithLifecycle(initialValue = "")
     val tunnelRunning by TunnelManager.running.collectAsStateWithLifecycle()
     val runner = rememberActionRunner()
-    var adding by remember { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
     var sharing by remember { mutableStateOf<Pair<String, String>?>(null) }
     var renaming by remember { mutableStateOf<ConnectionProfile?>(null) }
     var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
@@ -108,20 +91,29 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(Unit) { repository.migrateLegacy() }
+    // Замер относится к подключению: после отключения он больше ни о чём не говорит.
+    LaunchedEffect(tunnelRunning) { if (!tunnelRunning) pings.clear() }
 
     AppSectionCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Профили", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (profiles.isNotEmpty()) {
-                // Задержка меряется через текущее подключение, поэтому показывается у активного профиля.
-                androidx.compose.material3.TextButton(
+                            androidx.compose.material3.TextButton(
                     enabled = !pinging && activeId.isNotEmpty(),
                     onClick = {
-                        pinging = true
-                        pings.clear()
-                        scope.launch {
-                            pings[activeId] = urlTest(pingUrl) ?: -1
-                            pinging = false
+                        val target = pingTarget(pingUrl)
+                        when {
+                            // Без подключения проверять нечего: число было бы не про этот сервер.
+                            !tunnelRunning -> context.showRaisedToast("Пинг идёт через туннель: сначала подключитесь к профилю")
+                            target == null -> context.showRaisedToast("Неверный адрес проверки")
+                            else -> {
+                                pinging = true
+                                pings.clear()
+                                scope.launch {
+                                    pings[activeId] = TunnelManager.probeThroughTunnel(target.first, target.second) ?: -1
+                                    pinging = false
+                                }
+                            }
                         }
                     },
                 ) { Text(if (pinging) "Пинг..." else "Пинг") }
@@ -168,7 +160,7 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     }
 
     if (adding) {
-        var text by remember { mutableStateOf("") }
+        var text by rememberSaveable { mutableStateOf("") }
         MrttFormDialog(
             title = "Добавить профиль",
             onDismiss = { adding = false },
@@ -214,7 +206,7 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
                 Text("По умолчанию: generate_204")
             }
             Text(
-                "Пинг меряет время ответа этого адреса через текущее подключение, как URL-тест в клиентах.",
+                "Пинг идёт через туннель активного профиля: время соединения с этим адресом от телефона через сервер.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

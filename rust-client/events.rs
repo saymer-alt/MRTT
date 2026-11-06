@@ -95,6 +95,11 @@ impl Events {
         self.emit("ACTIVE_ZERO", || serde_json::json!({}));
     }
 
+    /// Result of a ping through the tunnel, in ms; -1 when nothing answered.
+    pub fn probe(&self, ms: Option<u64>) {
+        self.emit("PROBE", || serde_json::json!({"ms": ms.map_or(-1, |ms| ms as i64)}));
+    }
+
     pub fn tun_lost(&self) {
         self.emit("TUN_LOST", || serde_json::json!({}));
     }

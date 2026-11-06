@@ -635,6 +635,7 @@ private fun ProxyNavigationBar(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
+                                .clip(indicatorShape)
                                 .selectable(
                                     selected = item.id == selectedTab,
                                     role = Role.Tab,

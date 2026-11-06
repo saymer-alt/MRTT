@@ -497,6 +497,9 @@ object TunnelManager {
                     identity.startupProgress.credentialReceived()
                 }
             }
+            is TunnelEventParser.Event.Probe -> {
+                probeWaiter?.complete(event.ms)
+            }
             is TunnelEventParser.Event.TunLost -> {
                 if (isCurrent(identity)) {
                     val now = SystemClock.elapsedRealtime()
@@ -2106,6 +2109,28 @@ object TunnelManager {
 
     private fun writeCaptchaResult(result: String, identity: ProcessIdentity) {
         writeProcessCommand(identity, "CAPTCHA_RESULT|$result", "captcha_write_err")
+    }
+
+    @Volatile
+    private var probeWaiter: kotlinx.coroutines.CompletableDeferred<Int>? = null
+
+    /**
+     * Ping through the tunnel, in ms: the Rust client connects to [host] over its workers. An HTTP request from here
+     * would not measure anything, because the app's own UID is excluded from its VPN. Null when nothing answered.
+     */
+    suspend fun probeThroughTunnel(host: String, port: Int): Int? {
+        val identity = processIdentity ?: return null
+        val source = config.value?.trim()?.takeIf { it.startsWith("TUNCONF:") }
+            ?.removePrefix("TUNCONF:")?.split(":")?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            val target = runCatching {
+                java.net.InetAddress.getAllByName(host).firstOrNull { it is java.net.Inet4Address }?.hostAddress
+            }.getOrNull() ?: return@withContext null
+            val waiter = kotlinx.coroutines.CompletableDeferred<Int>()
+            probeWaiter = waiter
+            if (!writeProcessCommand(identity, "PROBE|$source|$target|$port", "probe_write_err")) return@withContext null
+            kotlinx.coroutines.withTimeoutOrNull(8_000L) { waiter.await() }?.takeIf { it >= 0 }
+        }
     }
 
     private fun writeProcessCommand(

@@ -6,6 +6,7 @@ mod captcha_slider;
 mod cpu_task;
 pub mod direct_relay;
 mod dispatcher;
+mod tunnel_probe;
 mod dns;
 #[path = "../shared/dtls.rs"]
 pub mod dtls;
@@ -897,6 +898,20 @@ fn start_control_input(
                         }
                     } else if let Some(payload) = line.strip_prefix("UPDATE_DOMAINS|") {
                         dispatcher.update_domain_routing(payload);
+                    } else if let Some(spec) = line.strip_prefix("PROBE|") {
+                        let nonce = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map_or(1, |elapsed| elapsed.subsec_nanos());
+                        let target = tunnel_probe::parse_command(spec, nonce);
+                        let dispatcher = dispatcher.clone();
+                        let events = events.clone();
+                        tokio::spawn(async move {
+                            let ms = match target {
+                                Some(target) => dispatcher.probe_tunnel(target).await,
+                                None => None,
+                            };
+                            events.probe(ms);
+                        });
                     }
                 }
             }

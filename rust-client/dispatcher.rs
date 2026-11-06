@@ -515,6 +515,8 @@ pub struct WorkerEntry {
     pub channels: WorkerChannels,
 }
 
+const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub struct Dispatcher {
     workers: ArcSwap<Vec<WorkerEntry>>,
     inbound: ArrayQueue<PacketBuf>,
@@ -532,6 +534,7 @@ pub struct Dispatcher {
     pool: Arc<PacketPool>,
     reassembler: crate::wire_protocol::ShardedReassembler,
     next_frag_id: std::sync::atomic::AtomicU16,
+    probe: crate::tunnel_probe::Slot,
     termination: Arc<OnceLock<Termination>>,
 }
 
@@ -562,6 +565,7 @@ impl Dispatcher {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         });
         let io_dispatcher = dispatcher.clone();
@@ -639,6 +643,7 @@ impl Dispatcher {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         });
         crate::log_error!(
@@ -812,6 +817,38 @@ impl Dispatcher {
     }
 
     #[inline(always)]
+    /// Round trip of a TCP SYN through the workers, past the direct relay: it must measure the tunnel. None without an answer.
+    pub async fn probe_tunnel(&self, target: crate::tunnel_probe::Target) -> Option<u64> {
+        let answer = self.probe.arm(target);
+        let started = std::time::Instant::now();
+        if !self.send_probe_packet(&crate::tunnel_probe::syn_packet(&target)).await {
+            self.probe.disarm();
+            return None;
+        }
+        let answered = matches!(tokio::time::timeout(PROBE_TIMEOUT, answer).await, Ok(Ok(())));
+        let elapsed = started.elapsed().as_millis() as u64;
+        self.probe.disarm();
+        if !answered {
+            return None;
+        }
+        self.send_probe_packet(&crate::tunnel_probe::rst_packet(&target)).await;
+        Some(elapsed)
+    }
+
+    async fn send_probe_packet(&self, bytes: &[u8]) -> bool {
+        let workers = self.workers.load();
+        if workers.is_empty() {
+            return false;
+        }
+        let Some(mut packet) = self.pool.try_acquire() else { return false };
+        packet.read_area()[..bytes.len()].copy_from_slice(bytes);
+        if packet.set_read_len(bytes.len()).is_err() {
+            return false;
+        }
+        self.send_to_workers(packet, &workers).await;
+        true
+    }
+
     pub fn pop_inbound(&self) -> Option<PacketBuf> {
         self.inbound.pop()
     }
@@ -1501,6 +1538,9 @@ impl Dispatcher {
             if pending.is_none() {
                 if let Some(mut packet) = self.pop_inbound() {
                     strip_legacy_downlink_prefix(&mut packet);
+                    if self.probe.intercept(packet.as_slice()) {
+                        continue;
+                    }
                     if packet.len() >= 20 && Self::is_forwardable_packet(packet.as_slice()) {
                         pending = Some((packet, 0));
                     }
@@ -1989,6 +2029,7 @@ mod tests {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         };
 
@@ -2166,6 +2207,7 @@ mod tests {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         };
 
@@ -2222,6 +2264,7 @@ mod tests {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         };
         let packet = || {
@@ -2262,6 +2305,7 @@ mod tests {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         };
 
@@ -2333,6 +2377,7 @@ mod tests {
             pool: pool.clone(),
             reassembler: crate::wire_protocol::ShardedReassembler::new(),
             next_frag_id: std::sync::atomic::AtomicU16::new(1),
+            probe: Default::default(),
             termination: Arc::new(OnceLock::new()),
         };
 

@@ -64,6 +64,8 @@ internal fun deployFailureMessage(exitStatus: Int, output: String): String {
     }
 }
 
+internal const val HOST_KEY_CHANGED = "SSH-ключ сервера изменился: так бывает после переустановки VPS. Логин и пароль тут ни при чём."
+
 internal fun friendlyDeployError(message: String?): String {
     val text = message.orEmpty()
     return when {
@@ -83,7 +85,7 @@ internal fun friendlyDeployError(message: String?): String {
         text.contains("reject HostKey", ignoreCase = true) ||
             text.contains("HostKey", ignoreCase = true) ||
             text.contains("host key", ignoreCase = true) ->
-            "SSH-ключ сервера изменился или не принят"
+            HOST_KEY_CHANGED
         text.contains("connect timed out", ignoreCase = true) ->
             "VPS не ответил на подключение по SSH: проверьте IP, порт SSH и фаервол"
         text.contains("settlement", ignoreCase = true) ->

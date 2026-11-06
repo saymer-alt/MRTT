@@ -45,6 +45,7 @@ object TunnelEventParser {
         data class Routing(val routing: String) : Event()
         data class Workers(val workers: Int) : Event()
         data object TunLost : Event()
+        data class Probe(val ms: Int) : Event()
     }
 
     fun parse(line: String): Event? {
@@ -91,6 +92,7 @@ object TunnelEventParser {
             "CONFIG" -> Event.Config(payload.optString("config", ""))
             "ROUTING" -> Event.Routing(payload.optString("routing", ""))
             "TUN_LOST" -> Event.TunLost
+            "PROBE" -> Event.Probe(payload.optInt("ms", -1))
             "WORKERS" -> payload.optInt("workers", -1)
                 .takeIf { it == 0 || it in MIN_SERVER_WORKERS..MrttConstants.Tunnel.MAX_WORKERS }
                 ?.let { Event.Workers(it) }

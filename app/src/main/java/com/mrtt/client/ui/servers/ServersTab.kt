@@ -57,6 +57,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 
+private const val NEW_SERVER = "new"
+
 /** Сервер, для которого идёт установка или удаление: прогресс и ошибки показываются только у него. */
 internal val deployTarget = MutableStateFlow("")
 
@@ -67,7 +69,10 @@ internal fun ServersTab() {
     val servers by repository.servers.collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
     var openedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var editing by remember { mutableStateOf<VpsServer?>(null) }
+    // Экран снимается, пока приложение свёрнуто: открытое окно и его поля должны это пережить.
+    // В состояние кладём только id: пароли остаются в репозитории и в полях формы.
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val newServer = remember(editingId) { VpsServer(mainPassword = com.mrtt.client.ui.utils.generate16CharPassword()) }
 
     LaunchedEffect(Unit) {
         DeployManager.init(context)
@@ -80,7 +85,7 @@ internal fun ServersTab() {
         ServerManageScreen(
             server = opened,
             onBack = { openedId = null },
-            onEdit = { editing = opened },
+            onEdit = { editingId = opened.id },
             onDeploy = { startDeploy(context, opened) },
             onUninstall = { startUninstall(context, opened) },
             onDelete = {
@@ -135,7 +140,7 @@ internal fun ServersTab() {
                     }
                 }
                 Button(
-                    onClick = { editing = VpsServer(mainPassword = com.mrtt.client.ui.utils.generate16CharPassword()) },
+                    onClick = { editingId = NEW_SERVER },
                     modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
                     shape = MrttShapes.Pill,
                 ) {
@@ -147,12 +152,14 @@ internal fun ServersTab() {
         }
     }
 
-    editing?.let { server ->
+    editingId?.let { id ->
+        // Список серверов ещё грузится после возврата в приложение: окно появится вместе с ним.
+        val server = (if (id == NEW_SERVER) newServer else servers.firstOrNull { it.id == id }) ?: return@let
         ServerEditDialog(
             initial = server,
-            onDismiss = { editing = null },
+            onDismiss = { editingId = null },
             onSave = { updated ->
-                editing = null
+                editingId = null
                 scope.launch {
                     ServerApi.forget(updated.id)
                     repository.save(updated)

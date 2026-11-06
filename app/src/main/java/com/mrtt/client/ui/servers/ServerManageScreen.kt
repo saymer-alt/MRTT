@@ -39,6 +39,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mrtt.client.DeployManager
+import com.mrtt.client.SshHostKeyStore
+import com.mrtt.client.servers.ServerApi
 import com.mrtt.client.servers.ServerApiException
 import com.mrtt.client.servers.ServerControl
 import com.mrtt.client.servers.ServerNotRunningException
@@ -46,6 +48,7 @@ import com.mrtt.client.servers.VpsServer
 import com.mrtt.client.ui.AppSectionCard
 import com.mrtt.client.ui.common.ConfirmDialog
 import com.mrtt.client.ui.design.MrttShapes
+import com.mrtt.client.ui.HOST_KEY_CHANGED
 import com.mrtt.client.ui.friendlyDeployError
 import com.mrtt.client.ui.components.MrttScreen
 
@@ -64,15 +67,15 @@ internal fun ServerManageScreen(
     val control = remember(server) { ServerControl(context, server) }
     var section by rememberSaveable(server.id) { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }
-    var confirm by remember { mutableStateOf<String?>(null) }
+    var confirm by rememberSaveable { mutableStateOf<String?>(null) }
     val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
     val target by deployTarget.collectAsStateWithLifecycle()
     val deployingHere = isDeploying && target == server.id
     // Каждая установка начинает новое поколение: разделы пересоздаются и грузят данные заново.
     var generation by remember(server.id) { mutableIntStateOf(0) }
-    var wasDeploying by remember(server.id) { mutableStateOf(deployingHere) }
+    var wasDeploying by rememberSaveable(server.id) { mutableStateOf(deployingHere) }
     // Ошибка последней установки на этом сервере; после правки доступа сбрасывается.
-    var deployError by remember(server) { mutableStateOf("") }
+    var deployError by rememberSaveable(server.id) { mutableStateOf("") }
     LaunchedEffect(deployingHere) {
         if (wasDeploying && !deployingHere) {
             deployError = DeployManager.lastResult.value.takeIf { it != "success" }.orEmpty()
@@ -140,6 +143,10 @@ internal fun ServerManageScreen(
                 }
             }
         }
+        // Как в Termius: новый ключ принимает сам пользователь, молча ему верить нельзя.
+        if (reachError?.contains(HOST_KEY_CHANGED) == true || deployError.contains(HOST_KEY_CHANGED)) {
+            Button(onClick = { confirm = "trust" }, shape = MrttShapes.Pill, modifier = Modifier.fillMaxWidth()) { Text("Доверять новому ключу") }
+        }
         if (reachError != "") return@MrttScreen
         ScrollableTabRow(
             selectedTabIndex = section,
@@ -177,6 +184,19 @@ internal fun ServerManageScreen(
             text = "Удалить MRTT с ${server.host}? Все конфиги на этом сервере перестанут работать.",
             confirmText = "Удалить",
             onConfirm = { confirm = null; onUninstall() },
+            onDismiss = { confirm = null },
+        )
+        "trust" -> ConfirmDialog(
+            title = "Новый ключ сервера",
+            text = "Ключ SSH у ${server.host} не совпадает с запомненным. Это нормально, если VPS переустанавливали или пересоздавали. Если нет, кто-то может подменять сервер: не доверяйте ключу.",
+            confirmText = "Доверять",
+            onConfirm = {
+                confirm = null
+                SshHostKeyStore.clear(context, server.host, server.sshPort)
+                ServerApi.forget(server.id)
+                deployError = ""
+                retry++
+            },
             onDismiss = { confirm = null },
         )
         "delete" -> ConfirmDialog(
