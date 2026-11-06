@@ -19,6 +19,8 @@ done
 printf '#!/usr/bin/env bash\nexec zig ar "$@"\n' > "$WRAP/zigar"
 chmod +x "$WRAP"/*
 rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl --toolchain 1.97.1
+# Zig cc supplies the musl startup objects; Rust's own would be duplicate symbols.
+export RUSTFLAGS="-C link-self-contained=no"
 build() {
   local target="$1" zig_target="$2" asset="$3" env_name
   env_name="${target//-/_}"

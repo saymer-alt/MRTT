@@ -491,6 +491,16 @@ impl TurnAllocation {
         let bind: SocketAddr = if peer.is_ipv4() { ([0, 0, 0, 0], 0).into() } else { (std::net::Ipv6Addr::UNSPECIFIED, 0).into() };
         let socket = Arc::new(tokio::net::UdpSocket::bind(bind).await.context("UDP bind")?);
         socket.connect(peer).await.context("UDP connect")?;
+        // As a call begins: connectivity checks first. Waits only for a server that does not answer them yet.
+        let mut reply = [0u8; 256];
+        for _ in 0..3 {
+            let (check, transaction) = crate::stun_probe::request(&std::array::from_fn(|_| rand::random::<u8>()));
+            socket.send(&check).await.context("STUN")?;
+            let answered = tokio::time::timeout(Duration::from_millis(400), socket.recv(&mut reply)).await;
+            if matches!(answered, Ok(Ok(length)) if crate::stun_probe::is_answer(&reply[..length], &transaction)) {
+                break;
+            }
+        }
         let (core, shared) = Self::room_core()?;
         let (mut incoming_tx, incoming_rx) = spsc_ring::channel(ROOM_INCOMING_CAPACITY);
         let (outbound_tx, mut outbound_rx) = tokio::sync::mpsc::channel::<PacketBuf>(ROOM_OUTBOUND_CAPACITY);
@@ -517,8 +527,10 @@ impl TurnAllocation {
                     };
                     tokio::select! {
                         received = socket.recv(packet.read_area()) => {
+                            // A late answer to a repeated check is not session data.
                             if let Ok(length) = received
                                 && packet.set_read_len(length).is_ok()
+                                && packet.as_slice().first() != Some(&1)
                                 && let Err(TrySendError::Full(_)) = incoming_tx.try_send(packet)
                             {
                                 shared.queue_full_drops.fetch_add(1, Ordering::Relaxed);

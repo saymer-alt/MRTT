@@ -29,6 +29,8 @@ mod exit_routes;
 #[allow(dead_code)]
 #[path = "../shared/jitsi_room.rs"]
 mod jitsi_room;
+#[path = "../shared/stun_probe.rs"]
+mod stun_probe;
 mod jitsi_relay;
 #[path = "../shared/dtls.rs"]
 pub mod dtls;

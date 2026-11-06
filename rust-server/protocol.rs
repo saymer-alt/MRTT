@@ -3288,6 +3288,13 @@ impl DataplaneLogic for ProtocolEngine {
             self.handle_dtls(peer, local_ip, packet, sink);
             return;
         }
+        if crate::stun_probe::may_be_request(packet) {
+            let random: [u8; 20] = std::array::from_fn(|_| rand::random());
+            if let Some(reply) = crate::stun_probe::answer(packet, peer, &random) {
+                sink.send_udp_prioritized(peer, local_ip, false, true, |output| output.copy_from(&reply));
+                return;
+            }
+        }
         let key = EndpointKey::new(peer, local_ip);
         if let Some(slot) = self.by_peer.get(&key).copied()
             && self.handle_existing(slot, local_ip, packet, sink)

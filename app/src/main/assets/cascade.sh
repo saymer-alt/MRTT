@@ -58,7 +58,7 @@ Wants=network-online.target
 [Service]
 EnvironmentFile=$dir/$id.env
 ExecStartPre=$dir/$id-pre.sh
-ExecStart=$binary --jitsi direct.invalid/exit --peer $host:$port -n 8 --exact-workers --listen 127.0.0.1:0 --tun-uds mrtt_exit_$id --exit-tun $iface --exit-hook $dir/$id-up.sh
+ExecStart=$binary --jitsi direct.invalid/exit --peer $host:$port -n 8 --exact-workers --srtp-mode dtls --listen 127.0.0.1:0 --tun-uds mrtt_exit_$id --exit-tun $iface --exit-hook $dir/$id-up.sh
 Restart=always
 RestartSec=5
 

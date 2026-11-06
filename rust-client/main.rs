@@ -17,6 +17,8 @@ mod events;
 #[allow(dead_code)]
 #[path = "../shared/jitsi_room.rs"]
 mod jitsi_room;
+#[path = "../shared/stun_probe.rs"]
+mod stun_probe;
 mod logging;
 mod max_calls;
 mod namegen;
