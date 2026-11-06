@@ -730,11 +730,13 @@ internal suspend fun performUninstall(
             rootCommand("env MRTT_PEER_PORT=$peerPort MRTT_SSH_PORT=$port bash /tmp/deploy.sh uninstall", pass),
             timeout = 30000L,
         )
-        // Туннели каскада принадлежат MRTT и уходят вместе с ним.
+        // Клиенты каскада принадлежат MRTT и уходят вместе с ним.
+        // shortcut: их правила iptables остаются до перезагрузки, но без интерфейса ни на что не действуют.
         sshClient.exec(
             rootCommand(
-                "for c in /etc/wireguard/mrtc*.conf /etc/wireguard/mrtg*.conf; do [ -e \"\$c\" ] || continue; " +
-                    "systemctl disable --now \"wg-quick@\$(basename \"\$c\" .conf)\" >/dev/null 2>&1; rm -f \"\$c\"; done; true",
+                "for u in /etc/systemd/system/mrtt-exit-*.service; do [ -e \"\$u\" ] || continue; " +
+                    "systemctl disable --now \"\$(basename \"\$u\")\" >/dev/null 2>&1; rm -f \"\$u\"; done; " +
+                    "rm -rf /etc/mrtt-exit /usr/local/lib/mrtt-exit-client; systemctl daemon-reload",
                 pass,
             ),
             timeout = 30000L,
@@ -765,9 +767,9 @@ internal suspend fun performUninstall(
 }
 
 /** Выход каскада на сервере [from]: что сохранить в его настройках. */
-internal data class CreatedExit(val id: String, val table: Int)
+internal data class CreatedExit(val id: String, val table: Int, val remotePassword: String)
 
-private class CascadeHost(context: Context, private val server: com.mrtt.client.servers.VpsServer) : java.io.Closeable {
+private class CascadeHost(private val context: Context, private val server: com.mrtt.client.servers.VpsServer) : java.io.Closeable {
     private val script = context.assets.open("cascade.sh").use { it.readBytes().toString(Charsets.UTF_8) }
     private val ssh = createSSHClient(context, server.host, server.sshUser, server.sshPassword, server.sshPort, server.sshPrivateKey, server.sshKeyPassphrase)
     private val client = DeploySSHClient(ssh, server.sshPassword)
@@ -784,43 +786,71 @@ private class CascadeHost(context: Context, private val server: com.mrtt.client.
         return line.split(' ')
     }
 
+    /** Кладёт на сервер клиент каскада под его архитектуру. */
+    fun uploadExitClient() {
+        val machine = client.exec("uname -m", 30_000L).trim()
+        val asset = when (machine) {
+            "x86_64", "amd64" -> "mrtt-exit-client-amd64"
+            "aarch64", "arm64" -> "mrtt-exit-client-arm64"
+            else -> throw IOException("${server.title}: каскад не поддерживает архитектуру $machine")
+        }
+        val local = File(context.cacheDir, "$asset-${System.nanoTime()}")
+        try {
+            context.assets.open(asset).use { input -> FileOutputStream(local).use { input.copyTo(it) } }
+            client.upload(local, "/usr/local/lib/mrtt-exit-client")
+        } finally {
+            local.delete()
+        }
+    }
+
     override fun close() {
         runCatching { ssh.disconnect() }
     }
 }
 
-/** Поднимает WireGuard от [from] к [to] и проверяет рукопожатие; при ошибке за собой всё убирает. */
+/** Подключает [from] к [to] как обычный конфиг и проверяет, что адрес выдан; при ошибке за собой всё убирает. */
 internal suspend fun setupExit(
     context: Context,
     from: com.mrtt.client.servers.VpsServer,
     to: com.mrtt.client.servers.VpsServer,
-): CreatedExit = withContext(Dispatchers.IO) {
+): CreatedExit {
     val id = java.util.UUID.randomUUID().toString().replace("-", "").take(8)
-    CascadeHost(context, to).use { gateway ->
-        CascadeHost(context, from).use { client ->
-            try {
-                val (_, gatewayKey, port, number) = gateway.run("CASCADE_GW", "gw-init", id)
-                val up = client.run("CASCADE_CLIENT", "client-up", id, to.host, port, number, gatewayKey)
-                gateway.run("CASCADE_OK", "gw-peer", id, up[1])
-                client.run("CASCADE_OK", "client-check", id)
-                CreatedExit(id, up[2].toInt())
-            } catch (error: Exception) {
-                runCatching { client.run("CASCADE_OK", "client-down", id) }
-                runCatching { gateway.run("CASCADE_OK", "gw-down", id) }
-                throw error
+    val name = "Каскад $id"
+    val remote = com.mrtt.client.servers.ServerControl(context, to)
+    remote.createClient(name, "", 0, 0, 0, "", false, "", false, "")
+    val password = remote.clients().first { it.name == name }.password
+    try {
+        return withContext(Dispatchers.IO) {
+            CascadeHost(context, from).use { client ->
+                try {
+                    client.uploadExitClient()
+                    val up = client.run("CASCADE_CLIENT", "client-up", id, to.host, to.peerPort.toString(), password)
+                    client.run("CASCADE_OK", "client-check", id)
+                    CreatedExit(id, up[1].toInt(), password)
+                } catch (error: Exception) {
+                    runCatching { client.run("CASCADE_OK", "client-down", id) }
+                    throw error
+                }
             }
         }
+    } catch (error: Exception) {
+        runCatching { remote.deleteClient(password) }
+        throw error
     }
 }
 
-/** Убирает туннель на обеих сторонах; недоступный или уже удалённый выход не мешает убрать его здесь. */
+/** Убирает клиент и конфиг на выходе; недоступный или уже удалённый выход не мешает убрать его здесь. */
 internal suspend fun removeExit(
     context: Context,
     from: com.mrtt.client.servers.VpsServer,
     to: com.mrtt.client.servers.VpsServer?,
     id: String,
-) = withContext(Dispatchers.IO) {
-    CascadeHost(context, from).use { it.run("CASCADE_OK", "client-down", id) }
-    if (to != null) runCatching { CascadeHost(context, to).use { it.run("CASCADE_OK", "gw-down", id) } }
-    Unit
+    remotePassword: String,
+) {
+    withContext(Dispatchers.IO) {
+        CascadeHost(context, from).use { it.run("CASCADE_OK", "client-down", id) }
+    }
+    if (to != null && remotePassword.isNotEmpty()) {
+        runCatching { com.mrtt.client.servers.ServerControl(context, to).deleteClient(remotePassword) }
+    }
 }

@@ -1,5 +1,5 @@
 //! Which clients leave through which exit server: `ip rule from <client> lookup <table>`. The tables belong to the
-//! WireGuard links the app sets up; these rules are the only part the server keeps in line with its settings.
+//! cascade clients the app sets up; these rules are the only part the server keeps in line with its settings.
 
 use std::collections::BTreeSet;
 

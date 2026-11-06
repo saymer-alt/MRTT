@@ -6,6 +6,8 @@ mod captcha_slider;
 mod cpu_task;
 pub mod direct_relay;
 mod dispatcher;
+#[cfg(target_os = "linux")]
+mod linux_exit;
 mod tunnel_probe;
 mod dns;
 #[path = "../shared/dtls.rs"]
@@ -153,6 +155,14 @@ struct Arguments {
     direct_ips: String,
     #[arg(long = "exact-workers", default_value_t = false)]
     exact_workers: bool,
+    /// On a VPS as the exit of a cascade: the TUN to open once the server has assigned an address.
+    #[arg(long = "exit-tun", default_value = "")]
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    exit_tun: String,
+    /// Run with the assigned address, after the TUN exists and before traffic starts.
+    #[arg(long = "exit-hook", default_value = "")]
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    exit_hook: String,
 }
 
 /// Round trip of a DTLS ClientHello straight to the server's UDP port: an answer means MRTT is alive there.
@@ -493,6 +503,12 @@ async fn run(arguments: Arguments) -> Result<i32> {
     let stats_task = tokio::spawn(stats.clone().run(events.clone(), cancel.clone()));
     let (config_tx, mut config_rx) = tokio::sync::mpsc::channel::<String>(32);
     let config_events = events.clone();
+    #[cfg(target_os = "linux")]
+    let mut exit_tun = (!arguments.exit_tun.is_empty()).then(|| linux_exit::ExitTun {
+        name: arguments.exit_tun.clone(),
+        socket: arguments.tun_uds.clone(),
+        hook: arguments.exit_hook.clone(),
+    });
     let config_task = tokio::spawn(async move {
         let mut last_config = None;
         while let Some(config) = config_rx.recv().await {
@@ -505,6 +521,16 @@ async fn run(arguments: Arguments) -> Result<i32> {
                 let ip = fields.next().unwrap_or_default();
                 let dns = fields.next().unwrap_or_default();
                 crate::log_error!("[КЛИЕНТ] Tunnel IP: {ip}/32 | DNS: {dns}");
+                #[cfg(target_os = "linux")]
+                if let Some(exit) = exit_tun.take() {
+                    let ip = ip.to_owned();
+                    let attached = tokio::task::spawn_blocking(move || linux_exit::attach(&exit, &ip)).await;
+                    if !matches!(attached, Ok(Ok(()))) {
+                        crate::log_error!("[КАСКАД] Не удалось поднять TUN: {attached:?}");
+                        // systemd restarts the process: without the TUN this client is of no use to anyone.
+                        std::process::exit(1);
+                    }
+                }
             }
             config_events.config(&config);
             last_config = Some(config);

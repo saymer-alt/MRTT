@@ -183,9 +183,45 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  linux-exit-client:
+    name: Linux client for cascades
+    needs: android-unit-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.13.0'
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Restore Cargo dependencies and cross-compiler
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-zigbuild
+            rust-client/build/linux-exit
+          key: exit-client-v1-${{ runner.os }}-${{ hashFiles('rust-client/Cargo.lock') }}-${{ hashFiles('rust-client/**/*.rs', 'shared/**') }}
+          restore-keys: |
+            exit-client-v1-${{ runner.os }}-${{ hashFiles('rust-client/Cargo.lock') }}-
+      - name: Install cross-compiler
+        run: command -v cargo-zigbuild || cargo install cargo-zigbuild --locked
+      - name: Build client
+        run: bash rust-client/build_linux_exit.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-exit-client
+          path: app/src/main/assets/mrtt-exit-client-*
+          if-no-files-found: error
+          retention-days: 7
+
   android-test-apk:
     name: Build Android APK (VK + MAX)
-    needs: [android-unit-tests, linux-server, android-client]
+    needs: [android-unit-tests, linux-server, android-client, linux-exit-client]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

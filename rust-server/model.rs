@@ -99,7 +99,7 @@ pub struct PasswordEntry {
     pub exit: String,
 }
 
-/// Другой VPS, через который можно выпускать клиентов: WireGuard до него поднимает приложение.
+/// Другой VPS, через который можно выпускать клиентов: подключение к нему настраивает приложение.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExitLink {
     pub id: String,
@@ -107,6 +107,9 @@ pub struct ExitLink {
     pub host: String,
     /// Таблица маршрутов на этом сервере, ведущая в туннель.
     pub table: u32,
+    /// Конфиг на сервере-выходе, под которым подключается этот сервер.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub remote_password: String,
 }
 
 /// Значение приоритета, при котором настройка конфига важнее настройки сервера.

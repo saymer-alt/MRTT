@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "rust-client/main.rs": {
-    "mtime": 1793983778.347182,
-    "seen": 1793983834.615666,
-    "ast_hash": "2ea60619d52289f1d9457da3c9646403",
+    "mtime": 1793985349.1455264,
+    "seen": 1793985396.0052836,
+    "ast_hash": "b1b961b44353d07674900981bd51e880",
     "semantic_hash": ""
   },
   "rust-client/max_calls.rs": {
@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "rust-client/session.rs": {
-    "mtime": 1793983778.351197,
-    "seen": 1793983834.615666,
-    "ast_hash": "2a312dda7d0ba72f1f2ba8abeb71b2e5",
+    "mtime": 1793985299.8386278,
+    "seen": 1793985396.0052836,
+    "ast_hash": "e2acc7eb3303ad8b89007e1fb079d34b",
     "semantic_hash": ""
   },
   "rust-client/sni.rs": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "rust-client/turn.rs": {
-    "mtime": 1793983778.3491898,
-    "seen": 1793983834.615666,
-    "ast_hash": "a9b42d56e2431f2d5194860f285cf931",
+    "mtime": 1793985299.8370328,
+    "seen": 1793985396.0052836,
+    "ast_hash": "60f164c3e6f182cf92f5b2f387ebdb70",
     "semantic_hash": ""
   },
   "rust-client/turn_core.rs": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "rust-server/model.rs": {
-    "mtime": 1793984783.4715717,
-    "seen": 1793984804.9000468,
-    "ast_hash": "b5a858fbf9f91497ee561d8de7dcfd8c",
+    "mtime": 1793985349.1160374,
+    "seen": 1793985396.0052836,
+    "ast_hash": "f91aad56bcdaf892af65d00b9a818ecd",
     "semantic_hash": ""
   },
   "rust-server/net_setup.rs": {
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/build-test-apk.yml": {
-    "mtime": 1793536817.542045,
-    "seen": 1793978700.7592583,
-    "ast_hash": "09fc01ed64f66a278ccdfe1ad4c1ab7e",
+    "mtime": 1793985299.8448062,
+    "seen": 1793985396.0052836,
+    "ast_hash": "36d89097f9bc35b115a497c509d7f30b",
     "semantic_hash": ""
   },
   "GITHUB_ACTIONS_GUIDE_RU.md": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/servers/ServerControl.kt": {
-    "mtime": 1793984680.8522127,
-    "seen": 1793984804.8990407,
-    "ast_hash": "7e8b45d1b879a7b68933dfee90730184",
+    "mtime": 1793985299.8430247,
+    "seen": 1793985396.0037782,
+    "ast_hash": "087b7d8988f110d708a750b332647392",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/servers/ServerRepository.kt": {
@@ -1002,9 +1002,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/DeployOperations.kt": {
-    "mtime": 1793984680.8507063,
-    "seen": 1793984804.8990407,
-    "ast_hash": "748635b00fdd23e2693a24944989d448",
+    "mtime": 1793985299.842515,
+    "seen": 1793985396.0037782,
+    "ast_hash": "0ee7e80bff2f4137b4e475f1ae964ea1",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/ExceptionsTab.kt": {
@@ -1254,9 +1254,9 @@
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/ServerToolsSections.kt": {
-    "mtime": 1793984680.853743,
-    "seen": 1793984804.9000468,
-    "ast_hash": "3a0771048f24039df06b7d62cf460136",
+    "mtime": 1793985299.8442948,
+    "seen": 1793985396.0037782,
+    "ast_hash": "dba27b94a8de8a3bbc29ed9bb7fd06e9",
     "semantic_hash": ""
   },
   "app/src/main/java/com/mrtt/client/ui/servers/ServersTab.kt": {
@@ -1668,15 +1668,27 @@
     "semantic_hash": ""
   },
   "app/src/main/assets/cascade.sh": {
-    "mtime": 1793984679.6271055,
-    "seen": 1793984804.8990407,
-    "ast_hash": "66f93c25313e66fc5e0729d2ff7e0a6d",
+    "mtime": 1793985296.6000996,
+    "seen": 1793985396.0037782,
+    "ast_hash": "06c2a5e49d08dc9996ffc8cb4a092f88",
     "semantic_hash": ""
   },
   "rust-server/exit_routes.rs": {
-    "mtime": 1793984679.7455578,
-    "seen": 1793984804.9000468,
-    "ast_hash": "c1afafd69bab7fabbf3bc7f68172f0bb",
+    "mtime": 1793985349.1149862,
+    "seen": 1793985396.0052836,
+    "ast_hash": "d4f92ca2d4eb1cc8f62e8466c708c7ca",
+    "semantic_hash": ""
+  },
+  "rust-client/build_linux_exit.sh": {
+    "mtime": 1793985296.7588992,
+    "seen": 1793985396.0052836,
+    "ast_hash": "30fe9e404b118c0d6f5ff48728c480ae",
+    "semantic_hash": ""
+  },
+  "rust-client/linux_exit.rs": {
+    "mtime": 1793985296.6956306,
+    "seen": 1793985396.0052836,
+    "ast_hash": "f41b7d64cf93f7cdccf25554bc5360cd",
     "semantic_hash": ""
   }
 }

@@ -269,9 +269,9 @@ internal fun ServerSettingsSection(control: ServerControl, server: com.mrtt.clie
                 enabled = !settingUpExit,
                 modifier = Modifier.fillMaxWidth().height(MrttSizes.ControlHeight),
                 shape = MrttShapes.Pill,
-            ) { Text(if (settingUpExit) "Настраиваем туннель..." else "Добавить выход через другой VPS", maxLines = 1) }
+            ) { Text(if (settingUpExit) "Подключаем серверы..." else "Добавить выход через другой VPS", maxLines = 1) }
             Text(
-                "Трафик клиентов выходит через выбранный VPS по WireGuard, UDP тоже. Если туннель упадёт, такие клиенты теряют интернет, а не выходят через этот сервер.",
+                "Трафик клиентов выходит через выбранный VPS по протоколу MRTT, UDP тоже. Если связь между серверами упадёт, такие клиенты теряют интернет, а не выходят через этот сервер.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -308,7 +308,7 @@ internal fun ServerSettingsSection(control: ServerControl, server: com.mrtt.clie
                 runner.run("Выход добавлен", { settingUpExit = false; refresh() }) {
                     try {
                         val created = com.mrtt.client.ui.setupExit(context, server, target)
-                        val exit = com.mrtt.client.servers.ServerExit(created.id, target.title, target.host, created.table)
+                        val exit = com.mrtt.client.servers.ServerExit(created.id, target.title, target.host, created.table, created.remotePassword)
                         control.saveExits(form.exits + exit, form.defaultExit)
                     } catch (error: Exception) {
                         settingUpExit = false
@@ -328,7 +328,7 @@ internal fun ServerSettingsSection(control: ServerControl, server: com.mrtt.clie
                     onSelected = { chosen = it },
                 )
                 Text(
-                    "На обоих VPS поставится WireGuard, на выбранном откроется UDP-порт от 51821. Если у хостера есть свой фаервол, порт нужно открыть и там.",
+                    "Этот сервер подключится к выбранному как обычный конфиг, он появится там в списке конфигов. Удалять его там не нужно, для этого есть кнопка «Убрать» здесь.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -346,7 +346,7 @@ internal fun ServerSettingsSection(control: ServerControl, server: com.mrtt.clie
                     val remaining = form.exits.filterNot { it.id == exit.id }
                     // Сначала настройки: клиенты не должны остаться с маршрутом в пропавшую таблицу.
                     control.saveExits(remaining, form.defaultExit.takeUnless { it == exit.id }.orEmpty())
-                    com.mrtt.client.ui.removeExit(context, server, allServers.firstOrNull { it.host == exit.host }, exit.id)
+                    com.mrtt.client.ui.removeExit(context, server, allServers.firstOrNull { it.host == exit.host }, exit.id, exit.remotePassword)
                 }
             },
             onDismiss = { removingExit = null },

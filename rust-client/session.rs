@@ -1032,7 +1032,13 @@ async fn run_room_session(
     }
     let allocation = tokio::select! {
         biased;
-        result = TurnAllocation::room(&room, config.id, runtime.pool.clone()) => result.map_err(|error| {
+        result = async {
+            if room.host == crate::turn::DIRECT_HOST {
+                TurnAllocation::direct(config.peer, runtime.pool.clone()).await
+            } else {
+                TurnAllocation::room(&room, config.id, runtime.pool.clone()).await
+            }
+        } => result.map_err(|error| {
             crate::log_error!("[JITSI] Воркер #{}: {error:#}", config.id);
             TurnAllocateError(error)
         })?,

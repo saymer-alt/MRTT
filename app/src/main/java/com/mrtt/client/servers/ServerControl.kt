@@ -44,7 +44,7 @@ internal data class ServerClient(
 }
 
 /** Другой VPS, через который сервер может выпускать клиентов. */
-internal data class ServerExit(val id: String, val name: String, val host: String, val table: Int)
+internal data class ServerExit(val id: String, val name: String, val host: String, val table: Int, val remotePassword: String = "")
 
 internal const val EXIT_DIRECT = "direct"
 internal const val EXIT_PRIORITY_CONFIG = "config"
@@ -300,7 +300,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
             jitsiSeats = json.optInt("jitsi_seats", 6),
             restartRequired = json.optBoolean("restart_required"),
             exits = json.optJSONArray("exits").objects().map {
-                ServerExit(it.optString("id"), it.optString("name"), it.optString("host"), it.optInt("table"))
+                ServerExit(it.optString("id"), it.optString("name"), it.optString("host"), it.optInt("table"), it.optString("remote_password"))
             },
             defaultExit = json.optString("default_exit"),
             exitPriority = json.optString("exit_priority"),
@@ -310,7 +310,7 @@ internal class ServerControl(context: Context, server: VpsServer) {
     suspend fun saveExits(exits: List<ServerExit>, defaultExit: String) {
         val list = org.json.JSONArray()
         exits.forEach {
-            list.put(JSONObject().put("id", it.id).put("name", it.name).put("host", it.host).put("table", it.table))
+            list.put(JSONObject().put("id", it.id).put("name", it.name).put("host", it.host).put("table", it.table).put("remote_password", it.remotePassword))
         }
         api.post("/api/settings", JSONObject().put("exits", list).put("default_exit", defaultExit))
     }
