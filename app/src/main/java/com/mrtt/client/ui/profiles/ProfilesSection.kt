@@ -1,7 +1,10 @@
 package com.mrtt.client.ui.profiles
 
 import androidx.compose.foundation.clickable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withPermit
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
@@ -91,29 +94,32 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(Unit) { repository.migrateLegacy() }
-    // Замер относится к подключению: после отключения он больше ни о чём не говорит.
-    LaunchedEffect(tunnelRunning) { if (!tunnelRunning) pings.clear() }
 
     AppSectionCard(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Профили", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (profiles.isNotEmpty()) {
                             androidx.compose.material3.TextButton(
-                    enabled = !pinging && activeId.isNotEmpty(),
+                    enabled = !pinging,
                     onClick = {
-                        val target = pingTarget(pingUrl)
-                        when {
-                            // Без подключения проверять нечего: число было бы не про этот сервер.
-                            !tunnelRunning -> context.showRaisedToast("Пинг идёт через туннель: сначала подключитесь к профилю")
-                            target == null -> context.showRaisedToast("Неверный адрес проверки")
-                            else -> {
-                                pinging = true
-                                pings.clear()
-                                scope.launch {
-                                    pings[activeId] = TunnelManager.probeThroughTunnel(target.first, target.second) ?: -1
-                                    pinging = false
+                        pinging = true
+                        pings.clear()
+                        scope.launch {
+                            val target = pingTarget(pingUrl)
+                            val slots = kotlinx.coroutines.sync.Semaphore(8)
+                            profiles.map { profile ->
+                                async {
+                                    slots.withPermit {
+                                        val ms = if (profile.id == activeId && tunnelRunning) {
+                                            target?.let { TunnelManager.probeThroughTunnel(it.first, it.second) }
+                                        } else {
+                                            parseMrttLink(profile.link)?.let { TunnelManager.probeDirect(context, it.host, it.port) }
+                                        }
+                                        pings[profile.id] = ms ?: -1
+                                    }
                                 }
-                            }
+                            }.awaitAll()
+                            pinging = false
                         }
                     },
                 ) { Text(if (pinging) "Пинг..." else "Пинг") }
@@ -202,11 +208,8 @@ internal fun ProfilesSection(onOpened: () -> Unit = {}) {
             onConfirm = { pingSettings = false; runner.run { settingsStore.savePingUrl(url) } },
         ) {
             FormField(url, { url = it }, "URL для пинга")
-            androidx.compose.material3.TextButton(onClick = { url = com.mrtt.client.SettingsStore.DEFAULT_PING_URL }) {
-                Text("По умолчанию: generate_204")
-            }
             Text(
-                "Пинг идёт через туннель активного профиля: время соединения с этим адресом от телефона через сервер.",
+                "Подключённый профиль: TCP-соединение с этим адресом через туннель. Остальные: DTLS-рукопожатие с сервером напрямую по UDP.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

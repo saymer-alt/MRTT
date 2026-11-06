@@ -155,9 +155,39 @@ struct Arguments {
     exact_workers: bool,
 }
 
+/// Round trip of a DTLS ClientHello straight to the server's UDP port: an answer means MRTT is alive there.
+fn probe_peer(address: &str) -> Option<u64> {
+    let peer: std::net::SocketAddr = address.parse().ok()?;
+    let socket = std::net::UdpSocket::bind(if peer.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" }).ok()?;
+    socket.connect(peer).ok()?;
+    socket.set_read_timeout(Some(Duration::from_secs(1))).ok()?;
+    let mut handshake = crate::dtls::DtlsClientHandshake::new().ok()?;
+    let hello = handshake.start().ok()?;
+    let mut buffer = [0u8; 2048];
+    for _ in 0..3 {
+        let started = std::time::Instant::now();
+        socket.send(&hello).ok()?;
+        if let Ok(length) = socket.recv(&mut buffer)
+            && crate::dtls::is_dtls_packet(&buffer[..length])
+        {
+            return Some(started.elapsed().as_millis() as u64);
+        }
+    }
+    None
+}
+
 fn main() {
     // tokio-tungstenite (MAX signaling) uses plain rustls, which panics without a process-level provider.
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    // A one-shot run beside the tunnel: it touches neither the TUN nor the running client.
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--probe-peer") {
+        match args.next().as_deref().and_then(probe_peer) {
+            Some(ms) => println!("PROBE_MS={ms}"),
+            None => std::process::exit(1),
+        }
+        return;
+    }
     jitsi_room::set_fallback_resolver(|host| {
         Box::pin(async move { crate::dns::global().lookup(&host).await.unwrap_or_default() })
     });

@@ -497,6 +497,9 @@ object TunnelManager {
                     identity.startupProgress.credentialReceived()
                 }
             }
+            is TunnelEventParser.Event.RoomSeats -> {
+                targetWorkers.value = event.seats
+            }
             is TunnelEventParser.Event.Probe -> {
                 probeWaiter?.complete(event.ms)
             }
@@ -1097,8 +1100,8 @@ object TunnelManager {
         // MAX has no VK hashes, so the hash-count cap would pin it at one group.
         val totalWorkers = if (jitsiMode) {
             // A worker is a room participant: more workers than server seats would only share seats.
-            val seats = params.jitsiSeats.takeIf { it > 0 } ?: MrttConstants.Tunnel.MAX_JITSI_WORKERS
-            clampJitsiWorkers(minOf(params.jitsiWorkers, seats))
+            // The link knows the server's seats: as many workers. With an own room the client learns them after joining.
+            clampJitsiWorkers(params.jitsiSeats.takeIf { it > 0 } ?: params.jitsiWorkers)
         } else {
             WorkerCountPolicy.normalizeForHashValues(
                 params.workersPerHash,
@@ -2132,6 +2135,29 @@ object TunnelManager {
             kotlinx.coroutines.withTimeoutOrNull(8_000L) { waiter.await() }?.takeIf { it >= 0 }
         }
     }
+
+    /**
+     * Ping of a profile without a tunnel to it, in ms: a one-shot run of the client sends a DTLS ClientHello straight
+     * to the server's UDP port. It shares nothing with a running tunnel. Null when the server did not answer.
+     */
+    suspend fun probeDirect(context: android.content.Context, host: String, port: Int): Int? =
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            runCatching {
+                val address = java.net.InetAddress.getByName(host.trim('[', ']'))
+                val peer = if (address is java.net.Inet6Address) "[${address.hostAddress}]:$port" else "${address.hostAddress}:$port"
+                val libraries = context.applicationInfo.nativeLibraryDir
+                val process = ProcessBuilder("$libraries/${MrttConstants.Tunnel.BINARY_NAME}", "--probe-peer", peer)
+                    .redirectErrorStream(true)
+                    .apply { environment()["LD_LIBRARY_PATH"] = libraries }
+                    .start()
+                try {
+                    if (!process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) return@runCatching null
+                    process.inputStream.bufferedReader().readText().substringAfter("PROBE_MS=", "").trim().toIntOrNull()
+                } finally {
+                    process.destroyForcibly()
+                }
+            }.getOrNull()
+        }
 
     private fun writeProcessCommand(
         identity: ProcessIdentity,

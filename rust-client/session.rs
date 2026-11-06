@@ -1021,7 +1021,7 @@ pub async fn run_session(
 
 /// A worker seated in the server's Jitsi room: the room stands in for the TURN allocation, the rest is unchanged.
 async fn run_room_session(
-    config: SessionConfig,
+    mut config: SessionConfig,
     room: Arc<crate::jitsi_room::RoomTarget>,
     mut runtime: SessionRuntime,
 ) -> Result<bool> {
@@ -1038,6 +1038,15 @@ async fn run_room_session(
         })?,
         _ = cancel.cancelled() => return Ok(false),
     };
+    // A worker is a participant: no more of them than the server holds seats, and the server is told the same.
+    let seats = crate::turn::ROOM_SEATS.load(Ordering::Acquire);
+    if seats > 0 {
+        let workers = seats.min(config.configured_workers.max(1));
+        config.configured_workers = workers;
+        runtime.configured_workers = workers;
+        apply_workers_limit(workers, runtime.target_workers.as_ref(), runtime.scale_notify.as_ref());
+        runtime.events.room_seats(workers);
+    }
     if let Some(ready) = runtime.allocation_ready.take() {
         let _ = ready.send(());
     }

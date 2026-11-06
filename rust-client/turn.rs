@@ -337,6 +337,9 @@ impl TurnReceiver {
     }
 }
 
+/// Server seats the last joining worker saw in the room.
+pub static ROOM_SEATS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 impl TurnAllocation {
     pub async fn connect(
         target: TurnConnectTarget<'_>,
@@ -479,6 +482,7 @@ impl TurnAllocation {
         })
         .await
         .map_err(|_| anyhow!("сервер MRTT не найден в комнате {room}"))??;
+        ROOM_SEATS.store(seats.len(), std::sync::atomic::Ordering::Release);
         let seat = seats[seat_hint % seats.len()].clone();
         let core = NativeCore::create_with_transport(
             Self::ROOM_CORE_PLACEHOLDER,

@@ -106,10 +106,7 @@ internal class ServerApi(private val context: Context, private val server: VpsSe
         val channel = try {
             ssh.newDirectConnection("127.0.0.1", server.apiPort)
         } catch (error: OpenFailException) {
-            throw ServerNotRunningException(
-                "Вход по SSH выполнен, но MRTT на сервере не отвечает: порт API ${server.apiPort} закрыт. " +
-                    "Скорее всего MRTT не установлен или служба остановлена.",
-            )
+            throw ServerNotRunningException("MRTT не установлен")
         }
         onStage("ждём ответ API MRTT")
         val raw = channel.use { channel ->

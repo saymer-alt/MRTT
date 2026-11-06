@@ -100,6 +100,10 @@ internal fun ServerManageScreen(
         if (reachError == "") deployError = ""
     }
 
+    // Как в Termius: новый ключ принимает сам пользователь. Спрашиваем сразу, ошибкой это не считается.
+    val hostKeyChanged = reachError?.contains(HOST_KEY_CHANGED) == true || deployError.contains(HOST_KEY_CHANGED)
+    LaunchedEffect(hostKeyChanged) { if (hostKeyChanged) confirm = "trust" }
+
     MrttScreen {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
@@ -122,15 +126,18 @@ internal fun ServerManageScreen(
             return@MrttScreen
         }
         when {
-            reachError == null -> ServerStatusTile(title = "Подключаемся к серверу...", busy = true)
+            reachError == null -> ServerStatusTile(title = "Подключение к серверу", busy = true)
             reachError == "" -> Unit
+            hostKeyChanged -> ServerStatusTile(title = "Подключение к серверу") {
+                OutlinedButton(onClick = { confirm = "trust" }, shape = MrttShapes.Pill, modifier = Modifier.fillMaxWidth()) { Text("Проверить ключ сервера", maxLines = 1) }
+            }
             deployError.isNotBlank() -> ServerStatusTile(title = "Установка не удалась", text = deployError) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Ещё раз", maxLines = 1) }
                     OutlinedButton(onClick = onEdit, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Изменить доступ", maxLines = 1) }
                 }
             }
-            notInstalled -> ServerStatusTile(title = "MRTT не запущен на сервере", text = reachError.orEmpty()) {
+            notInstalled -> ServerStatusTile(title = "MRTT не установлен") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { confirm = "deploy" }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Установить", maxLines = 1) }
                     OutlinedButton(onClick = { retry++ }, shape = MrttShapes.Pill, modifier = Modifier.weight(1f)) { Text("Повторить", maxLines = 1) }
@@ -143,11 +150,8 @@ internal fun ServerManageScreen(
                 }
             }
         }
-        // Как в Termius: новый ключ принимает сам пользователь, молча ему верить нельзя.
-        if (reachError?.contains(HOST_KEY_CHANGED) == true || deployError.contains(HOST_KEY_CHANGED)) {
-            Button(onClick = { confirm = "trust" }, shape = MrttShapes.Pill, modifier = Modifier.fillMaxWidth()) { Text("Доверять новому ключу") }
-        }
         if (reachError != "") return@MrttScreen
+        Text("MRTT установлен", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ScrollableTabRow(
             selectedTabIndex = section,
             edgePadding = 0.dp,

@@ -144,10 +144,12 @@ internal fun CompactSteppedSlider(
     var focused by remember { mutableStateOf(false) }
 
     fun snap(raw: Float): Float {
+        if (currentStepSize == 1f) return kotlin.math.round(raw).coerceIn(currentValueRange)
         return roundToGroup(raw, currentValueRange.endInclusive)
     }
 
     fun stepNeighbor(current: Float, forward: Boolean): Float {
+        if (currentStepSize == 1f) return (current + if (forward) 1f else -1f).coerceIn(currentValueRange)
         val allowed = WORKER_STEPS.filter { it in currentValueRange }
         val idx = allowed.indexOf(current).let { if (it >= 0) it else allowed.indexOf(roundToGroup(current, currentValueRange.endInclusive)) }
         val targetIdx = if (forward) (idx + 1).coerceAtMost(allowed.size - 1) else (idx - 1).coerceAtLeast(0)

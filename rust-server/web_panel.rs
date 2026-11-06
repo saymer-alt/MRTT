@@ -51,6 +51,9 @@ struct CreateClientRequest {
     /// Транспорт по умолчанию для профиля из ссылки: "vk", "jitsi" или пусто; не передан — не менять.
     #[serde(default)]
     transport: Option<String>,
+    /// true: в ссылке нет комнаты Jitsi; не передан — не менять.
+    #[serde(default)]
+    link_room_off: Option<bool>,
 }
 
 /// MAX в ссылку не передаётся: он работает только через привязку на клиенте.
@@ -408,6 +411,8 @@ struct ClientInfo {
     max_devices: u32,
     #[serde(default)]
     transport: String,
+    #[serde(default)]
+    link_room_off: bool,
     devices: Vec<DeviceInfo>,
 }
 
@@ -516,6 +521,7 @@ pub fn decrypt_mrtt_link(raw_link: &str) -> Option<String> {
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make_client_link(
     host: &str,
     port: u16,
@@ -524,6 +530,7 @@ fn make_client_link(
     vk_token: bool,
     server_hashes: &str,
     transport: &str,
+    link_room_off: bool,
 ) -> String {
     let mut payload = format!(
         "connect?v=2&host={}&peer={}",
@@ -559,7 +566,9 @@ fn make_client_link(
         payload.push_str("&transport=");
         payload.push_str(transport);
     }
-    if let Some(room) = crate::jitsi_relay::current_room() {
+    if !link_room_off
+        && let Some(room) = crate::jitsi_relay::current_room()
+    {
         payload.push_str("&jitsi=");
         payload.push_str(&url_encode(&room));
         payload.push_str(&format!("&seats={}", crate::jitsi_relay::current_seats()));
@@ -582,6 +591,7 @@ fn make_main_link(host: &str, port: u16, db: &model::Database) -> String {
         db.main_vk_token_enabled,
         &db.vk_hashes,
         &db.main_transport,
+        db.main_link_room_off,
     )
 }
 
@@ -601,6 +611,7 @@ fn make_entry_link(
         entry.vk_token_enabled,
         server_hashes,
         &entry.transport,
+        entry.link_room_off,
     )
 }
 
@@ -1279,6 +1290,7 @@ async fn clients_get(
                 max_devices: entry.max_devices.unwrap_or(1),
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
                 transport: entry.transport.clone(),
+                link_room_off: entry.link_room_off,
             }
         })
         .collect();
@@ -1321,6 +1333,7 @@ async fn clients_get(
             max_devices: db.main_max_devices.unwrap_or(0),
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
             transport: db.main_transport.clone(),
+            link_room_off: db.main_link_room_off,
         });
     }
 
@@ -1399,6 +1412,7 @@ async fn group_clients_get(
                 max_devices: entry.max_devices.unwrap_or(1),
                 devices: device_infos(&state.app.sessions, password, &entry.devices),
                 transport: entry.transport.clone(),
+                link_room_off: entry.link_room_off,
             }
         })
         .collect();
@@ -1552,6 +1566,7 @@ async fn clients_create(
                 max_devices: validated_max_devices.unwrap_or(Some(0)),
                 devices: Default::default(),
                 transport: transport.clone(),
+                link_room_off: request.link_room_off.unwrap_or(false),
             },
         );
         let link = make_client_link(
@@ -1562,6 +1577,7 @@ async fn clients_create(
             request.vk_token,
             &db.vk_hashes,
             &transport,
+            request.link_room_off.unwrap_or(false),
         );
         let revision = state.app.db_persistence.submit(db.clone());
         (password, expires, revision, link, sub_uuid)
@@ -1645,6 +1661,9 @@ async fn client_update(
             if let Some(ref value) = transport {
                 db.main_transport = value.clone();
             }
+            if let Some(value) = request.link_room_off {
+                db.main_link_room_off = value;
+            }
             state.app.db_persistence.submit(db.clone())
         } else {
             let current_group_id = match db.passwords.get(&password) {
@@ -1680,6 +1699,9 @@ async fn client_update(
             let entry = db.passwords.get_mut(&key).unwrap();
             if let Some(ref value) = transport {
                 entry.transport = value.clone();
+            }
+            if let Some(value) = request.link_room_off {
+                entry.link_room_off = value;
             }
 
             let default_peer_port = state.app.listen.port();
@@ -1832,6 +1854,7 @@ async fn client_get(
             max_devices: db.main_max_devices.unwrap_or(0),
             devices: device_infos(&state.app.sessions, &db.main_password, &db.main_devices),
             transport: db.main_transport.clone(),
+            link_room_off: db.main_link_room_off,
         };
         return Json(info).into_response();
     }
@@ -1876,6 +1899,7 @@ async fn client_get(
             max_devices: entry.max_devices.unwrap_or(1),
             devices: device_infos(&state.app.sessions, &password, &entry.devices),
             transport: entry.transport.clone(),
+            link_room_off: entry.link_room_off,
         };
         return Json(info).into_response();
     }
@@ -2314,6 +2338,8 @@ struct ExportClientEntry {
     max_devices: Option<u32>,
     #[serde(default)]
     transport: String,
+    #[serde(default)]
+    link_room_off: bool,
 }
 
 async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
@@ -2341,6 +2367,7 @@ async fn api_export_get(State(state): State<WebState>) -> impl IntoResponse {
             ip: entry.ip.clone(),
             max_devices: entry.max_devices,
             transport: entry.transport.clone(),
+            link_room_off: entry.link_room_off,
         })
         .collect();
     let export = ServerExportData {
@@ -2435,6 +2462,7 @@ async fn api_import_post(
                             // Привязки устройств не переносим: их IP выдавал другой сервер.
                             devices: Default::default(),
                             transport: normalize_link_transport(&c.transport).unwrap_or_default(),
+                            link_room_off: c.link_room_off,
                         },
                     );
                     added_clients += 1;
@@ -3770,7 +3798,7 @@ mod tests {
 
     #[test]
     fn make_client_link_contains_password_and_aes_roundtrip() {
-        let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "", "");
+        let link = make_client_link("1.2.3.4", 46000, "abc1234567890123", "", false, "", "", false);
         assert!(link.starts_with("mrtt://"));
         let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=abc1234567890123"));
@@ -3780,7 +3808,7 @@ mod tests {
 
     #[test]
     fn owner_link_contains_owner_password_without_workers() {
-        let link = make_client_link("1.2.3.4", 46000, "ownerpass1234567", "", false, "", "");
+        let link = make_client_link("1.2.3.4", 46000, "ownerpass1234567", "", false, "", "", false);
         let decrypted = decrypt_mrtt_link(&link).expect("must decrypt");
         assert!(decrypted.contains("password=ownerpass1234567"));
         assert!(!decrypted.contains("client="));

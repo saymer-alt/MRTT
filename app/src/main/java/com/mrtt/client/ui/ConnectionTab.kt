@@ -297,6 +297,11 @@ internal fun ConnectionTab(
                     autoPausedForWifi = autoPausedForWifi,
                     cooldownActive = cooldownActive,
                     configurationValid = isValid,
+                    transportLabel = when (transportMode) {
+                        MrttConstants.Transport.MODE_MAX -> "MAX"
+                        MrttConstants.Transport.MODE_JITSI -> "Jitsi"
+                        else -> "VK"
+                    },
                     onToggleTunnel = { toggleTunnel() },
                 )
             }
@@ -334,6 +339,7 @@ private fun TunnelConnectionPanel(
     autoPausedForWifi: Boolean,
     cooldownActive: Boolean,
     configurationValid: Boolean,
+    transportLabel: String,
     onToggleTunnel: () -> Unit,
 ) {
     val isStarting = tunnelStarting && !tunnelRunning && !tunnelStopping
@@ -391,6 +397,11 @@ private fun TunnelConnectionPanel(
             TunnelUptimeText(tunnelRunning = tunnelRunning || autoPausedForWifi || tunnelStopping)
 
             if (showWorkers) {
+                Text(
+                    text = transportLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     text = "воркеров: $activeWorkers / $targetWorkers",
                     style = MaterialTheme.typography.labelMedium,

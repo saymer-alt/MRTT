@@ -177,7 +177,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onSave = { form ->
                 creating = false
                 runner.run("Конфиг создан", ::refresh) {
-                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices, form.transport)
+                    control.createClient(form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff)
                 }
             },
         )
@@ -190,7 +190,7 @@ internal fun SubscriptionsSection(control: ServerControl, server: VpsServer) {
             onSave = { form ->
                 editing = null
                 runner.run("Сохранено", ::refresh) {
-                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport)
+                    control.updateClient(client, form.name, form.groupId, form.days, form.workers, form.maxDevices, form.vkHashes, form.vkToken, form.transport, form.linkRoomOff)
                 }
             },
             onShare = { sharing = client },
@@ -317,6 +317,7 @@ internal data class ClientForm(
     val vkHashes: String,
     val vkToken: Boolean,
     val transport: String,
+    val linkRoomOff: Boolean,
 )
 
 @Composable
@@ -343,6 +344,7 @@ private fun ClientEditDialog(
     var vkHashes by remember { mutableStateOf(client?.vkHashes.orEmpty()) }
     var vkToken by remember { mutableStateOf(client?.vkToken ?: false) }
     var transport by remember { mutableStateOf(client?.transport.orEmpty()) }
+    var linkRoomOff by remember { mutableStateOf(client?.linkRoomOff ?: false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val workersValue = workers.toIntOrNull() ?: 0
@@ -351,7 +353,7 @@ private fun ClientEditDialog(
     val changed = client == null || name != client.name || groupId != client.groupId ||
         days != remainingDays(client.expires).toString() || workers != client.workers.toString() ||
         maxDevices != client.maxDevices.toString() || vkHashes != client.vkHashes || vkToken != client.vkToken ||
-        transport != client.transport
+        transport != client.transport || linkRoomOff != client.linkRoomOff
 
     MrttFormDialog(
         title = if (client == null) "Новый конфиг" else client.name,
@@ -368,6 +370,7 @@ private fun ClientEditDialog(
                     vkHashes = vkHashes.trim(),
                     vkToken = vkToken,
                     transport = transport,
+                    linkRoomOff = linkRoomOff,
                 ),
             )
         },
@@ -392,44 +395,62 @@ private fun ClientEditDialog(
             enabled = true,
             onSelected = { transport = it },
         )
-        if (client != null) {
-            var hashSource by remember {
-                mutableStateOf(
-                    when {
-                        vkToken -> "server"
-                        vkHashes.isNotBlank() -> "manual"
-                        else -> "client"
-                    },
-                )
-            }
+        if (transport == "jitsi") {
             CompactDropdownSetting(
-                title = "Хеши VK",
-                selectedKey = hashSource,
-                options = listOf(
-                    "client" to "Аккаунт клиента",
-                    "server" to "Аккаунт сервера",
-                    "manual" to "Свои хеши",
-                ),
+                title = "Комната Jitsi",
+                selectedKey = if (linkRoomOff) "client" else "server",
+                options = listOf("server" to "Комната сервера", "client" to "Без комнаты"),
                 enabled = true,
-                onSelected = { source ->
-                    hashSource = source
-                    vkToken = source == "server"
-                    if (source != "manual") vkHashes = ""
+                onSelected = { linkRoomOff = it == "client" },
+            )
+            Text(
+                if (linkRoomOff) {
+                    "В ссылке нет комнаты: клиент вставляет её сам. Сервер ждёт его только в своей комнате."
+                } else {
+                    "В ссылку идёт комната, в которой сидит сервер."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        var hashSource by remember {
+            mutableStateOf(
+                when {
+                    vkToken -> "server"
+                    vkHashes.isNotBlank() -> "manual"
+                    else -> "client"
                 },
             )
-            when (hashSource) {
-                "manual" -> com.mrtt.client.ui.common.VkHashesButton(vkHashes) { vkHashes = it }
-                "server" -> Text(
-                    "Хеши создаются автоматически с VK-аккаунта, привязанного в настройках сервера.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                else -> Text(
-                    "Приложение само создаёт хеши с VK-аккаунта, привязанного у клиента во вкладке «Транспорт».",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        }
+        CompactDropdownSetting(
+            title = "Хеши VK",
+            selectedKey = hashSource,
+            options = listOf(
+                "manual" to "Свои хеши",
+                "server" to "Аккаунт сервера",
+                "client" to "Без хешей",
+            ),
+            enabled = true,
+            onSelected = { source ->
+                hashSource = source
+                vkToken = source == "server"
+                if (source != "manual") vkHashes = ""
+            },
+        )
+        when (hashSource) {
+            "manual" -> com.mrtt.client.ui.common.VkHashesButton(vkHashes) { vkHashes = it }
+            "server" -> Text(
+                "В ссылку идут хеши с VK-аккаунта, привязанного к серверу.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> Text(
+                "В ссылке нет хешей: клиент использует свой аккаунт VK или свои хеши.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (client != null) {
             Text("Устройства", fontWeight = FontWeight.SemiBold)
             if (client.devices.isEmpty()) {
                 Text("Нет привязанных устройств", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
