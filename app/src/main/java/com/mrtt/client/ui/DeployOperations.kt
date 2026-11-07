@@ -799,7 +799,13 @@ private class CascadeHost(private val context: Context, private val server: com.
         val local = File(context.cacheDir, "$asset-${System.nanoTime()}")
         try {
             context.assets.open(asset).use { input -> FileOutputStream(local).use { input.copyTo(it) } }
-            client.upload(local, "/usr/local/lib/mrtt-exit-client")
+            // SFTP не даёт права на запуск и не пишет в системную папку без root; install ещё и заменит работающий файл.
+            client.upload(local, "/tmp/.mrtt-upload-exit-client")
+            val installed = client.execResult(
+                rootCommand("install -m 0755 /tmp/.mrtt-upload-exit-client /usr/local/lib/mrtt-exit-client; status=\$?; rm -f /tmp/.mrtt-upload-exit-client; exit \$status", server.sshPassword),
+                30_000L,
+            )
+            if (installed.exitStatus != 0) throw IOException("${server.title}: клиент каскада не установился")
         } finally {
             local.delete()
         }
