@@ -363,7 +363,7 @@ class TunnelService : Service() {
                     TunnelManager.addDeployErrorLog(
                         "Не удалось запустить сервис установки: ${e.message?.take(120) ?: e.javaClass.simpleName}"
                     )
-                    DeployManager.stopDeploy("Не удалось запустить сервис установки: ${e.message?.take(120)}")
+                    DeployManager.stopAll("Не удалось запустить сервис установки: ${e.message?.take(120)}")
                     runCatching { releaseTunnelResources() }
                     runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
                     foregroundStarted = false
@@ -373,7 +373,7 @@ class TunnelService : Service() {
             }
             "DEPLOY_CANCEL" -> {
                 com.mrtt.client.DeployManager.writeError("✗ Установка отменена пользователем")
-                com.mrtt.client.DeployManager.stopDeploy("error: Отменена пользователем")
+                com.mrtt.client.DeployManager.stopAll("error: Отменена пользователем")
                 if (TunnelManager.running.value) {
                     lastNotificationText = null
                     lastNotificationPostElapsedMs = 0L
@@ -383,6 +383,8 @@ class TunnelService : Service() {
                 }
             }
             "DEPLOY_STOP" -> {
+                // Другие серверы ещё ставятся: сервис и уведомление нужны им.
+                if (DeployManager.isDeploying.value) return START_STICKY
                 if (!TunnelManager.running.value) {
                     stopTunnel()
                 } else {

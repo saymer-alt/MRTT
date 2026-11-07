@@ -159,12 +159,12 @@ internal fun parseDeployOutputLine(rawLine: String): DeployOutputLine? {
     return DeployOutputLine(clean.take(500), level)
 }
 
-private fun publishDeployOutput(rawLine: String) {
+private fun publishDeployOutput(deploy: DeployRun, rawLine: String) {
     val line = parseDeployOutputLine(rawLine) ?: return
     when (line.level) {
-        DeployOutputLevel.LOG -> TunnelManager.addDeployInfoLog(line.message)
-        DeployOutputLevel.OK -> TunnelManager.addDeploySuccessLog(line.message)
-        DeployOutputLevel.ERR -> TunnelManager.addDeployErrorLog(line.message)
+        DeployOutputLevel.LOG -> deploy.info(line.message)
+        DeployOutputLevel.OK -> deploy.success(line.message)
+        DeployOutputLevel.ERR -> deploy.error(line.message)
     }
 }
 
@@ -208,11 +208,23 @@ private fun readableFileSize(bytes: Long): String = when {
     else -> "$bytes Б"
 }
 
+/** Одна установка или удаление: ход отдельно для сервера, в журнале каждая строка подписана его адресом. */
+internal class DeployRun(private val id: String, private val host: String) {
+    fun progress(value: Float, step: String) = DeployManager.updateProgress(id, value, step)
+    fun session(session: java.io.Closeable?) = DeployManager.setSession(id, session)
+    fun stop(result: String) = DeployManager.stopDeploy(id, result)
+    fun info(message: String) = TunnelManager.addDeployInfoLog("$host: $message")
+    fun success(message: String) = TunnelManager.addDeploySuccessLog("$host: $message")
+    fun warning(message: String) = TunnelManager.addDeployWarningLog("$host: $message")
+    fun error(message: String) = TunnelManager.addDeployErrorLog("$host: $message")
+}
+
 private data class SSHExecResult(val output: String, val exitStatus: Int)
 
 private class DeploySSHClient(
     private var ssh: SshjClient,
     private val sudoPass: String,
+    private val deploy: DeployRun,
     private val reconnect: ((String) -> SshjClient)? = null,
 ) {
 
@@ -220,10 +232,10 @@ private class DeploySSHClient(
         val factory = reconnect ?: return false
         return try {
             runCatching { ssh.disconnect() }
-            TunnelManager.addDeployInfoLog("SSH-соединение восстановление: $stage")
+            deploy.info("SSH-соединение восстановление: $stage")
             ssh = factory(stage)
-            DeployManager.activeSession = ssh
-            TunnelManager.addDeploySuccessLog("SSH-соединение восстановлено")
+            deploy.session(ssh)
+            deploy.success("SSH-соединение восстановлено")
             true
         } catch (error: Exception) {
             DeployManager.writeError(
@@ -274,12 +286,12 @@ private class DeploySSHClient(
                             match != null -> {
                                 val p = match.groupValues[1].toFloatOrNull() ?: 0f
                                 val step = match.groupValues[2].trim()
-                                DeployManager.updateProgress(p, step)
-                                TunnelManager.addDeployInfoLog("Этап: $step")
+                                deploy.progress(p, step)
+                                deploy.info("Этап: $step")
                             }
                             !clean.contains("MRTT_PROGRESS") -> {
                                 synchronized(result) { result.appendLine(clean) }
-                                publishDeployOutput(clean)
+                                publishDeployOutput(deploy, clean)
                                 val parsed = parseDeployOutputLine(clean)
                                 if (parsed?.level == DeployOutputLevel.ERR) {
                                     DeployManager.writeError("REMOTE: $clean")
@@ -302,7 +314,7 @@ private class DeploySSHClient(
                                 synchronized(result) { result.appendLine(clean) }
                                 DeployManager.writeError("STDERR: $clean")
                                 val display = parseDeployOutputLine(clean)?.message ?: clean.trim().take(500)
-                                TunnelManager.addDeployErrorLog("Сервер: $display")
+                                deploy.error("Сервер: $display")
                             }
                         }
                     }
@@ -324,7 +336,7 @@ private class DeploySSHClient(
             SSHExecResult(result.toString(), remoteCmd.exitStatus ?: -1)
         } catch (e: Exception) {
             DeployManager.writeError("SSH exec error: ${e.message} | cmd: ${command.take(80)}")
-            TunnelManager.addDeployErrorLog("SSH exec error: ${e.message}")
+            deploy.error("SSH exec error: ${e.message}")
             SSHExecResult("error: ${e.message}", -1)
         } finally {
             runCatching { sshSession.close() }
@@ -344,7 +356,7 @@ private class DeploySSHClient(
         }
 
         val label = deployAssetLabel(localFile.name)
-        TunnelManager.addDeployInfoLog("Загрузка: $label (${readableFileSize(localFile.length())})")
+        deploy.info("Загрузка: $label (${readableFileSize(localFile.length())})")
         var sftpSuccess = false
         var lastError = "SFTP channel did not accept the file"
         repeat(SFTP_UPLOAD_ATTEMPTS) { attempt ->
@@ -353,7 +365,7 @@ private class DeploySSHClient(
                     sftp.put(FileSystemFile(localFile), remotePath)
                     val remoteSize = sftp.lstat(remotePath).size
                     if (remoteSize == localFile.length()) {
-                        TunnelManager.addDeploySuccessLog("Загружено: $label")
+                        deploy.success("Загружено: $label")
                         sftpSuccess = true
                         return
                     }
@@ -374,7 +386,7 @@ private class DeploySSHClient(
             try {
                 DeployManager.writeError("Falling back to SCP for ${localFile.name}...")
                 ssh.newSCPFileTransfer().upload(FileSystemFile(localFile), remotePath)
-                TunnelManager.addDeploySuccessLog("Загружено (SCP): $label")
+                deploy.success("Загружено (SCP): $label")
                 return
             } catch (e: Exception) {
                 lastError = "SCP: ${e.message ?: e.javaClass.simpleName}"
@@ -402,12 +414,12 @@ private class DeploySSHClient(
                         }
                         totalUploaded += bytesRead
                         val percent = (totalUploaded.toFloat() / totalLength.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        DeployManager.updateProgress(percent * 0.5f, "Загрузка: $label (${(percent * 100).toInt()}%)")
+                        deploy.progress(percent * 0.5f, "Загрузка: $label (${(percent * 100).toInt()}%)")
                     }
                 }
                 val moveRes = execResult(rootCommand("mv -f '$tempRemote' '$remotePath' && chmod 0755 '$remotePath'", sudoPass), 30000L)
                 if (moveRes.exitStatus == 0) {
-                    TunnelManager.addDeploySuccessLog("Загружено (Stream): $label")
+                    deploy.success("Загружено (Stream): $label")
                     return
                 }
             } catch (e: Exception) {
@@ -422,7 +434,7 @@ private class DeploySSHClient(
         }
 
         val message = "SFTP/SCP upload failed for ${localFile.name}: $lastError"
-        TunnelManager.addDeployErrorLog("Не удалось загрузить $label: $lastError")
+        deploy.error("Не удалось загрузить $label: $lastError")
         throw IOException(message)
     }
 }
@@ -565,7 +577,7 @@ internal suspend fun performDeploy(
     host: String, user: String, pass: String, port: Int,
     mainPass: String,
     peerPort: Int, webPort: Int,
-    onProgress: (Float, String) -> Unit,
+    deploy: DeployRun,
     privateKey: String = "",
     keyPassphrase: String = "",
     installInDocker: Boolean = false,
@@ -574,33 +586,33 @@ internal suspend fun performDeploy(
     var tempDir: File? = null
     try {
         TunnelManager.beginDeployLog("Начало установки на $host:$port")
-        onProgress(0.02f, "Подключение...")
+        deploy.progress(0.02f, "Подключение...")
 
-        TunnelManager.addDeployInfoLog("SSH/SFTP используют текущий системный маршрут")
-        TunnelManager.addDeployInfoLog(
+        deploy.info("SSH/SFTP используют текущий системный маршрут")
+        deploy.info(
             "Подключение к $host:$port по SSH, вход как $user по ${if (privateKey.isNotBlank()) "ключу" else "паролю"}",
         )
         val initialSsh = createSSHClient(context, host, user, pass, port, privateKey, keyPassphrase)
         ssh = initialSsh
-        TunnelManager.addDeployInfoLog("Сервер SSH: ${initialSsh.transport.serverVersion}")
-        DeployManager.activeSession = initialSsh
-        val sshClient = DeploySSHClient(initialSsh, pass) { stage ->
-            TunnelManager.addDeployInfoLog("Повторное SSH-подключение: $stage")
+        deploy.info("Сервер SSH: ${initialSsh.transport.serverVersion}")
+        deploy.session(initialSsh)
+        val sshClient = DeploySSHClient(initialSsh, pass, deploy) { stage ->
+            deploy.info("Повторное SSH-подключение: $stage")
             createSSHClient(context, host, user, pass, port, privateKey, keyPassphrase).also {
                 ssh = it
             }
         }
-        TunnelManager.addDeploySuccessLog("Вход на VPS выполнен")
+        deploy.success("Вход на VPS выполнен")
 
         val architectureResult = sshClient.execResult("uname -m", timeout = 10000L)
         if (architectureResult.exitStatus != 0) {
             throw IOException("Не удалось определить архитектуру VPS: ${architectureResult.output.trim().take(160)}")
         }
         val serverArchitecture = serverArchitectureForMachine(architectureResult.output)
-        TunnelManager.addDeployInfoLog("Архитектура VPS: ${serverArchitecture.displayName}")
+        deploy.info("Архитектура VPS: ${serverArchitecture.displayName}")
 
-        onProgress(0.05f, "Подготовка файлов...")
-        TunnelManager.addDeployInfoLog("Подготовка файлов установки")
+        deploy.progress(0.05f, "Подготовка файлов...")
+        deploy.info("Подготовка файлов установки")
 
         val workingDir = File(context.cacheDir, "deploy-${System.nanoTime()}")
         tempDir = workingDir
@@ -632,21 +644,21 @@ internal suspend fun performDeploy(
                     .toString()
             )
         }
-        TunnelManager.addDeploySuccessLog("Файлы установки подготовлены")
+        deploy.success("Файлы установки подготовлены")
 
-        onProgress(0.06f, "Подготовка сервера...")
+        deploy.progress(0.06f, "Подготовка сервера...")
         sshClient.upload(scriptFile, "/tmp/deploy.sh")
 
         val deployEnvironment =
             "env MRTT_PEER_PORT=$peerPort MRTT_SSH_PORT=$port MRTT_WEB_PORT=$webPort MRTT_PUBLIC_IP=${host.trim()} " +
                 "MRTT_DEPLOY_MODE=${deployMode(installInDocker)}"
-        onProgress(0.10f, "Загрузка нового сервера...")
+        deploy.progress(0.10f, "Загрузка нового сервера...")
         sshClient.upload(serverFile, "/tmp/.mrtt-upload-server")
         sshClient.upload(environmentFile, "/tmp/.mrtt-upload-web.env")
         sshClient.upload(overridesFile, "/tmp/.mrtt-upload-overrides.json")
 
-        onProgress(0.18f, "Установка нового сервера...")
-        TunnelManager.addDeployInfoLog("Запуск установщика на VPS")
+        deploy.progress(0.18f, "Установка нового сервера...")
+        deploy.info("Запуск установщика на VPS")
         val deployResult = sshClient.execResult(
             rootCommand("$deployEnvironment bash /tmp/deploy.sh install", pass),
             timeout = CMD_TIMEOUT
@@ -654,14 +666,14 @@ internal suspend fun performDeploy(
         val output = deployResult.output
 
         if (isSuccessfulDeployResult(deployResult.exitStatus, output)) {
-            TunnelManager.addDeploySuccessLog(
+            deploy.success(
                 if (installInDocker) {
                     "Установка завершена · Docker-контейнер MRTT активен"
                 } else {
                     "Установка завершена · служба MRTT активна"
                 }
             )
-            DeployManager.stopDeploy("success")
+            deploy.stop("success")
             return@withContext true
         } else {
             DeployManager.writeError(
@@ -669,14 +681,14 @@ internal suspend fun performDeploy(
                     "\n${output.takeLast(1200)}"
             )
             val failureMessage = deployFailureMessage(deployResult.exitStatus, output)
-            TunnelManager.addDeployErrorLog(failureMessage)
-            DeployManager.stopDeploy(failureMessage)
+            deploy.error(failureMessage)
+            deploy.stop(failureMessage)
             return@withContext false
         }
     } catch (e: CancellationException) {
         DeployManager.writeError("Deploy cancelled")
-        TunnelManager.addDeployWarningLog("установка отменена пользователем")
-        DeployManager.stopDeploy("Установка отменена")
+        deploy.warning("установка отменена пользователем")
+        deploy.stop("Установка отменена")
         throw e
     } catch (e: Exception) {
         val friendly = friendlyDeployError(e.message)
@@ -684,13 +696,13 @@ internal suspend fun performDeploy(
             "Deploy error (${e.javaClass.simpleName}): ${e.message}\n" +
                 e.stackTraceToString().take(1200)
         )
-        TunnelManager.addDeployErrorLog(friendly)
-        if (friendly != e.message) TunnelManager.addDeployInfoLog("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
-        DeployManager.stopDeploy(friendly)
+        deploy.error(friendly)
+        if (friendly != e.message) deploy.info("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
+        deploy.stop(friendly)
         return@withContext false
     } finally {
         try { ssh?.disconnect() } catch (_: Exception) {}
-        DeployManager.activeSession = null
+        deploy.session(null)
         runCatching { tempDir?.deleteRecursively() }
     }
 }
@@ -699,7 +711,7 @@ internal suspend fun performUninstall(
     context: Context,
     host: String, user: String, pass: String, port: Int,
     peerPort: Int,
-    onProgress: (Float, String) -> Unit,
+    deploy: DeployRun,
     privateKey: String = "",
     keyPassphrase: String = "",
 ): Boolean = withContext(Dispatchers.IO) {
@@ -707,16 +719,16 @@ internal suspend fun performUninstall(
     var uninstallScript: File? = null
     try {
         TunnelManager.beginDeployLog("Начало удаления с $host:$port")
-        onProgress(0.05f, "Подключение...")
-        TunnelManager.addDeployInfoLog("SSH/SFTP используют текущий системный маршрут")
-        TunnelManager.addDeployInfoLog("Подключение к VPS по SSH")
+        deploy.progress(0.05f, "Подключение...")
+        deploy.info("SSH/SFTP используют текущий системный маршрут")
+        deploy.info("Подключение к VPS по SSH")
         ssh = createSSHClient(context, host, user, pass, port, privateKey, keyPassphrase)
-        DeployManager.activeSession = ssh
-        val sshClient = DeploySSHClient(ssh, pass)
-        TunnelManager.addDeploySuccessLog("SSH-соединение установлено")
+        deploy.session(ssh)
+        val sshClient = DeploySSHClient(ssh, pass, deploy)
+        deploy.success("SSH-соединение установлено")
 
-        onProgress(0.15f, "Подготовка штатного удаления...")
-        TunnelManager.addDeployInfoLog("Загрузка штатного установщика MRTT")
+        deploy.progress(0.15f, "Подготовка штатного удаления...")
+        deploy.info("Загрузка штатного установщика MRTT")
         uninstallScript = File(context.cacheDir, "mrtt-uninstall-${System.nanoTime()}.sh")
         context.assets.open("deploy.sh").use { input ->
             FileOutputStream(uninstallScript).use { output -> input.copyTo(output) }
@@ -726,8 +738,8 @@ internal suspend fun performUninstall(
         }
         sshClient.upload(uninstallScript, "/tmp/deploy.sh")
 
-        onProgress(0.30f, "Удаление через deploy.sh...")
-        TunnelManager.addDeployInfoLog("Запуск серверного удаления")
+        deploy.progress(0.30f, "Удаление через deploy.sh...")
+        deploy.info("Запуск серверного удаления")
         sshClient.exec(
             rootCommand("env MRTT_PEER_PORT=$peerPort MRTT_SSH_PORT=$port bash /tmp/deploy.sh uninstall", pass),
             timeout = 30000L,
@@ -744,26 +756,26 @@ internal suspend fun performUninstall(
             timeout = 30000L,
         )
 
-        onProgress(1.0f, "Готово!")
-        TunnelManager.addDeploySuccessLog("Удаление MRTT завершено")
-        DeployManager.stopDeploy("success")
+        deploy.progress(1.0f, "Готово!")
+        deploy.success("Удаление MRTT завершено")
+        deploy.stop("success")
         return@withContext true
 
     } catch (e: CancellationException) {
         DeployManager.writeError("Uninstall cancelled")
-        TunnelManager.addDeployWarningLog("удаление отменено пользователем")
-        DeployManager.stopDeploy("Удаление отменено")
+        deploy.warning("удаление отменено пользователем")
+        deploy.stop("Удаление отменено")
         throw e
     } catch (e: Exception) {
         val friendly = friendlyDeployError(e.message)
         DeployManager.writeError("Uninstall error (${e.javaClass.simpleName}): ${e.message}")
-        TunnelManager.addDeployErrorLog(friendly)
-        if (friendly != e.message) TunnelManager.addDeployInfoLog("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
-        DeployManager.stopDeploy(friendly)
+        deploy.error(friendly)
+        if (friendly != e.message) deploy.info("Техническая причина: ${e.javaClass.simpleName}: ${e.message.orEmpty().take(200)}")
+        deploy.stop(friendly)
         return@withContext false
     } finally {
         try { ssh?.disconnect() } catch (_: Exception) {}
-        DeployManager.activeSession = null
+        deploy.session(null)
         uninstallScript?.delete()
     }
 }
@@ -774,7 +786,7 @@ internal data class CreatedExit(val id: String, val table: Int, val remotePasswo
 private class CascadeHost(private val context: Context, private val server: com.mrtt.client.servers.VpsServer) : java.io.Closeable {
     private val script = context.assets.open("cascade.sh").use { it.readBytes().toString(Charsets.UTF_8) }
     private val ssh = createSSHClient(context, server.host, server.sshUser, server.sshPassword, server.sshPort, server.sshPrivateKey, server.sshKeyPassphrase)
-    private val client = DeploySSHClient(ssh, server.sshPassword)
+    private val client = DeploySSHClient(ssh, server.sshPassword, DeployRun("", server.host))
 
     /** Строка ответа с маркером [marker], разбитая на слова. */
     fun run(marker: String, vararg args: String): List<String> {

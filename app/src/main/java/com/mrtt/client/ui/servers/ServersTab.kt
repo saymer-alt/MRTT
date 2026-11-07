@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mrtt.client.DeployManager
-import com.mrtt.client.TunnelManager
 import com.mrtt.client.TunnelService
 import com.mrtt.client.servers.ServerApi
 import com.mrtt.client.servers.ServerRepository
@@ -49,18 +48,15 @@ import com.mrtt.client.ui.components.MrttScreen
 import com.mrtt.client.ui.design.MrttShapes
 import com.mrtt.client.ui.design.MrttSizes
 import com.mrtt.client.ui.friendlyDeployError
+import com.mrtt.client.ui.DeployRun
 import com.mrtt.client.ui.performDeploy
 import com.mrtt.client.ui.performUninstall
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableStateFlow
 
 private const val NEW_SERVER = "new"
-
-/** Сервер, для которого идёт установка или удаление: прогресс и ошибки показываются только у него. */
-internal val deployTarget = MutableStateFlow("")
 
 @Composable
 internal fun ServersTab() {
@@ -169,17 +165,14 @@ internal fun ServersTab() {
 }
 
 @Composable
-internal fun DeployProgressCard() {
-    val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
-    val progress by DeployManager.deployProgress.collectAsStateWithLifecycle()
-    val step by DeployManager.currentStep.collectAsStateWithLifecycle()
+internal fun DeployProgressCard(serverId: String) {
+    val jobs by DeployManager.jobs.collectAsStateWithLifecycle()
     // Только ход установки: ошибка показывается один раз, на экране самого сервера.
-    if (isDeploying) {
-        AppSectionCard {
-            Text(step.ifBlank { "Установка..." }, style = MaterialTheme.typography.bodyMedium)
-            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-            Text("Подробности во вкладке «Логи»", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    val job = jobs[serverId] ?: return
+    AppSectionCard {
+        Text(job.step.ifBlank { "Установка..." }, style = MaterialTheme.typography.bodyMedium)
+        LinearProgressIndicator(progress = { job.progress }, modifier = Modifier.fillMaxWidth())
+        Text("Подробности во вкладке «Логи»", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -187,14 +180,11 @@ internal fun DeployProgressCard() {
 private fun Spacer24() = androidx.compose.foundation.layout.Spacer(Modifier.height(24.dp))
 
 private fun startDeploy(context: Context, server: VpsServer) {
-    if (DeployManager.isDeploying.value) return
     if (!server.hasSshAuth) {
         context.showRaisedToast("Укажите SSH-пароль или ключ сервера")
         return
     }
-    ServerApi.forget(server.id)
-    deployTarget.value = server.id
-    runDeployJob(context, "Установка") {
+    runDeployJob(context, server, "Установка") { deploy ->
         performDeploy(
             context = context,
             host = server.host,
@@ -204,7 +194,7 @@ private fun startDeploy(context: Context, server: VpsServer) {
             mainPass = server.mainPassword,
             peerPort = server.peerPort,
             webPort = server.apiPort,
-            onProgress = DeployManager::updateProgress,
+            deploy = deploy,
             privateKey = server.sshPrivateKey,
             keyPassphrase = server.sshKeyPassphrase,
             installInDocker = server.docker,
@@ -213,10 +203,7 @@ private fun startDeploy(context: Context, server: VpsServer) {
 }
 
 private fun startUninstall(context: Context, server: VpsServer) {
-    if (DeployManager.isDeploying.value) return
-    ServerApi.forget(server.id)
-    deployTarget.value = server.id
-    runDeployJob(context, "Удаление") {
+    runDeployJob(context, server, "Удаление") { deploy ->
         performUninstall(
             context = context,
             host = server.host,
@@ -224,32 +211,34 @@ private fun startUninstall(context: Context, server: VpsServer) {
             pass = server.sshPassword,
             port = server.sshPort,
             peerPort = server.peerPort,
-            onProgress = DeployManager::updateProgress,
+            deploy = deploy,
             privateKey = server.sshPrivateKey,
             keyPassphrase = server.sshKeyPassphrase,
         )
     }
 }
 
-private fun runDeployJob(context: Context, label: String, block: suspend () -> Boolean) {
+private fun runDeployJob(context: Context, server: VpsServer, label: String, block: suspend (DeployRun) -> Boolean) {
     // Деплой идёт в IO-скоупе, а тосты можно показывать только с главного потока.
     suspend fun toast(message: String) = withContext(Dispatchers.Main) { context.showRaisedToast(message) }
-    DeployManager.startDeploy()
+    if (!DeployManager.startDeploy(server.id)) return
+    ServerApi.forget(server.id)
+    val deploy = DeployRun(server.id, server.host)
     DeployManager.scope.launch {
         try {
             context.startForegroundService(Intent(context, TunnelService::class.java).apply { action = "DEPLOY_START" })
-            if (block()) {
+            if (block(deploy)) {
                 toast("$label успешно завершено")
             } else {
-                toast(DeployManager.lastResult.value.ifBlank { "$label: ошибка" })
+                toast(DeployManager.lastResult(server.id).ifBlank { "$label: ошибка" })
             }
         } catch (e: CancellationException) {
-            DeployManager.stopDeploy("$label отменено")
+            deploy.stop("$label отменено")
             throw e
         } catch (e: Exception) {
             val message = friendlyDeployError(e.message)
-            TunnelManager.addDeployErrorLog(message)
-            DeployManager.stopDeploy(message)
+            deploy.error(message)
+            deploy.stop(message)
             toast(message)
         } finally {
             runCatching {

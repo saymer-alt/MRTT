@@ -11,6 +11,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class DeployJob(val progress: Float, val step: String, val startedAt: Long)
+
 object DeployManager {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         val message = throwable.message?.take(160) ?: throwable.javaClass.simpleName
@@ -19,18 +21,16 @@ object DeployManager {
                 throwable.stackTraceToString().take(1200)
         )
         TunnelManager.addDeployErrorLog("Необработанная ошибка установки: $message")
-        stopDeploy("Ошибка установки: $message")
+        stopAll("Ошибка установки: $message")
     }
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
 
+    /** Идущие установки и удаления по id сервера. */
+    val jobs = MutableStateFlow<Map<String, DeployJob>>(emptyMap())
     val isDeploying = MutableStateFlow(false)
-    val deployProgress = MutableStateFlow(0f)
-    val currentStep = MutableStateFlow("")
-    val lastResult = MutableStateFlow("") 
 
-    @Volatile
-    var activeSession: java.io.Closeable? = null
-    private var deployStartTime = 0L
+    private val sessions = java.util.concurrent.ConcurrentHashMap<String, java.io.Closeable>()
+    private val results = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var errorsFile: File? = null
 
     fun init(context: Context) {
@@ -52,41 +52,42 @@ object DeployManager {
         } catch (_: Exception) { }
     }
 
-    fun startDeploy() {
-        if (isDeploying.value && deployStartTime > 0 &&
-            System.currentTimeMillis() - deployStartTime > 30 * 60 * 1000) {
+    /** false, если на этом сервере уже что-то идёт. */
+    @Synchronized
+    fun startDeploy(id: String): Boolean {
+        val now = System.currentTimeMillis()
+        jobs.value[id]?.let { running ->
+            if (now - running.startedAt <= 30 * 60 * 1000) return false
             writeError("Автосброс: предыдущий деплой завис >30 мин")
-            forceReset()
+            stopDeploy(id)
         }
-        TunnelManager.clearLogs()
+        if (jobs.value.isEmpty()) TunnelManager.clearLogs()
+        results.remove(id)
+        jobs.value = jobs.value + (id to DeployJob(0f, "Инициализация...", now))
         isDeploying.value = true
-        deployStartTime = System.currentTimeMillis()
-        deployProgress.value = 0f
-        currentStep.value = "Инициализация..."
-        lastResult.value = ""
+        return true
     }
 
-    fun stopDeploy(result: String = "") {
-        isDeploying.value = false
-        deployStartTime = 0L
-        if (result.isNotBlank()) lastResult.value = result
-        val session = activeSession
-        activeSession = null
-        try { session?.close() } catch (_: Exception) {}
+    @Synchronized
+    fun stopDeploy(id: String, result: String = "") {
+        jobs.value = jobs.value - id
+        isDeploying.value = jobs.value.isNotEmpty()
+        if (result.isNotBlank()) results[id] = result
+        try { sessions.remove(id)?.close() } catch (_: Exception) {}
     }
 
-    fun forceReset() {
-        val session = activeSession
-        activeSession = null
-        try { session?.close() } catch (_: Exception) {}
-        isDeploying.value = false
-        deployStartTime = 0L
-        deployProgress.value = 0f
-        currentStep.value = ""
+    @Synchronized
+    fun stopAll(result: String = "") = jobs.value.keys.forEach { stopDeploy(it, result) }
+
+    fun lastResult(id: String): String = results[id].orEmpty()
+
+    fun setSession(id: String, session: java.io.Closeable?) {
+        if (session == null) sessions.remove(id) else if (id in jobs.value) sessions[id] = session
     }
 
-    fun updateProgress(progress: Float, step: String) {
-        deployProgress.value = progress
-        currentStep.value = step
+    @Synchronized
+    fun updateProgress(id: String, progress: Float, step: String) {
+        val job = jobs.value[id] ?: return
+        jobs.value = jobs.value + (id to job.copy(progress = progress, step = step))
     }
 }

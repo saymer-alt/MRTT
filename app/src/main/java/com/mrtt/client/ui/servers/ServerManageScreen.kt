@@ -68,9 +68,8 @@ internal fun ServerManageScreen(
     var section by rememberSaveable(server.id) { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }
     var confirm by rememberSaveable { mutableStateOf<String?>(null) }
-    val isDeploying by DeployManager.isDeploying.collectAsStateWithLifecycle()
-    val target by deployTarget.collectAsStateWithLifecycle()
-    val deployingHere = isDeploying && target == server.id
+    val jobs by DeployManager.jobs.collectAsStateWithLifecycle()
+    val deployingHere = server.id in jobs
     // Каждая установка начинает новое поколение: разделы пересоздаются и грузят данные заново.
     var generation by remember(server.id) { mutableIntStateOf(0) }
     var wasDeploying by rememberSaveable(server.id) { mutableStateOf(deployingHere) }
@@ -78,7 +77,7 @@ internal fun ServerManageScreen(
     var deployError by rememberSaveable(server.id) { mutableStateOf("") }
     LaunchedEffect(deployingHere) {
         if (wasDeploying && !deployingHere) {
-            deployError = DeployManager.lastResult.value.takeIf { it != "success" }.orEmpty()
+            deployError = DeployManager.lastResult(server.id).takeIf { it != "success" }.orEmpty()
             generation++
         }
         wasDeploying = deployingHere
@@ -122,7 +121,7 @@ internal fun ServerManageScreen(
             }
         }
         if (deployingHere) {
-            DeployProgressCard()
+            DeployProgressCard(server.id)
             return@MrttScreen
         }
         when {
