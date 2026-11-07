@@ -5,7 +5,7 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export TERM="${TERM:-xterm}"
 
-readonly SCRIPT_VERSION="1.0-beta3"
+readonly SCRIPT_VERSION="1.0-beta1"
 readonly LOG_FILE="/var/log/mrtt-install.log"
 readonly PEER_PORT="${MRTT_PEER_PORT:-46000}"
 readonly SSH_PORT="${MRTT_SSH_PORT:-22}"
