@@ -97,6 +97,8 @@ fun FloatingToolbar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
     ) {
+        DeployJobsButton()
+
         IconButton(
             onClick = { showImportExportDialog = true },
             modifier = Modifier.size(38.dp),

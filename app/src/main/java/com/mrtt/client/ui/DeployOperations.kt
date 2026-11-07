@@ -209,10 +209,10 @@ private fun readableFileSize(bytes: Long): String = when {
 }
 
 /** Одна установка или удаление: ход отдельно для сервера, в журнале каждая строка подписана его адресом. */
-internal class DeployRun(private val id: String, private val host: String) {
-    fun progress(value: Float, step: String) = DeployManager.updateProgress(id, value, step)
-    fun session(session: java.io.Closeable?) = DeployManager.setSession(id, session)
-    fun stop(result: String) = DeployManager.stopDeploy(id, result)
+internal class DeployRun(private val id: String, private val host: String, private val token: Long = 0L) {
+    fun progress(value: Float, step: String) = DeployManager.updateProgress(id, token, value, step)
+    fun session(session: java.io.Closeable?) = DeployManager.setSession(id, token, session)
+    fun stop(result: String) = DeployManager.stopDeploy(id, result, token)
     fun info(message: String) = TunnelManager.addDeployInfoLog("$host: $message")
     fun success(message: String) = TunnelManager.addDeploySuccessLog("$host: $message")
     fun warning(message: String) = TunnelManager.addDeployWarningLog("$host: $message")

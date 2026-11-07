@@ -221,9 +221,9 @@ private fun startUninstall(context: Context, server: VpsServer) {
 private fun runDeployJob(context: Context, server: VpsServer, label: String, block: suspend (DeployRun) -> Boolean) {
     // Деплой идёт в IO-скоупе, а тосты можно показывать только с главного потока.
     suspend fun toast(message: String) = withContext(Dispatchers.Main) { context.showRaisedToast(message) }
-    if (!DeployManager.startDeploy(server.id)) return
+    val token = DeployManager.startDeploy(server.id, server.title) ?: return
     ServerApi.forget(server.id)
-    val deploy = DeployRun(server.id, server.host)
+    val deploy = DeployRun(server.id, server.host, token)
     DeployManager.scope.launch {
         try {
             context.startForegroundService(Intent(context, TunnelService::class.java).apply { action = "DEPLOY_START" })

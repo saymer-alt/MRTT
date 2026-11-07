@@ -373,7 +373,7 @@ class TunnelService : Service() {
             }
             "DEPLOY_CANCEL" -> {
                 com.mrtt.client.DeployManager.writeError("✗ Установка отменена пользователем")
-                com.mrtt.client.DeployManager.stopAll("error: Отменена пользователем")
+                com.mrtt.client.DeployManager.cancelAll()
                 if (TunnelManager.running.value) {
                     lastNotificationText = null
                     lastNotificationPostElapsedMs = 0L

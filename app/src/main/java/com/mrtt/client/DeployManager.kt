@@ -11,7 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class DeployJob(val progress: Float, val step: String, val startedAt: Long)
+data class DeployJob(val title: String, val progress: Float, val step: String, val startedAt: Long)
 
 object DeployManager {
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -52,24 +52,30 @@ object DeployManager {
         } catch (_: Exception) { }
     }
 
-    /** false, если на этом сервере уже что-то идёт. */
+    /**
+     * Метка запуска или null, если на этом сервере уже что-то идёт. По метке прерванная работа, пока она завершается,
+     * не трогает новую установку на том же сервере.
+     */
     @Synchronized
-    fun startDeploy(id: String): Boolean {
+    fun startDeploy(id: String, title: String): Long? {
         val now = System.currentTimeMillis()
         jobs.value[id]?.let { running ->
-            if (now - running.startedAt <= 30 * 60 * 1000) return false
+            if (now - running.startedAt <= 30 * 60 * 1000) return null
             writeError("Автосброс: предыдущий деплой завис >30 мин")
             stopDeploy(id)
         }
         if (jobs.value.isEmpty()) TunnelManager.clearLogs()
         results.remove(id)
-        jobs.value = jobs.value + (id to DeployJob(0f, "Инициализация...", now))
+        jobs.value = jobs.value + (id to DeployJob(title, 0f, "Инициализация...", now))
         isDeploying.value = true
-        return true
+        return now
     }
 
+    /** Без [token] останавливает то, что идёт сейчас. Уже остановленное не трогает: причина остаётся первой. */
     @Synchronized
-    fun stopDeploy(id: String, result: String = "") {
+    fun stopDeploy(id: String, result: String = "", token: Long? = null) {
+        val job = jobs.value[id] ?: return
+        if (token != null && token != job.startedAt) return
         jobs.value = jobs.value - id
         isDeploying.value = jobs.value.isNotEmpty()
         if (result.isNotBlank()) results[id] = result
@@ -79,15 +85,32 @@ object DeployManager {
     @Synchronized
     fun stopAll(result: String = "") = jobs.value.keys.forEach { stopDeploy(it, result) }
 
-    fun lastResult(id: String): String = results[id].orEmpty()
-
-    fun setSession(id: String, session: java.io.Closeable?) {
-        if (session == null) sessions.remove(id) else if (id in jobs.value) sessions[id] = session
+    @Synchronized
+    fun cancel(id: String) {
+        val job = jobs.value[id] ?: return
+        TunnelManager.addDeployWarningLog("${job.title}: отменено пользователем")
+        stopDeploy(id, "Отменено пользователем")
     }
 
     @Synchronized
-    fun updateProgress(id: String, progress: Float, step: String) {
-        val job = jobs.value[id] ?: return
+    fun cancelAll() = jobs.value.keys.forEach(::cancel)
+
+    fun lastResult(id: String): String = results[id].orEmpty()
+
+    /** Сессия отменённой работы сразу закрывается, иначе подключение, начатое до отмены, продолжило бы установку. */
+    @Synchronized
+    fun setSession(id: String, token: Long, session: java.io.Closeable?) {
+        val current = jobs.value[id]?.startedAt == token
+        when {
+            session == null -> if (current) sessions.remove(id)
+            current -> sessions[id] = session
+            else -> try { session.close() } catch (_: Exception) {}
+        }
+    }
+
+    @Synchronized
+    fun updateProgress(id: String, token: Long, progress: Float, step: String) {
+        val job = jobs.value[id]?.takeIf { it.startedAt == token } ?: return
         jobs.value = jobs.value + (id to job.copy(progress = progress, step = step))
     }
 }
