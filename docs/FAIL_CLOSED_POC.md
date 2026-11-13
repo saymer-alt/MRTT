@@ -71,6 +71,31 @@ plus one lab run on a test VPS.
 5. Regression tests: the 12 unit tests plus one integration test that runs
    `decide` against the real monitor-loop states.
 
+## Audit v2 (branch `research/fail-closed-audit-fixes`)
+
+Re-review of this PoC (Draft PR #1) found two defects **in the module
+itself**; both are fixed on the follow-up branch with negative tests:
+
+1. **Block rule without blackhole route was treated as done.**
+   `plan(block_installed = true, blackhole_installed = false, Egress::Block)`
+   returned an empty plan ("idempotent"), but a rule that looks up an empty
+   table makes the kernel fall through to the next policy rule — ultimately
+   the main table, i.e. direct egress while clients are believed to be
+   blocked. Fixed: `plan` repairs the missing route regardless of rule state
+   (`rule_without_blackhole_route_is_repaired`).
+2. **Premature unlock before TPROXY readiness.** `decide` keyed on
+   `port_is_listening()` alone, so the plan removed the block rule as soon
+   as the SOCKS5 port answered a TCP probe — while the TPROXY data path
+   (tproxy child spawn retries, rule activation) was not active yet: a
+   direct-egress window. Fixed: `EgressState.socks_route_ready` gates both
+   `decide` and `plan`; without readiness an `Egress::Socks` request is
+   demoted to `Block` (`listening_port_without_tproxy_readiness_blocks`,
+   `unlock_is_refused_until_tproxy_ready`).
+
+A property sweep (`plan_converges_to_decided_state`) additionally proves
+that executing the plan once converges to the decided state from every
+(rule, route) start state. Test count: 12 → 15.
+
 ## License note
 
 Repo root `LICENSE` is PolyForm Noncommercial 1.0.0, while
